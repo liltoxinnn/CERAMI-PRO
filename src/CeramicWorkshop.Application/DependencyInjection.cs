@@ -37,6 +37,10 @@ public static class DependencyInjection
         services.AddScoped<IPaiementService, PaiementService>();
         services.AddScoped<IFactureService, FactureService>();
         services.AddScoped<IVenteService, VenteService>();
+        services.AddScoped<IDepenseService, DepenseService>();
+        services.AddScoped<ITableauDeBordService, TableauDeBordService>();
+        services.AddScoped<IRapportService, RapportService>();
+        services.AddScoped<ICalculateurService, CalculateurService>();
 
         return services;
     }

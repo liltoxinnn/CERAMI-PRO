@@ -1,0 +1,372 @@
+@page "/depenses"
+@attribute [Authorize(Policy = PermissionCodes.DepensesConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+@inject AdresseServeur Serveur
+
+<PageTitle>Dépenses — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Dépenses"
+            Introduction="Électricité, gaz, transport, emballage, maintenance, salaires, équipement…">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouvelle dépense</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher une description, une catégorie…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="categorie">Catégorie</label>
+        <select id="categorie" class="saisie saisie-compacte" @onchange="FiltrerCategorie">
+            <option value="">Toutes</option>
+            @foreach (var categorie in _categories)
+            {
+                <option value="@categorie.Id">@categorie.Nom</option>
+            }
+        </select>
+    </div>
+
+    <div class="champ">
+        <label for="du">Du</label>
+        <input id="du" type="date" class="saisie saisie-compacte" @onchange="FiltrerDu" />
+    </div>
+    <div class="champ">
+        <label for="au">Au</label>
+        <input id="au" type="date" class="saisie saisie-compacte" @onchange="FiltrerAu" />
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des dépenses…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucune dépense ne correspond à ces critères." />
+}
+else
+{
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@MontantFormatter.Formater(_page.Elements.Sum(d => d.Montant))"
+                     Libelle="total affiché" />
+        <Statistique Valeur="@_page.Total.ToString()" Libelle="dépenses enregistrées" />
+    </div>
+
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Référence</th><th>Date</th><th>Catégorie</th><th>Description</th>
+                <th class="nombre">Montant</th><th>Mode</th><th>Justificatif</th>
+                @if (PeutGerer) { <th class="colonne-actions">Actions</th> }
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var depense in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Référence"><code>@depense.Reference</code></td>
+                    <td data-libelle="Date">@MontantFormatter.FormaterDate(depense.Date.ToLocalTime())</td>
+                    <td data-libelle="Catégorie">@depense.CategorieNom</td>
+                    <td data-libelle="Description">@depense.Description</td>
+                    <td class="nombre" data-libelle="Montant">
+                        <strong>@MontantFormatter.Formater(depense.Montant)</strong></td>
+                    <td data-libelle="Mode">@(depense.ModeReglement ?? "—")</td>
+                    <td data-libelle="Justificatif">
+                        @if (!string.IsNullOrWhiteSpace(depense.Justificatif))
+                        {
+                            <a href="@Serveur.Fichier(depense.Justificatif)" target="_blank">Ouvrir</a>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
+                    </td>
+                    @if (PeutGerer)
+                    {
+                        <td class="colonne-actions" data-libelle="Actions">
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(depense)">Modifier</button>
+                            <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                    @onclick="() => OuvrirSuppression(depense)">Supprimer</button>
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="DepenseDto" Page="_page" Libelle="dépense(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouvelle dépense" : "Modifier la dépense")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="cat">Catégorie</label>
+                <InputSelect id="cat" class="saisie" @bind-Value="_formulaire.CategorieId">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var categorie in _categories)
+                    {
+                        <option value="@categorie.Id">@categorie.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="montant">Montant</label>
+                <InputNumber id="montant" class="saisie" @bind-Value="_formulaire.Montant" />
+            </div>
+            <div class="champ">
+                <label for="date">Date</label>
+                <InputDate id="date" class="saisie" @bind-Value="_formulaire.Date" />
+            </div>
+            <div class="champ">
+                <label for="mode">Mode de règlement</label>
+                <InputSelect id="mode" class="saisie" @bind-Value="_formulaire.ModeReglementId">
+                    <option value="">Non précisé</option>
+                    @foreach (var mode in _modes)
+                    {
+                        <option value="@mode.Id">@mode.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="champ">
+            <label for="description">Description</label>
+            <InputTextArea id="description" class="saisie saisie-multiligne" rows="2"
+                           @bind-Value="_formulaire.Description" />
+        </div>
+
+        <TeleversementFichier Libelle="Justificatif (facture, reçu)" OnDepose="DefinirJustificatif" />
+
+        @if (!string.IsNullOrWhiteSpace(_formulaire.Justificatif))
+        {
+            <p class="champ-aide">Justificatif enregistré.</p>
+        }
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_suppressionVisible" Titre="Supprimer la dépense"
+         OnFermer="() => _suppressionVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <p class="carte-texte">
+        La dépense reste conservée dans l'historique comptable, marquée comme supprimée.
+    </p>
+
+    <div class="champ">
+        <label for="motif">Motif de la suppression</label>
+        <input id="motif" class="saisie" @bind="_motif" />
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _suppressionVisible = false">Revenir</button>
+        <button type="button" class="bouton bouton-danger" disabled="@_enregistrement" @onclick="Supprimer">
+            @(_enregistrement ? "Suppression…" : "Confirmer")
+        </button>
+    </div>
+</Fenetre>
+
+@code {
+    private PagedResult<DepenseDto>? _page;
+    private List<ElementReferentielDto> _categories = new();
+    private List<ModeReglementDto> _modes = new();
+
+    private FiltreDepensesRequete _filtre = new();
+    private DepenseRequete _formulaire = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _suppressionVisible, _creation, _enregistrement;
+    private int _idEnCours;
+    private string _motif = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.DepensesGerer);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var categories = await Api.ObtenirAsync<List<ElementReferentielDto>>(
+            "api/referentiels/CategorieDepense?inclureInactifs=false");
+        if (categories.Succes && categories.Valeur is not null) _categories = categories.Valeur;
+
+        var modes = await Api.ObtenirAsync<List<ModeReglementDto>>("api/modes-reglement");
+        if (modes.Succes && modes.Valeur is not null) _modes = modes.Valeur;
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/depenses?page={_filtre.Page}&taillePage={_filtre.TaillePage}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.CategorieId is not null) chemin += $"&categorieId={_filtre.CategorieId}";
+        if (_filtre.Du is not null) chemin += $"&du={_filtre.Du:yyyy-MM-dd}";
+        if (_filtre.Au is not null) chemin += $"&au={_filtre.Au:yyyy-MM-dd}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<DepenseDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerCategorie(ChangeEventArgs args)
+    {
+        _filtre.CategorieId = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerDu(ChangeEventArgs args)
+    {
+        _filtre.Du = DateTime.TryParse(args.Value?.ToString(), out var date) ? date : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerAu(ChangeEventArgs args)
+    {
+        _filtre.Au = DateTime.TryParse(args.Value?.ToString(), out var date) ? date : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _formulaire = new DepenseRequete { Date = DateTime.Today };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirModification(DepenseDto depense)
+    {
+        _creation = false;
+        _idEnCours = depense.Id;
+        _formulaire = new DepenseRequete
+        {
+            CategorieId = depense.CategorieId,
+            Montant = depense.Montant,
+            Date = depense.Date,
+            Description = depense.Description,
+            Justificatif = depense.Justificatif,
+            ModeReglementId = depense.ModeReglementId
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirSuppression(DepenseDto depense)
+    {
+        _idEnCours = depense.Id;
+        _motif = string.Empty;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _suppressionVisible = true;
+    }
+
+    private void DefinirJustificatif(string chemin)
+    {
+        _formulaire.Justificatif = chemin;
+        Messages.Succes("Justificatif joint à la dépense.");
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<DepenseDto>("api/depenses", _formulaire)
+                : await Api.MettreAJourAsync<DepenseDto>($"api/depenses/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Dépense enregistrée." : "Dépense modifiée.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Supprimer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<object>(
+                $"api/depenses/{_idEnCours}/suppression", new { Motif = _motif });
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes("Dépense supprimée.");
+            _suppressionVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

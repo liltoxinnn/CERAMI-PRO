@@ -39,6 +39,10 @@ public class AtelierDeTest : IDisposable
         Factures = new FactureService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
         Ventes = new VenteService(
             Contexte, Inventaire, Paiements, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Depenses = new DepenseService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        TableauDeBord = new TableauDeBordService(Contexte, Horloge);
+        Rapports = new RapportService(Contexte, Horloge);
+        Calculateurs = new CalculateurService();
 
         PreparerReferentiel();
     }
@@ -64,12 +68,17 @@ public class AtelierDeTest : IDisposable
     public IPaiementService Paiements { get; }
     public IFactureService Factures { get; }
     public IVenteService Ventes { get; }
+    public IDepenseService Depenses { get; }
+    public ITableauDeBordService TableauDeBord { get; }
+    public IRapportService Rapports { get; }
+    public ICalculateurService Calculateurs { get; }
 
     public int CategorieId { get; private set; }
     public int UniteKiloId { get; private set; }
     public int FournisseurId { get; private set; }
     public int ModeReglementId { get; private set; }
     public int CategorieProduitId { get; private set; }
+    public int CategorieDepenseId { get; private set; }
 
     private void PreparerReferentiel()
     {
@@ -78,12 +87,14 @@ public class AtelierDeTest : IDisposable
         var fournisseur = new Supplier { SupplierNumber = "FRN-2026-0001", Name = "Poterie du Sud" };
         var mode = new Domain.Entities.Payments.PaymentMethod { Code = "especes", Name = "Espèces" };
         var categorieProduit = new Domain.Entities.Catalog.ProductCategory { Name = "Vases décoratifs" };
+        var categorieDepense = new Domain.Entities.Expenses.ExpenseCategory { Name = "Électricité" };
 
         Contexte.MaterialCategories.Add(categorie);
         Contexte.Units.Add(unite);
         Contexte.Suppliers.Add(fournisseur);
         Contexte.PaymentMethods.Add(mode);
         Contexte.ProductCategories.Add(categorieProduit);
+        Contexte.ExpenseCategories.Add(categorieDepense);
         Contexte.SaveChanges();
 
         CategorieId = categorie.Id;
@@ -91,7 +102,19 @@ public class AtelierDeTest : IDisposable
         FournisseurId = fournisseur.Id;
         ModeReglementId = mode.Id;
         CategorieProduitId = categorieProduit.Id;
+        CategorieDepenseId = categorieDepense.Id;
     }
+
+    /// <summary>Enregistre une dépense de test.</summary>
+    public async Task<int> CreerDepenseAsync(
+        decimal montant, string description = "Facture d'électricité", DateTime? date = null)
+        => (await Depenses.CreerAsync(new Application.DTOs.Finances.DepenseRequete
+        {
+            CategorieId = CategorieDepenseId,
+            Montant = montant,
+            Description = description,
+            Date = date ?? Horloge.UtcNow
+        })).Id;
 
     /// <summary>Crée un produit fini avec son stock de départ.</summary>
     public async Task<int> CreerProduitAsync(string nom, decimal prixVente = 3500m,

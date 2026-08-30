@@ -897,3 +897,59 @@ a { color: var(--terre-fonce); }
     .document { border: none; box-shadow: none; max-width: none; padding: 0; }
     @page { margin: 15mm; }
 }
+
+/* ============================== Graphiques ============================== */
+/* Palette vérifiée pour la vision des couleurs : terre cuite, cobalt, or, aubergine. */
+
+:root {
+    --serie-1: #a45a3c;
+    --serie-2: #1c5d99;
+    --serie-3: #8a5b00;
+    --serie-4: #7b4397;
+    --graphique-grille: #e6ebf0;
+}
+
+.graphique {
+    margin: 0;
+    background: var(--blanc);
+    border: 1px solid var(--gris-bordure);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+    padding: 1.1rem 1.25rem 1rem;
+}
+
+.graphique-entete { display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; margin-bottom: .8rem; }
+.graphique-titre { font-weight: 700; font-size: 1rem; }
+.graphique-vide { color: var(--gris-texte); text-align: center; padding: 1.5rem 0; margin: 0; }
+
+.graphique-svg { width: 100%; height: 160px; display: block; overflow: visible; }
+.graphique-grille { stroke: var(--graphique-grille); stroke-width: 1; }
+.graphique-axe { stroke: var(--gris-bordure); stroke-width: 1; }
+
+.graphique-barre rect { fill: var(--serie-1); transition: fill .12s ease; }
+.graphique-barre:hover rect { fill: var(--terre-fonce); }
+
+.graphique-etiquettes { display: flex; margin-top: .35rem; }
+.graphique-etiquette { flex: 1; text-align: center; font-size: .68rem; color: var(--gris-texte);
+    white-space: nowrap; overflow: hidden; }
+
+.graphique-resume { margin: .6rem 0 0; font-size: .85rem; color: var(--gris-texte); }
+
+.classement { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.classement-ligne { display: grid; grid-template-columns: minmax(90px, 1.2fr) 2fr auto;
+    gap: .7rem; align-items: center; }
+.classement-nom { font-size: .9rem; font-weight: 600; }
+.classement-barre { display: block; height: 12px; background: var(--gris-fond);
+    border-radius: 6px; overflow: hidden; }
+.classement-remplissage { display: block; height: 100%; background: var(--serie-1); border-radius: 6px; }
+.classement-valeur { font-size: .88rem; font-variant-numeric: tabular-nums; text-align: right; }
+.classement-quantite { display: block; font-size: .76rem; color: var(--gris-texte); }
+
+.grille-graphiques { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.25rem; margin-bottom: 1.25rem; }
+
+@media (max-width: 700px) {
+    .classement-ligne { grid-template-columns: 1fr; gap: .2rem; }
+    .classement-valeur { text-align: left; }
+}
