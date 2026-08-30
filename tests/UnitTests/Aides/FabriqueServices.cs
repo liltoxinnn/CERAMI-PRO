@@ -27,6 +27,12 @@ public class AtelierDeTest : IDisposable
         Achats = new AchatService(Contexte, Inventaire, Numerotation, UtilisateurCourant, Horloge, Audit);
         Produits = new ProduitService(Contexte, Inventaire, Numerotation, Audit);
         Recettes = new RecetteService(Contexte, Audit);
+        Production = new ProductionService(
+            Contexte, Inventaire, Recettes, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Fours = new FourService(Contexte, Audit);
+        Cuissons = new CuissonService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Decorations = new DecorationService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Qualite = new QualiteService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
 
         PreparerReferentiel();
     }
@@ -42,6 +48,11 @@ public class AtelierDeTest : IDisposable
     public IAchatService Achats { get; }
     public IProduitService Produits { get; }
     public IRecetteService Recettes { get; }
+    public IProductionService Production { get; }
+    public IFourService Fours { get; }
+    public ICuissonService Cuissons { get; }
+    public IDecorationService Decorations { get; }
+    public IQualiteService Qualite { get; }
 
     public int CategorieId { get; private set; }
     public int UniteKiloId { get; private set; }
@@ -90,6 +101,44 @@ public class AtelierDeTest : IDisposable
 
     public async Task<decimal> StockProduitAsync(int produitId)
         => (await Contexte.Products.AsNoTracking().FirstAsync(p => p.Id == produitId)).CurrentStock;
+
+    /// <summary>
+    /// Prépare un produit, ses matières et une recette : 1,5 kg d'argile et
+    /// 0,1 kg d'émail par pièce, plus les frais de fabrication.
+    /// </summary>
+    public async Task<(int ProduitId, int RecetteId, int ArgileId)> PreparerVaseAsync(
+        decimal stockArgile = 100m, decimal stockEmail = 10m)
+    {
+        var produitId = await CreerProduitAsync("Vase décoratif A", prixVente: 3500m, coutProduction: 0m);
+        var argileId = await CreerMatiereAsync("Argile", stockInitial: stockArgile, prix: 200m);
+        var emailId = await CreerMatiereAsync("Émail", stockInitial: stockEmail, prix: 2500m);
+
+        var recette = await Recettes.CreerAsync(new Application.DTOs.Catalogue.RecetteRequete
+        {
+            ProduitId = produitId,
+            Nom = "Vase décoratif A",
+            Rendement = 1m,
+            CoutMainOeuvre = 600m,
+            CoutCuisson = 300m,
+            CoutEmballage = 50m,
+            Lignes = new List<Application.DTOs.Catalogue.LigneRecetteRequete>
+            {
+                new() { MatiereId = argileId, UniteId = UniteKiloId, Quantite = 1.5m },
+                new() { MatiereId = emailId, UniteId = UniteKiloId, Quantite = 0.1m }
+            }
+        });
+
+        return (produitId, recette.Id, argileId);
+    }
+
+    /// <summary>Enregistre un contrôle qualité conforme sur une production.</summary>
+    public Task ControlerAsync(int productionId, decimal quantite)
+        => Qualite.EnregistrerAsync(new Application.DTOs.Production.ControleQualiteRequete
+        {
+            ProductionId = productionId,
+            QuantiteControlee = quantite,
+            QuantiteAcceptee = quantite
+        });
 
     /// <summary>Crée une matière avec un stock de départ.</summary>
     public async Task<int> CreerMatiereAsync(string nom, decimal stockInitial = 0, decimal prix = 100m,

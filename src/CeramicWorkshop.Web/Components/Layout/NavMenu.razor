@@ -58,6 +58,14 @@
             new("Matières premières", "stock/matieres", "🧱", PermissionCodes.MatieresConsulter),
             new("Mouvements de stock", "stock/mouvements", "🔄", PermissionCodes.MouvementsConsulter)
         }),
+        new("Production", new List<ElementMenu>
+        {
+            new("Ordres de production", "production", "🏭", PermissionCodes.ProductionConsulter),
+            new("Tableau de production", "production/tableau", "📋", PermissionCodes.ProductionConsulter),
+            new("Cuissons", "production/cuissons", "🔥", PermissionCodes.CuissonConsulter),
+            new("Décoration", "production/decoration", "🎨", PermissionCodes.DecorationConsulter),
+            new("Contrôle qualité", "production/qualite", "🔍", PermissionCodes.QualiteConsulter)
+        }),
         new("Produits", new List<ElementMenu>
         {
             new("Catalogue", "produits", "🏺", PermissionCodes.ProduitsConsulter),
