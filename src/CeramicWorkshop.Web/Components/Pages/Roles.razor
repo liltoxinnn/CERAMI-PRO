@@ -1,0 +1,199 @@
+@page "/roles"
+@attribute [Authorize(Policy = PermissionCodes.UtilisateursConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Rôles et droits — CERAMIPRO</PageTitle>
+
+<h1>Rôles et droits</h1>
+<p class="page-introduction">
+    Chaque rôle regroupe les fonctions autorisées. Sélectionnez un rôle pour consulter ou modifier ses droits.
+</p>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des rôles…" />
+}
+else
+{
+    <div class="disposition-deux-colonnes">
+        <aside class="colonne-liste">
+            <h2 class="carte-titre">Rôles</h2>
+            <ul class="liste-selection">
+                @foreach (var role in _roles)
+                {
+                    <li>
+                        <button type="button"
+                                class="liste-selection-element @(role.Id == _roleSelectionne?.Id ? "actif" : string.Empty)"
+                                @onclick="() => Selectionner(role)">
+                            <span class="liste-selection-titre">@role.Nom</span>
+                            <span class="liste-selection-detail">
+                                @role.Droits.Count droit(s) · @role.NombreUtilisateurs utilisateur(s) actif(s)
+                            </span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        </aside>
+
+        <section class="colonne-detail">
+            @if (_roleSelectionne is null)
+            {
+                <div class="encart-vide"><p>Sélectionnez un rôle pour afficher ses droits.</p></div>
+            }
+            else
+            {
+                <div class="page-entete">
+                    <div>
+                        <h2 class="carte-titre">@_roleSelectionne.Nom</h2>
+                        <p class="page-introduction">@_roleSelectionne.Description</p>
+                    </div>
+
+                    @if (PeutGerer && !EstAdministrateur)
+                    {
+                        <button type="button" class="bouton bouton-principal" disabled="@_enregistrement"
+                                @onclick="Enregistrer">
+                            @(_enregistrement ? "Enregistrement…" : "Enregistrer les droits")
+                        </button>
+                    }
+                </div>
+
+                @if (EstAdministrateur)
+                {
+                    <div class="encart-information">
+                        Le rôle « Administrateur » dispose de tous les droits du logiciel.
+                        Cette liste ne peut pas être restreinte.
+                    </div>
+                }
+
+                <ResumeErreurs Message="@_messageErreur" Details="_details" />
+
+                @foreach (var module in _modules)
+                {
+                    <fieldset class="groupe-droits">
+                        <legend>@module.Module</legend>
+                        <div class="grille-droits">
+                            @foreach (var droit in module.Droits)
+                            {
+                                <label class="champ-case">
+                                    <input type="checkbox"
+                                           checked="@_droitsSelectionnes.Contains(droit.Code)"
+                                           disabled="@(!PeutGerer || EstAdministrateur)"
+                                           @onchange="args => BasculerDroit(droit.Code, args)" />
+                                    <span>@droit.Nom</span>
+                                </label>
+                            }
+                        </div>
+                    </fieldset>
+                }
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private List<RoleDto> _roles = new();
+    private IReadOnlyList<ModuleDroitsDto> _modules = Array.Empty<ModuleDroitsDto>();
+    private RoleDto? _roleSelectionne;
+    private HashSet<string> _droitsSelectionnes = new();
+
+    private bool _chargement = true;
+    private bool _enregistrement;
+    private string? _messageErreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.UtilisateursGerer);
+
+    private bool EstAdministrateur => _roleSelectionne?.Code == RoleCodes.Administrateur;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var droits = await Api.ObtenirAsync<List<ModuleDroitsDto>>("api/roles/droits");
+
+        if (droits.Succes && droits.Valeur is not null)
+        {
+            _modules = droits.Valeur;
+        }
+        else
+        {
+            Messages.Erreur(droits.Message);
+        }
+
+        await ChargerRolesAsync();
+        _chargement = false;
+    }
+
+    private async Task ChargerRolesAsync()
+    {
+        var resultat = await Api.ObtenirAsync<List<RoleDto>>("api/roles");
+
+        if (!resultat.Succes || resultat.Valeur is null)
+        {
+            Messages.Erreur(resultat.Message);
+            return;
+        }
+
+        _roles = resultat.Valeur;
+
+        var idPrecedent = _roleSelectionne?.Id;
+        _roleSelectionne = idPrecedent is null
+            ? _roles.FirstOrDefault()
+            : _roles.FirstOrDefault(r => r.Id == idPrecedent) ?? _roles.FirstOrDefault();
+
+        _droitsSelectionnes = _roleSelectionne?.Droits.ToHashSet() ?? new HashSet<string>();
+    }
+
+    private void Selectionner(RoleDto role)
+    {
+        _roleSelectionne = role;
+        _droitsSelectionnes = role.Droits.ToHashSet();
+        _messageErreur = null;
+        _details = Array.Empty<string>();
+    }
+
+    private void BasculerDroit(string code, ChangeEventArgs args)
+    {
+        if (args.Value is true)
+        {
+            _droitsSelectionnes.Add(code);
+        }
+        else
+        {
+            _droitsSelectionnes.Remove(code);
+        }
+    }
+
+    private async Task Enregistrer()
+    {
+        if (_roleSelectionne is null)
+        {
+            return;
+        }
+
+        _messageErreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.MettreAJourAsync<RoleDto>(
+                $"api/roles/{_roleSelectionne.Id}/droits",
+                new ModifierDroitsRoleRequete { CodesDroits = _droitsSelectionnes.ToList() });
+
+            if (!resultat.Succes)
+            {
+                _messageErreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Droits du rôle « {_roleSelectionne.Nom} » enregistrés.");
+            await ChargerRolesAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

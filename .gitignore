@@ -1,0 +1,26 @@
+# Résultats de compilation
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# Fichiers d'environnement de développement (peuvent contenir des mots de passe)
+appsettings.Development.json
+appsettings.Local.json
+*.user
+.vs/
+.vscode/
+.idea/
+
+# Fichiers déposés par l'utilisateur (photos de produits, justificatifs)
+src/CeramicWorkshop.API/wwwroot/fichiers/
+
+# Sauvegardes de base de données
+*.backup
+*.dump
+
+# Système
+.DS_Store
+Thumbs.db
+*.log

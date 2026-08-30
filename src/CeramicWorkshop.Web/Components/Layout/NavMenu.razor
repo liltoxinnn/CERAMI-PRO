@@ -1,0 +1,66 @@
+@inject ServiceAuthentification Authentification
+
+<nav class="menu" aria-label="Menu principal">
+    <div class="menu-marque">
+        <span class="menu-logo" aria-hidden="true">🏺</span>
+        <span class="menu-nom">CERAMIPRO</span>
+    </div>
+
+    <ul class="menu-liste">
+        @foreach (var groupe in Groupes)
+        {
+            var entrees = groupe.Entrees.Where(EstVisible).ToList();
+
+            if (entrees.Count == 0)
+            {
+                continue;
+            }
+
+            <li class="menu-groupe">
+                <span class="menu-groupe-titre">@groupe.Titre</span>
+                <ul>
+                    @foreach (var entree in entrees)
+                    {
+                        <li>
+                            <NavLink class="menu-lien" href="@entree.Lien"
+                                     Match="@(entree.Lien == string.Empty ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                                     @onclick="OnNaviguer">
+                                <span class="menu-icone" aria-hidden="true">@entree.Icone</span>
+                                <span>@entree.Libelle</span>
+                            </NavLink>
+                        </li>
+                    }
+                </ul>
+            </li>
+        }
+    </ul>
+
+    <p class="menu-note">
+        Les autres modules (stock, production, ventes…) s'ajouteront ici au fil des prochaines étapes.
+    </p>
+</nav>
+
+@code {
+    /// <summary>Appelé après un clic, pour refermer le menu sur téléphone.</summary>
+    [Parameter]
+    public EventCallback OnNaviguer { get; set; }
+
+    private sealed record GroupeMenu(string Titre, IReadOnlyList<ElementMenu> Entrees);
+
+    private static readonly IReadOnlyList<GroupeMenu> Groupes = new List<GroupeMenu>
+    {
+        new("Atelier", new List<ElementMenu>
+        {
+            new("Tableau de bord", "", "🏠")
+        }),
+        new("Administration", new List<ElementMenu>
+        {
+            new("Utilisateurs", "utilisateurs", "👤", PermissionCodes.UtilisateursConsulter),
+            new("Rôles et droits", "roles", "🔐", PermissionCodes.UtilisateursConsulter),
+            new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter)
+        })
+    };
+
+    private bool EstVisible(ElementMenu entree)
+        => entree.DroitRequis is null || Authentification.Session.PossedeDroit(entree.DroitRequis);
+}

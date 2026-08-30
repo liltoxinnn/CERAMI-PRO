@@ -1,0 +1,68 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject ServiceAuthentification Authentification
+@inject NavigationManager Navigation
+
+<div class="application @(_menuOuvert ? "menu-ouvert" : string.Empty)">
+    <NavMenu OnNaviguer="FermerMenu" />
+
+    <div class="zone-principale">
+        <header class="entete">
+            <button type="button" class="bouton-menu" title="Afficher le menu" aria-label="Afficher le menu"
+                    @onclick="BasculerMenu">
+                ☰
+            </button>
+
+            <div class="entete-titre">
+                <span class="entete-marque">CERAMIPRO</span>
+                <span class="entete-sous-titre">Gestion d'atelier de céramique</span>
+            </div>
+
+            <AuthorizeView>
+                <Authorized>
+                    <div class="entete-utilisateur">
+                        <div class="entete-identite">
+                            <span class="entete-nom">@Session.Profil?.NomComplet</span>
+                            <span class="entete-role">@Session.Profil?.RoleNom</span>
+                        </div>
+                        <a class="bouton bouton-discret" href="mon-compte">Mon compte</a>
+                        <button type="button" class="bouton bouton-secondaire" @onclick="SeDeconnecter">
+                            Se déconnecter
+                        </button>
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        </header>
+
+        <main class="contenu">
+            <BandeauMessages />
+            @Body
+        </main>
+
+        <footer class="pied-de-page">
+            <span>CERAMIPRO — Logiciel de gestion d'atelier</span>
+        </footer>
+    </div>
+</div>
+
+@code {
+    private bool _menuOuvert;
+
+    private SessionUtilisateur Session => Authentification.Session;
+
+    protected override void OnInitialized() => Authentification.EtatModifie += Rafraichir;
+
+    private void Rafraichir() => InvokeAsync(StateHasChanged);
+
+    private void BasculerMenu() => _menuOuvert = !_menuOuvert;
+
+    private void FermerMenu() => _menuOuvert = false;
+
+    private async Task SeDeconnecter()
+    {
+        await Authentification.DeconnexionAsync();
+        Navigation.NavigateTo("connexion", replace: true);
+    }
+
+    public void Dispose() => Authentification.EtatModifie -= Rafraichir;
+}

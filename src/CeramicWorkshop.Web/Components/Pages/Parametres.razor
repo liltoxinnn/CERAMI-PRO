@@ -1,0 +1,247 @@
+@page "/parametres"
+@attribute [Authorize(Policy = PermissionCodes.ParametresConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Paramètres — CERAMIPRO</PageTitle>
+
+<div class="page-entete">
+    <div>
+        <h1>Paramètres de l'atelier</h1>
+        <p class="page-introduction">
+            Ces informations apparaissent sur les factures, les reçus et les rapports.
+        </p>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des paramètres…" />
+}
+else if (_parametres is null)
+{
+    <div class="encart-vide"><p>Les paramètres n'ont pas pu être chargés.</p></div>
+}
+else
+{
+    <EditForm Model="_parametres" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_messageErreur" Details="_details" />
+
+        <section class="carte">
+            <h2 class="carte-titre">Identité de l'atelier</h2>
+            <div class="grille-formulaire">
+                <div class="champ">
+                    <label for="nom">Nom de l'atelier</label>
+                    <InputText id="nom" class="saisie" @bind-Value="_parametres.NomAtelier" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="raison">Raison sociale</label>
+                    <InputText id="raison" class="saisie" @bind-Value="_parametres.RaisonSociale" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="telephone">Téléphone</label>
+                    <InputText id="telephone" class="saisie" @bind-Value="_parametres.Telephone" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="email">Adresse email</label>
+                    <InputText id="email" class="saisie" @bind-Value="_parametres.Email" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="adresse">Adresse</label>
+                    <InputText id="adresse" class="saisie" @bind-Value="_parametres.Adresse" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="ville">Ville</label>
+                    <InputText id="ville" class="saisie" @bind-Value="_parametres.Ville" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="site">Site internet</label>
+                    <InputText id="site" class="saisie" @bind-Value="_parametres.SiteWeb" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="logo">Chemin du logo</label>
+                    <InputText id="logo" class="saisie" @bind-Value="_parametres.CheminLogo" disabled="@(!PeutModifier)" />
+                </div>
+            </div>
+        </section>
+
+        <section class="carte">
+            <h2 class="carte-titre">Informations légales</h2>
+            <div class="grille-formulaire">
+                <div class="champ">
+                    <label for="nif">Numéro d'identification fiscale</label>
+                    <InputText id="nif" class="saisie" @bind-Value="_parametres.NumeroIdentificationFiscale"
+                               disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="rc">Registre du commerce</label>
+                    <InputText id="rc" class="saisie" @bind-Value="_parametres.RegistreCommerce" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="ai">Article d'imposition</label>
+                    <InputText id="ai" class="saisie" @bind-Value="_parametres.ArticleImposition" disabled="@(!PeutModifier)" />
+                </div>
+            </div>
+        </section>
+
+        <section class="carte">
+            <h2 class="carte-titre">Devise, langue et fuseau horaire</h2>
+            <div class="grille-formulaire">
+                <div class="champ">
+                    <label for="devise">Code de la devise</label>
+                    <InputText id="devise" class="saisie" @bind-Value="_parametres.CodeDevise" disabled="@(!PeutModifier)" />
+                    <span class="champ-aide">Exemple : DZD</span>
+                </div>
+                <div class="champ">
+                    <label for="symbole">Symbole affiché</label>
+                    <InputText id="symbole" class="saisie" @bind-Value="_parametres.SymboleDevise" disabled="@(!PeutModifier)" />
+                    <span class="champ-aide">Aperçu : @Apercu</span>
+                </div>
+                <div class="champ">
+                    <label for="decimales">Nombre de décimales</label>
+                    <InputNumber id="decimales" class="saisie" @bind-Value="_parametres.DecimalesDevise"
+                                 disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="culture">Langue</label>
+                    <InputText id="culture" class="saisie" @bind-Value="_parametres.Culture" disabled="@(!PeutModifier)" />
+                    <span class="champ-aide">fr-DZ pour le français (Algérie).</span>
+                </div>
+                <div class="champ">
+                    <label for="fuseau">Fuseau horaire</label>
+                    <InputText id="fuseau" class="saisie" @bind-Value="_parametres.FuseauHoraire" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="format">Format de date</label>
+                    <InputText id="format" class="saisie" @bind-Value="_parametres.FormatDate" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="tva">Taux de TVA par défaut (%)</label>
+                    <InputNumber id="tva" class="saisie" @bind-Value="_parametres.TauxTvaParDefaut" disabled="@(!PeutModifier)" />
+                </div>
+            </div>
+
+            <div class="champ-case">
+                <InputCheckbox id="tva-activee" @bind-Value="_parametres.TvaActivee" disabled="@(!PeutModifier)" />
+                <label for="tva-activee">Appliquer la TVA sur les factures</label>
+            </div>
+        </section>
+
+        <section class="carte">
+            <h2 class="carte-titre">Numérotation des documents</h2>
+            <div class="grille-formulaire">
+                <div class="champ">
+                    <label for="p-facture">Factures</label>
+                    <InputText id="p-facture" class="saisie" @bind-Value="_parametres.PrefixeFacture" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-vente">Ventes</label>
+                    <InputText id="p-vente" class="saisie" @bind-Value="_parametres.PrefixeVente" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-achat">Achats</label>
+                    <InputText id="p-achat" class="saisie" @bind-Value="_parametres.PrefixeAchat" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-production">Productions</label>
+                    <InputText id="p-production" class="saisie" @bind-Value="_parametres.PrefixeProduction" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-commande">Commandes personnalisées</label>
+                    <InputText id="p-commande" class="saisie" @bind-Value="_parametres.PrefixeCommande" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-paiement">Paiements</label>
+                    <InputText id="p-paiement" class="saisie" @bind-Value="_parametres.PrefixePaiement" disabled="@(!PeutModifier)" />
+                </div>
+                <div class="champ">
+                    <label for="p-cuisson">Cuissons</label>
+                    <InputText id="p-cuisson" class="saisie" @bind-Value="_parametres.PrefixeCuisson" disabled="@(!PeutModifier)" />
+                </div>
+            </div>
+
+            <div class="champ">
+                <label for="pied">Mention en bas de facture</label>
+                <InputTextArea id="pied" class="saisie saisie-multiligne" rows="3"
+                               @bind-Value="_parametres.PiedDePageFacture" disabled="@(!PeutModifier)" />
+            </div>
+        </section>
+
+        @if (PeutModifier)
+        {
+            <div class="actions-formulaire">
+                <button type="submit" class="bouton bouton-principal bouton-large" disabled="@_enregistrement">
+                    @(_enregistrement ? "Enregistrement…" : "Enregistrer les paramètres")
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="encart-information">
+                Vous pouvez consulter ces paramètres, mais seul un administrateur peut les modifier.
+            </div>
+        }
+    </EditForm>
+}
+
+@code {
+    private ParametresAtelierDto? _parametres;
+    private bool _chargement = true;
+    private bool _enregistrement;
+    private string? _messageErreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutModifier => Authentification.Session.PossedeDroit(PermissionCodes.ParametresModifier);
+
+    private string Apercu => _parametres is null
+        ? string.Empty
+        : MontantFormatter.Formater(45000m, _parametres.SymboleDevise, _parametres.DecimalesDevise);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultat = await Api.ObtenirAsync<ParametresAtelierDto>("api/parametres");
+
+        if (resultat.Succes)
+        {
+            _parametres = resultat.Valeur;
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+
+        _chargement = false;
+    }
+
+    private async Task Enregistrer()
+    {
+        if (_parametres is null)
+        {
+            return;
+        }
+
+        _messageErreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.MettreAJourAsync<ParametresAtelierDto>("api/parametres", _parametres);
+
+            if (!resultat.Succes)
+            {
+                _messageErreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            _parametres = resultat.Valeur ?? _parametres;
+            Messages.Succes("Paramètres enregistrés.");
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

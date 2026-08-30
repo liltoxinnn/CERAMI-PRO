@@ -1,0 +1,10 @@
+<div class="chargement" role="status" aria-live="polite">
+    <span class="chargement-cercle" aria-hidden="true"></span>
+    <span class="chargement-texte">@Message</span>
+</div>
+
+@code {
+    /// <summary>Texte affiché pendant l'attente.</summary>
+    [Parameter]
+    public string Message { get; set; } = "Chargement en cours…";
+}

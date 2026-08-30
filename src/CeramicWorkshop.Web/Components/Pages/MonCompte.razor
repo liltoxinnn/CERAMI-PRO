@@ -1,0 +1,101 @@
+@page "/mon-compte"
+@attribute [Authorize]
+@inject ClientApi Api
+@inject ServiceAuthentification Authentification
+@inject ServiceMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>Mon compte — CERAMIPRO</PageTitle>
+
+<h1>Mon compte</h1>
+
+@if (Session.Profil?.DoitChangerMotDePasse == true)
+{
+    <div class="encart-avertissement" role="alert">
+        Pour votre sécurité, choisissez un nouveau mot de passe avant de continuer.
+    </div>
+}
+
+<section class="grille-cartes">
+    <article class="carte">
+        <h2 class="carte-titre">Mes informations</h2>
+        <dl class="liste-definitions">
+            <dt>Nom complet</dt>
+            <dd>@Session.Profil?.NomComplet</dd>
+            <dt>Nom d'utilisateur</dt>
+            <dd>@Session.Profil?.NomUtilisateur</dd>
+            <dt>Adresse email</dt>
+            <dd>@(string.IsNullOrWhiteSpace(Session.Profil?.Email) ? "Non renseignée" : Session.Profil!.Email)</dd>
+            <dt>Rôle</dt>
+            <dd>@Session.Profil?.RoleNom</dd>
+        </dl>
+    </article>
+
+    <article class="carte">
+        <h2 class="carte-titre">Changer mon mot de passe</h2>
+
+        <EditForm Model="_requete" OnValidSubmit="Enregistrer" class="formulaire">
+            <ResumeErreurs Message="@_messageErreur" Details="_details" />
+
+            <div class="champ">
+                <label for="actuel">Mot de passe actuel</label>
+                <InputText id="actuel" type="password" class="saisie"
+                           @bind-Value="_requete.MotDePasseActuel" autocomplete="current-password" />
+            </div>
+
+            <div class="champ">
+                <label for="nouveau">Nouveau mot de passe</label>
+                <InputText id="nouveau" type="password" class="saisie"
+                           @bind-Value="_requete.NouveauMotDePasse" autocomplete="new-password" />
+                <span class="champ-aide">Au moins 8 caractères, dont une lettre et un chiffre.</span>
+            </div>
+
+            <div class="champ">
+                <label for="confirmation">Confirmer le nouveau mot de passe</label>
+                <InputText id="confirmation" type="password" class="saisie"
+                           @bind-Value="_requete.ConfirmationMotDePasse" autocomplete="new-password" />
+            </div>
+
+            <button type="submit" class="bouton bouton-principal" disabled="@_enCours">
+                @(_enCours ? "Enregistrement…" : "Enregistrer le nouveau mot de passe")
+            </button>
+        </EditForm>
+    </article>
+</section>
+
+@code {
+    private readonly ChangementMotDePasseRequete _requete = new();
+    private string? _messageErreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+    private bool _enCours;
+
+    private SessionUtilisateur Session => Authentification.Session;
+
+    private async Task Enregistrer()
+    {
+        _messageErreur = null;
+        _details = Array.Empty<string>();
+        _enCours = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<object>("api/authentification/mot-de-passe", _requete);
+
+            if (!resultat.Succes)
+            {
+                _messageErreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            // Le changement de mot de passe invalide la session : il faut se reconnecter.
+            Messages.Succes("Mot de passe modifié. Reconnectez-vous avec votre nouveau mot de passe.");
+            await Authentification.DeconnexionLocaleAsync();
+            Navigation.NavigateTo("connexion", replace: true);
+        }
+        finally
+        {
+            _enCours = false;
+        }
+    }
+}

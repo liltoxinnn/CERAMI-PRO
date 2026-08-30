@@ -1,0 +1,117 @@
+@page "/"
+@attribute [Authorize]
+@inject ServiceAuthentification Authentification
+@inject ClientApi Api
+
+<PageTitle>Tableau de bord — CERAMIPRO</PageTitle>
+
+<h1>Tableau de bord</h1>
+<p class="page-introduction">
+    Bienvenue @Session.Profil?.NomComplet. Vous êtes connecté en tant que
+    <strong>@Session.Profil?.RoleNom</strong>.
+</p>
+
+<section class="grille-cartes">
+    <article class="carte">
+        <h2 class="carte-titre">Votre compte</h2>
+        <dl class="liste-definitions">
+            <dt>Nom d'utilisateur</dt>
+            <dd>@Session.Profil?.NomUtilisateur</dd>
+            <dt>Rôle</dt>
+            <dd>@Session.Profil?.RoleNom</dd>
+            <dt>Droits accordés</dt>
+            <dd>@(Session.Profil?.Droits.Count ?? 0)</dd>
+        </dl>
+        <a class="bouton bouton-secondaire" href="mon-compte">Changer mon mot de passe</a>
+    </article>
+
+    <article class="carte">
+        <h2 class="carte-titre">État du logiciel</h2>
+
+        @if (_etat is null)
+        {
+            <Chargement Message="Vérification du serveur…" />
+        }
+        else
+        {
+            <dl class="liste-definitions">
+                <dt>Serveur applicatif</dt>
+                <dd><span class="etiquette etiquette-succes">@_etat.Serveur</span></dd>
+                <dt>Base de données</dt>
+                <dd>
+                    <span class="etiquette @(_etat.BaseDeDonnees == "Connectée" ? "etiquette-succes" : "etiquette-danger")">
+                        @_etat.BaseDeDonnees
+                    </span>
+                </dd>
+                <dt>Mises à jour en attente</dt>
+                <dd>@_etat.MigrationsEnAttente</dd>
+                <dt>Version</dt>
+                <dd>@_etat.Version</dd>
+            </dl>
+        }
+
+        @if (_erreurEtat is not null)
+        {
+            <ResumeErreurs Message="@_erreurEtat" />
+        }
+    </article>
+
+    <article class="carte carte-pleine-largeur">
+        <h2 class="carte-titre">Modules disponibles</h2>
+        <p class="carte-texte">
+            Cette première version met en place la base du logiciel : sécurité, comptes,
+            paramètres de l'atelier et structure complète de la base de données.
+            Les modules métier s'ajouteront ensuite, étape par étape.
+        </p>
+
+        <ul class="liste-etapes">
+            <li class="etape etape-terminee">
+                <span class="etape-marque" aria-hidden="true">✔</span>
+                <span><strong>Étape 1 — Fondations.</strong> Connexion sécurisée, utilisateurs, rôles et droits,
+                    paramètres de l'atelier, base de données PostgreSQL.</span>
+            </li>
+            <li class="etape">
+                <span class="etape-marque" aria-hidden="true">2</span>
+                <span><strong>Stock.</strong> Matières premières, unités, fournisseurs, achats et mouvements de stock.</span>
+            </li>
+            <li class="etape">
+                <span class="etape-marque" aria-hidden="true">3</span>
+                <span><strong>Produits.</strong> Catalogue, photos, variantes et recettes de fabrication.</span>
+            </li>
+            <li class="etape">
+                <span class="etape-marque" aria-hidden="true">4</span>
+                <span><strong>Production.</strong> Ordres de production, étapes de fabrication et consommation des matières.</span>
+            </li>
+        </ul>
+    </article>
+</section>
+
+@code {
+    private EtatServeur? _etat;
+    private string? _erreurEtat;
+
+    private SessionUtilisateur Session => Authentification.Session;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultat = await Api.ObtenirAsync<EtatServeur>("api/sante");
+
+        if (resultat.Succes)
+        {
+            _etat = resultat.Valeur;
+        }
+        else
+        {
+            _erreurEtat = resultat.Message;
+        }
+    }
+
+    /// <summary>État renvoyé par le serveur applicatif.</summary>
+    private sealed record EtatServeur(
+        string Application,
+        string Version,
+        string Serveur,
+        string BaseDeDonnees,
+        int MigrationsEnAttente,
+        DateTime Horodatage);
+}

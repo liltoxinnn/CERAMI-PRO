@@ -1,0 +1,29 @@
+@if (!string.IsNullOrWhiteSpace(Message) || Details.Any())
+{
+    <div class="encart-erreur" role="alert">
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <p class="encart-erreur-titre">@Message</p>
+        }
+
+        @if (Details.Any())
+        {
+            <ul class="encart-erreur-liste">
+                @foreach (var detail in Details)
+                {
+                    <li>@detail</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Message principal expliquant l'échec.</summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>Liste des champs à corriger.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Details { get; set; } = Array.Empty<string>();
+}
