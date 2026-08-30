@@ -1185,3 +1185,12 @@ a { color: var(--terre-fonce); }
 @media (max-width: 860px) {
     .entete-recherche { display: none; }
 }
+
+/* Un chemin de dossier ou une référence longue doit pouvoir aller à la ligne
+   plutôt que d'élargir la page sur un téléphone. */
+code {
+    font-family: monospace;
+    font-size: .9em;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
