@@ -110,6 +110,8 @@ else
                     <td class="colonne-actions" data-libelle="Actions">
                         <button type="button" class="bouton bouton-discret"
                                 @onclick="() => OuvrirDetail(produit)">Fiche</button>
+                        <a class="bouton bouton-discret"
+                           href="@($"etiquettes/planche?produits={produit.Id}&exemplaires=1")">Étiquette</a>
                         @if (PeutGerer)
                         {
                             <button type="button" class="bouton bouton-discret"

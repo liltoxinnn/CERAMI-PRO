@@ -1,5 +1,6 @@
 using CeramicWorkshop.Application.Common;
 using CeramicWorkshop.Application.DTOs.Catalogue;
+using CeramicWorkshop.Application.DTOs.Codes;
 
 namespace CeramicWorkshop.Application.Interfaces;
 
@@ -60,4 +61,32 @@ public interface IRecetteService
     /// </summary>
     Task<BesoinsRecetteDto> CalculerBesoinsAsync(
         int recetteId, decimal quantite, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Fabrication des images de codes (QR et code-barres). L'implémentation vit
+/// dans la couche Infrastructure : la couche métier n'en connaît que le contrat.
+/// </summary>
+public interface ICodeGraphiqueService
+{
+    /// <summary>Code QR au format SVG, prêt à être inséré dans une page.</summary>
+    string QrEnSvg(string valeur, int tailleEnPixels = 160);
+
+    /// <summary>Code-barres Code 39 au format SVG, lisible par les douchettes USB.</summary>
+    string CodeBarresEnSvg(string valeur, int hauteurEnPixels = 60);
+
+    /// <summary>Indique si la valeur peut être imprimée en code-barres Code 39.</summary>
+    bool EstImprimableEnCodeBarres(string valeur);
+}
+
+/// <summary>Étiquettes des produits et lecture des codes scannés.</summary>
+public interface ICodeService
+{
+    Task<EtiquetteDto> EtiquetteProduitAsync(int produitId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<EtiquetteDto>> EtiquettesAsync(
+        EtiquettesRequete requete, CancellationToken cancellationToken = default);
+
+    /// <summary>Reconnaît un code scanné et indique l'écran à ouvrir.</summary>
+    Task<ResultatScanDto> ResoudreAsync(string code, CancellationToken cancellationToken = default);
 }

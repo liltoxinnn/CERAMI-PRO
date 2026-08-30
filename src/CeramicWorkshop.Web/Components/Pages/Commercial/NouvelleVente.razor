@@ -1,8 +1,10 @@
 @page "/ventes/nouvelle"
 @attribute [Authorize(Policy = PermissionCodes.VentesCreer)]
+@implements IAsyncDisposable
 @inject ClientApi Api
 @inject ServiceMessages Messages
 @inject NavigationManager Navigation
+@inject IJSRuntime Js
 
 <PageTitle>Nouvelle vente — CERAMIPRO</PageTitle>
 
@@ -33,6 +35,26 @@
     <div class="filtres">
         <ChampRecherche Valeur="@_recherche" Placeholder="Rechercher un produit ou scanner un code-barres…"
                         OnRechercher="RechercherProduit" />
+
+        @if (_cameraDisponible)
+        {
+            @if (_cameraActive)
+            {
+                <button type="button" class="bouton bouton-secondaire" @onclick="ArreterCamera">
+                    Arrêter la caméra
+                </button>
+            }
+            else
+            {
+                <button type="button" class="bouton bouton-secondaire" @onclick="DemarrerCamera">
+                    📷 Scanner un produit
+                </button>
+            }
+        }
+    </div>
+
+    <div class="apercu-camera @(_cameraActive ? "" : "masque")">
+        <video id="apercu-vente" playsinline muted></video>
     </div>
 
     @if (_produitsTrouves.Count > 0)
@@ -289,5 +311,79 @@
         {
             _enregistrement = false;
         }
+    }
+
+    // ------------------------------------------------- Lecture à la caméra
+
+    private const string IdVideoVente = "apercu-vente";
+
+    private bool _cameraDisponible;
+    private bool _cameraActive;
+    private DotNetObjectReference<NouvelleVente>? _reference;
+
+    protected override async Task OnAfterRenderAsync(bool premierRendu)
+    {
+        if (!premierRendu)
+        {
+            return;
+        }
+
+        try
+        {
+            _cameraDisponible = await Js.InvokeAsync<bool>("ceramipro.cameraDisponible");
+        }
+        catch (JSException)
+        {
+            _cameraDisponible = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task DemarrerCamera()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+
+        var erreur = await Js.InvokeAsync<string?>("ceramipro.demarrerCamera", IdVideoVente, _reference);
+
+        if (erreur is not null)
+        {
+            Messages.Erreur(erreur);
+            return;
+        }
+
+        _cameraActive = true;
+    }
+
+    private async Task ArreterCamera()
+    {
+        await Js.InvokeVoidAsync("ceramipro.arreterCamera", IdVideoVente);
+        _cameraActive = false;
+    }
+
+    /// <summary>Appelée par le navigateur dès qu'un code est reconnu à la caméra.</summary>
+    [JSInvokable]
+    public async Task CodeLu(string valeur)
+    {
+        _cameraActive = false;
+        await RechercherProduit(valeur);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_cameraActive)
+            {
+                await Js.InvokeVoidAsync("ceramipro.arreterCamera", IdVideoVente);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // La page est déjà fermée : rien à libérer côté navigateur.
+        }
+
+        _reference?.Dispose();
     }
 }

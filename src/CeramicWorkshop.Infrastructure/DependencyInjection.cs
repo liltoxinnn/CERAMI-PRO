@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddSingleton<ICodeGraphiqueService, CodeGraphiqueService>();
 
         services.AddSingleton<IDateTimeService>(fournisseur => new DateTimeService(
             fournisseur.GetRequiredService<ILogger<DateTimeService>>(),

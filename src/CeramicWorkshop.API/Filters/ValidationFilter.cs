@@ -18,7 +18,7 @@ public class ValidationFilter : IAsyncActionFilter
     {
         var erreurs = new Dictionary<string, List<string>>();
 
-        foreach (var argument in context.ActionArguments.Values.Where(a => a is not null))
+        foreach (var argument in context.ActionArguments.Values.Where(EstFormulaire))
         {
             var typeValidateur = typeof(IValidator<>).MakeGenericType(argument!.GetType());
 
@@ -52,4 +52,15 @@ public class ValidationFilter : IAsyncActionFilter
 
         await next();
     }
+
+    /// <summary>
+    /// Seuls les formulaires (objets complexes) sont validés ici. Les paramètres
+    /// simples — texte d'une recherche, identifiant, date — n'ont pas de
+    /// validateur de formulaire : leur appliquer celui d'un type partagé, comme
+    /// le mot de passe qui est aussi un texte, rejetterait des requêtes valides.
+    /// </summary>
+    private static bool EstFormulaire(object? argument)
+        => argument is not null
+           && argument.GetType() is { IsClass: true, IsArray: false } type
+           && type != typeof(string);
 }

@@ -1,0 +1,273 @@
+@page "/scanner"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Scanner un code — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Scanner un code"
+            Introduction="Passez l'étiquette devant la douchette, ou utilisez la caméra du téléphone." />
+
+<div class="carte">
+    <div class="champ">
+        <label for="code">Code lu</label>
+        <input id="code" class="saisie saisie-grande" placeholder="Scannez l'étiquette ou tapez le numéro"
+               value="@_code" autocomplete="off"
+               @oninput="args => _code = args.Value?.ToString() ?? string.Empty"
+               @onkeydown="Touche" />
+        <p class="champ-aide">
+            La douchette USB tape le code puis valide toute seule. Sans douchette,
+            saisissez le numéro de la fiche (par exemple PRD-2026-0001) et appuyez sur Entrée.
+        </p>
+    </div>
+
+    <div class="barre-boutons">
+        <button type="button" class="bouton bouton-principal" @onclick="Chercher" disabled="@_recherche">
+            @(_recherche ? "Recherche…" : "Ouvrir la fiche")
+        </button>
+
+        @if (_cameraDisponible)
+        {
+            @if (_cameraActive)
+            {
+                <button type="button" class="bouton bouton-secondaire" @onclick="ArreterCamera">
+                    Arrêter la caméra
+                </button>
+            }
+            else
+            {
+                <button type="button" class="bouton bouton-secondaire" @onclick="DemarrerCamera">
+                    📷 Utiliser la caméra
+                </button>
+            }
+        }
+    </div>
+
+    @if (!_cameraDisponible && _cameraVerifiee)
+    {
+        <p class="champ-aide">
+            Cet appareil ne sait pas lire les codes avec la caméra. La douchette USB
+            et la saisie manuelle fonctionnent normalement.
+        </p>
+    }
+
+    <div class="apercu-camera @(_cameraActive ? "" : "masque")">
+        <video id="apercu-scanner" playsinline muted></video>
+    </div>
+</div>
+
+@if (_resultat is not null)
+{
+    <article class="carte @(_resultat.Trouve ? "carte-succes" : "carte-alerte")">
+        <h2 class="carte-titre">@_resultat.Libelle</h2>
+        <p class="carte-texte">
+            <strong>@_resultat.Code</strong>
+            @if (!string.IsNullOrWhiteSpace(_resultat.Details))
+            {
+                <span> — @_resultat.Details</span>
+            }
+        </p>
+
+        @if (_resultat.Trouve)
+        {
+            <p class="carte-texte">Nature : @Nature(_resultat.Cible)</p>
+
+            @if (!string.IsNullOrWhiteSpace(_resultat.Adresse))
+            {
+                <a class="bouton bouton-principal" href="@_resultat.Adresse">Ouvrir la fiche</a>
+            }
+        }
+    </article>
+}
+
+@if (_historique.Count > 0)
+{
+    <article class="carte">
+        <h2 class="carte-titre">Codes lus récemment</h2>
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Code</th><th>Fiche</th><th>Nature</th><th></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var ligne in _historique)
+                {
+                    <tr>
+                        <td data-libelle="Code">@ligne.Code</td>
+                        <td data-libelle="Fiche">@ligne.Libelle</td>
+                        <td data-libelle="Nature">@Nature(ligne.Cible)</td>
+                        <td class="actions">
+                            @if (ligne.Trouve && !string.IsNullOrWhiteSpace(ligne.Adresse))
+                            {
+                                <a class="bouton bouton-discret" href="@ligne.Adresse">Ouvrir</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </article>
+}
+
+@code {
+    private const string IdVideo = "apercu-scanner";
+    private const int TailleHistorique = 10;
+
+    private string _code = string.Empty;
+    private bool _recherche;
+    private bool _cameraDisponible;
+    private bool _cameraVerifiee;
+    private bool _cameraActive;
+
+    private ResultatScanDto? _resultat;
+    private readonly List<ResultatScanDto> _historique = new();
+    private DotNetObjectReference<Scanner>? _reference;
+
+    protected override async Task OnAfterRenderAsync(bool premierRendu)
+    {
+        if (!premierRendu)
+        {
+            return;
+        }
+
+        try
+        {
+            _cameraDisponible = await Js.InvokeAsync<bool>("ceramipro.cameraDisponible");
+            await Js.InvokeVoidAsync("ceramipro.focus", "code");
+        }
+        catch (JSException)
+        {
+            _cameraDisponible = false;
+        }
+
+        _cameraVerifiee = true;
+        StateHasChanged();
+    }
+
+    private async Task Touche(KeyboardEventArgs args)
+    {
+        // La douchette termine toujours sa saisie par la touche Entrée.
+        if (args.Key is "Enter" or "NumpadEnter")
+        {
+            await Chercher();
+        }
+    }
+
+    private async Task Chercher()
+    {
+        if (string.IsNullOrWhiteSpace(_code))
+        {
+            Messages.Avertissement("Scannez une étiquette ou saisissez un numéro de fiche.");
+            return;
+        }
+
+        _recherche = true;
+
+        try
+        {
+            var resultat = await Api.ObtenirAsync<ResultatScanDto>(
+                $"api/codes/scan?code={Uri.EscapeDataString(_code.Trim())}");
+
+            if (!resultat.Succes || resultat.Valeur is null)
+            {
+                Messages.Erreur(resultat.Message);
+                return;
+            }
+
+            _resultat = resultat.Valeur;
+            _historique.Insert(0, _resultat);
+
+            if (_historique.Count > TailleHistorique)
+            {
+                _historique.RemoveRange(TailleHistorique, _historique.Count - TailleHistorique);
+            }
+
+            if (_resultat.Trouve)
+            {
+                Messages.Succes($"Fiche trouvée : {_resultat.Libelle}.");
+
+                if (!string.IsNullOrWhiteSpace(_resultat.Adresse))
+                {
+                    Navigation.NavigateTo(_resultat.Adresse);
+                    return;
+                }
+            }
+            else
+            {
+                Messages.Avertissement("Aucune fiche ne porte ce code.");
+            }
+
+            _code = string.Empty;
+            await Js.InvokeVoidAsync("ceramipro.focus", "code");
+        }
+        finally
+        {
+            _recherche = false;
+        }
+    }
+
+    private async Task DemarrerCamera()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+
+        var erreur = await Js.InvokeAsync<string?>("ceramipro.demarrerCamera", IdVideo, _reference);
+
+        if (erreur is not null)
+        {
+            Messages.Erreur(erreur);
+            return;
+        }
+
+        _cameraActive = true;
+    }
+
+    private async Task ArreterCamera()
+    {
+        await Js.InvokeVoidAsync("ceramipro.arreterCamera", IdVideo);
+        _cameraActive = false;
+    }
+
+    /// <summary>Appelée par le navigateur dès qu'un code est reconnu à la caméra.</summary>
+    [JSInvokable]
+    public async Task CodeLu(string valeur)
+    {
+        _cameraActive = false;
+        _code = valeur;
+        StateHasChanged();
+
+        await Chercher();
+    }
+
+    private static string Nature(CibleScan cible) => cible switch
+    {
+        CibleScan.Produit => "Produit fini",
+        CibleScan.Matiere => "Matière première",
+        CibleScan.OrdreProduction => "Ordre de production",
+        CibleScan.Commande => "Commande personnalisée",
+        CibleScan.Vente => "Vente",
+        CibleScan.Facture => "Facture",
+        CibleScan.Achat => "Achat fournisseur",
+        _ => "Code inconnu"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_cameraActive)
+            {
+                await Js.InvokeVoidAsync("ceramipro.arreterCamera", IdVideo);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // La page est déjà fermée : rien à libérer côté navigateur.
+        }
+
+        _reference?.Dispose();
+    }
+}

@@ -893,7 +893,7 @@ a { color: var(--terre-fonce); }
 
 @media print {
     .page-impression { padding: 0; background: none; }
-    .barre-impression { display: none; }
+    .barre-impression, .sans-impression { display: none; }
     .document { border: none; box-shadow: none; max-width: none; padding: 0; }
     @page { margin: 15mm; }
 }
@@ -949,7 +949,141 @@ a { color: var(--terre-fonce); }
 .grille-graphiques { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 1.25rem; margin-bottom: 1.25rem; }
 
+/* Téléphones étroits : l'en-tête doit tenir sans déborder de l'écran. */
+@media (max-width: 560px) {
+    .entete { padding: .6rem .75rem; gap: .5rem; }
+    .entete-sous-titre { display: none; }
+    .entete-titre { min-width: 0; }
+    .entete-marque { font-size: .95rem; }
+    .entete-utilisateur { gap: .35rem; }
+    .entete-utilisateur .bouton { padding: .45rem .6rem; font-size: .85rem; }
+}
+
 @media (max-width: 700px) {
     .classement-ligne { grid-template-columns: 1fr; gap: .2rem; }
     .classement-valeur { text-align: left; }
+}
+
+/* ------------------------------------------------- Utilitaires communs ---- */
+
+/* Rangée de boutons d'action, sous un formulaire ou une carte. */
+.barre-boutons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: 1rem;
+}
+
+/* Champ de saisie mis en avant : scan de code, recherche principale. */
+.saisie-grande {
+    font-size: 1.15rem;
+    padding: .8rem .9rem;
+    letter-spacing: .04em;
+}
+
+/* Case à cocher isolée dans un tableau. */
+.case {
+    width: 20px;
+    height: 20px;
+}
+
+/* ------------------------------------------------------------ Scanner ---- */
+
+.apercu-camera {
+    margin-top: 1rem;
+    border: 2px solid var(--gris-bordure);
+    border-radius: var(--rayon);
+    overflow: hidden;
+    background: #000;
+    max-width: 480px;
+}
+
+.apercu-camera.masque {
+    display: none;
+}
+
+.apercu-camera video {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.carte-succes {
+    border-left: 6px solid var(--succes);
+}
+
+.carte-alerte {
+    border-left: 6px solid var(--avertissement);
+}
+
+/* --------------------------------------------------------- Étiquettes ---- */
+
+.planche-etiquettes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.planche-carte {
+    border: 1px dashed var(--gris-bordure);
+    border-radius: var(--rayon);
+    padding: 0.75rem;
+    background: #fff;
+    text-align: center;
+    break-inside: avoid;
+}
+
+.planche-nom {
+    margin: 0;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #000;
+}
+
+.planche-categorie {
+    margin: 0.15rem 0 0.5rem;
+    font-size: 0.75rem;
+    color: #444;
+}
+
+.planche-codes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.planche-qr svg {
+    width: 84px;
+    height: 84px;
+}
+
+.planche-barres svg {
+    max-width: 130px;
+    height: auto;
+}
+
+.planche-reference {
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+
+.planche-prix {
+    margin: 0.5rem 0 0;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #000;
+}
+
+@media print {
+    .planche-etiquettes {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+    }
+
+    .planche-carte {
+        border: 1px solid #999;
+    }
 }

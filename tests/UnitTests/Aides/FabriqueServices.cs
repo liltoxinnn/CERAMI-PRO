@@ -1,3 +1,4 @@
+using CeramicWorkshop.Domain.Common;
 using CeramicWorkshop.Application.Interfaces;
 using CeramicWorkshop.Application.Services;
 using CeramicWorkshop.Domain.Entities.Materials;
@@ -15,7 +16,13 @@ public class AtelierDeTest : IDisposable
 {
     public AtelierDeTest()
     {
-        UtilisateurCourant = new UtilisateurCourantFactice { UserId = 1, UserName = "admin" };
+        UtilisateurCourant = new UtilisateurCourantFactice
+        {
+            UserId = 1,
+            UserName = "admin",
+            RoleCode = RoleCodes.Administrateur
+        };
+
         Horloge = new HorlogeFactice();
         Audit = new AuditFactice();
         Contexte = ContexteTest.Creer(UtilisateurCourant, Horloge);
@@ -43,6 +50,8 @@ public class AtelierDeTest : IDisposable
         TableauDeBord = new TableauDeBordService(Contexte, Horloge);
         Rapports = new RapportService(Contexte, Horloge);
         Calculateurs = new CalculateurService();
+        Images = new CeramicWorkshop.Infrastructure.Services.CodeGraphiqueService();
+        Codes = new CodeService(Contexte, Images, UtilisateurCourant);
 
         PreparerReferentiel();
     }
@@ -72,6 +81,8 @@ public class AtelierDeTest : IDisposable
     public ITableauDeBordService TableauDeBord { get; }
     public IRapportService Rapports { get; }
     public ICalculateurService Calculateurs { get; }
+    public ICodeGraphiqueService Images { get; }
+    public ICodeService Codes { get; }
 
     public int CategorieId { get; private set; }
     public int UniteKiloId { get; private set; }
@@ -115,6 +126,19 @@ public class AtelierDeTest : IDisposable
             Description = description,
             Date = date ?? Horloge.UtcNow
         })).Id;
+
+    /// <summary>
+    /// Donne tous les droits à l'utilisateur de test. Par défaut il n'en a
+    /// aucun, ce qui permet de vérifier les refus ; les tests qui ont besoin
+    /// d'un administrateur complet appellent cette méthode.
+    /// </summary>
+    public void AccorderTousLesDroits()
+    {
+        foreach (var droit in PermissionCodes.Catalogue)
+        {
+            UtilisateurCourant.Droits.Add(droit.Code);
+        }
+    }
 
     /// <summary>Crée un produit fini avec son stock de départ.</summary>
     public async Task<int> CreerProduitAsync(string nom, decimal prixVente = 3500m,
