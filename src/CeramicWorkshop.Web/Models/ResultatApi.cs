@@ -27,3 +27,14 @@ public class ResultatApi<T>
 
     public static ResultatApi<T> Echec(string message) => new(false, default, new ErreurApi { Message = message });
 }
+
+/// <summary>Fichier enregistré sur le serveur.</summary>
+public record FichierDepose(string Chemin, string NomOrigine, long Taille);
+
+/// <summary>Adresse du serveur applicatif, utilisée pour afficher les photos déposées.</summary>
+public record AdresseServeur(string Base)
+{
+    /// <summary>Construit l'adresse complète d'un fichier enregistré sur le serveur.</summary>
+    public string Fichier(string? chemin)
+        => string.IsNullOrWhiteSpace(chemin) ? string.Empty : $"{Base}{chemin}";
+}

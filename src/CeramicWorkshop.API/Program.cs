@@ -194,6 +194,10 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// Photos des produits et justificatifs déposés par l'atelier.
+app.UseStaticFiles();
+
 app.UseCors(PolitiqueCors);
 app.UseAuthentication();
 app.UseAuthorization();

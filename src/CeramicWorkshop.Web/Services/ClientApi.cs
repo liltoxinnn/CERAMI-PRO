@@ -45,6 +45,24 @@ public class ClientApi
     public Task<ResultatApi<object>> SupprimerAsync(string chemin, CancellationToken cancellationToken = default)
         => EnvoyerAsync<object>(() => new HttpRequestMessage(HttpMethod.Delete, chemin), cancellationToken);
 
+    /// <summary>Dépose un fichier (photo, justificatif) et renvoie son adresse sur le serveur.</summary>
+    public async Task<ResultatApi<FichierDepose>> DeposerFichierAsync(
+        Stream contenu, string nomFichier, string typeContenu, CancellationToken cancellationToken = default)
+    {
+        using var memoire = new MemoryStream();
+        await contenu.CopyToAsync(memoire, cancellationToken);
+
+        return await EnvoyerAsync<FichierDepose>(() =>
+        {
+            var formulaire = new MultipartFormDataContent();
+            var fichier = new ByteArrayContent(memoire.ToArray());
+            fichier.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(typeContenu);
+            formulaire.Add(fichier, "fichier", nomFichier);
+
+            return new HttpRequestMessage(HttpMethod.Post, "api/fichiers") { Content = formulaire };
+        }, cancellationToken);
+    }
+
     private static HttpRequestMessage CreerRequete(HttpMethod methode, string chemin, object? corps)
     {
         var requete = new HttpRequestMessage(methode, chemin);

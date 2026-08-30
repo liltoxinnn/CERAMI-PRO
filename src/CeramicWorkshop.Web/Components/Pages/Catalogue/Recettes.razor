@@ -1,0 +1,520 @@
+@page "/recettes"
+@attribute [Authorize(Policy = PermissionCodes.RecettesConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Recettes de fabrication — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Recettes de fabrication"
+            Introduction="Les matières et les quantités nécessaires pour fabriquer chaque produit.">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouvelle recette</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <div class="champ">
+        <label for="produit-filtre">Produit</label>
+        <select id="produit-filtre" class="saisie saisie-compacte" @onchange="FiltrerProduit">
+            <option value="">Tous les produits</option>
+            @foreach (var produit in _produits)
+            {
+                <option value="@produit.Id">@produit.Nom</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des recettes…" />
+}
+else if (_recettes.Count == 0)
+{
+    <EtatVide Message="Aucune recette enregistrée. Créez-en une pour calculer automatiquement les besoins en matières." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Produit</th><th>Recette</th><th class="nombre">Version</th><th class="nombre">Rendement</th>
+                <th class="nombre">Coût matières</th><th class="nombre">Coût total</th><th class="nombre">Coût unitaire</th>
+                <th>État</th><th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var recette in _recettes)
+            {
+                <tr>
+                    <td data-libelle="Produit">@recette.ProduitNom</td>
+                    <td data-libelle="Recette">@recette.Nom</td>
+                    <td class="nombre" data-libelle="Version">@recette.Version</td>
+                    <td class="nombre" data-libelle="Rendement">
+                        @MontantFormatter.FormaterQuantite(recette.Rendement) pièce(s)</td>
+                    <td class="nombre" data-libelle="Coût matières">@MontantFormatter.Formater(recette.CoutMatieres)</td>
+                    <td class="nombre" data-libelle="Coût total">@MontantFormatter.Formater(recette.CoutTotal)</td>
+                    <td class="nombre" data-libelle="Coût unitaire">
+                        <strong>@MontantFormatter.Formater(recette.CoutUnitaire)</strong></td>
+                    <td data-libelle="État">
+                        @if (recette.ParDefaut)
+                        {
+                            <span class="etiquette etiquette-succes">Référence</span>
+                        }
+                        @if (!recette.Active)
+                        {
+                            <span class="etiquette etiquette-neutre">Inactive</span>
+                        }
+                    </td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirCalcul(recette)">Calculer</button>
+                        @if (PeutGerer)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(recette)">Modifier</button>
+                            <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                    @onclick="() => Supprimer(recette)">Supprimer</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouvelle recette" : $"Modifier « {_nomEnCours} »")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="produit">Produit fabriqué</label>
+                <InputSelect id="produit" class="saisie" @bind-Value="_formulaire.ProduitId" disabled="@(!_creation)">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var produit in _produits)
+                    {
+                        <option value="@produit.Id">@produit.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="nom-recette">Nom de la recette</label>
+                <InputText id="nom-recette" class="saisie" @bind-Value="_formulaire.Nom" />
+            </div>
+            <div class="champ">
+                <label for="rendement">Nombre de pièces obtenues</label>
+                <InputNumber id="rendement" class="saisie" @bind-Value="_formulaire.Rendement" />
+                <span class="champ-aide">Les quantités ci-dessous correspondent à ce nombre de pièces.</span>
+            </div>
+        </div>
+
+        <h3>Matières nécessaires</h3>
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Matière</th><th>Quantité</th><th>Perte (%)</th><th>Coût estimé</th><th></th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _formulaire.Lignes.Count; index++)
+            {
+                var position = index;
+                var ligne = _formulaire.Lignes[position];
+                <tr>
+                    <td data-libelle="Matière">
+                        <select class="saisie" value="@ligne.MatiereId"
+                                @onchange="args => ChoisirMatiere(position, args)">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var matiere in _matieres)
+                            {
+                                <option value="@matiere.Id">@matiere.Nom (@matiere.UniteCode)</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Quantité">
+                        <input type="number" step="0.0001" class="saisie" value="@ligne.Quantite"
+                               @onchange="args => DefinirQuantite(position, args)" />
+                    </td>
+                    <td data-libelle="Perte (%)">
+                        <input type="number" step="0.1" class="saisie" value="@ligne.PourcentagePerte"
+                               @onchange="args => DefinirPerte(position, args)" />
+                    </td>
+                    <td class="nombre" data-libelle="Coût estimé">@MontantFormatter.Formater(CoutLigne(ligne))</td>
+                    <td>
+                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                @onclick="() => RetirerLigne(position)">Retirer</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <button type="button" class="bouton bouton-secondaire" @onclick="AjouterLigne">+ Ajouter une matière</button>
+
+        <h3>Autres coûts de fabrication</h3>
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="main-oeuvre">Main-d'œuvre</label>
+                <InputNumber id="main-oeuvre" class="saisie" @bind-Value="_formulaire.CoutMainOeuvre" />
+            </div>
+            <div class="champ">
+                <label for="cuisson">Cuisson / électricité</label>
+                <InputNumber id="cuisson" class="saisie" @bind-Value="_formulaire.CoutCuisson" />
+            </div>
+            <div class="champ">
+                <label for="decoration">Décoration</label>
+                <InputNumber id="decoration" class="saisie" @bind-Value="_formulaire.CoutDecoration" />
+            </div>
+            <div class="champ">
+                <label for="emballage">Emballage</label>
+                <InputNumber id="emballage" class="saisie" @bind-Value="_formulaire.CoutEmballage" />
+            </div>
+            <div class="champ">
+                <label for="autres">Autres dépenses</label>
+                <InputNumber id="autres" class="saisie" @bind-Value="_formulaire.AutresCouts" />
+            </div>
+        </div>
+
+        <div class="totaux">
+            <div class="totaux-ligne"><span>Matières</span><span>@MontantFormatter.Formater(CoutMatieres)</span></div>
+            <div class="totaux-ligne"><span>Autres coûts</span><span>@MontantFormatter.Formater(AutresCouts)</span></div>
+            <div class="totaux-ligne total"><span>Coût total</span><span>@MontantFormatter.Formater(CoutTotal)</span></div>
+            <div class="totaux-ligne"><span>Coût par pièce</span><span>@MontantFormatter.Formater(CoutUnitaire)</span></div>
+        </div>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="defaut" @bind-Value="_formulaire.ParDefaut" />
+            <label for="defaut">Recette de référence pour ce produit</label>
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="active" @bind-Value="_formulaire.Active" />
+            <label for="active">Recette active</label>
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_calculVisible" Large="true" Titre="@($"Matières nécessaires — {_nomEnCours}")"
+         OnFermer="() => _calculVisible = false">
+    <div class="filtres">
+        <div class="champ">
+            <label for="quantite">Nombre de pièces à produire</label>
+            <input id="quantite" type="number" step="1" min="1" class="saisie" value="@_quantiteCalcul"
+                   @onchange="ChangerQuantite" />
+        </div>
+    </div>
+
+    @if (_besoins is not null)
+    {
+        @if (!_besoins.MatieresSuffisantes)
+        {
+            <div class="encart-erreur" role="alert">
+                <p class="encart-erreur-titre">Matières insuffisantes pour cette production</p>
+                <ul class="encart-erreur-liste">
+                    @foreach (var manque in _besoins.Besoins.Where(b => !b.Suffisant))
+                    {
+                        <li>
+                            @manque.MatiereNom : il manque
+                            @MontantFormatter.FormaterQuantite(manque.Manquant, manque.UniteCode)
+                            (nécessaire @MontantFormatter.FormaterQuantite(manque.QuantiteNecessaire, manque.UniteCode),
+                            disponible @MontantFormatter.FormaterQuantite(manque.QuantiteDisponible, manque.UniteCode))
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        else
+        {
+            <div class="encart-information">
+                Toutes les matières sont disponibles en quantité suffisante.
+            </div>
+        }
+
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Matière</th><th class="nombre">Nécessaire</th><th class="nombre">Disponible</th>
+                    <th class="nombre">Manquant</th><th class="nombre">Coût</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var besoin in _besoins.Besoins)
+                {
+                    <tr>
+                        <td data-libelle="Matière">@besoin.MatiereNom</td>
+                        <td class="nombre" data-libelle="Nécessaire">
+                            @MontantFormatter.FormaterQuantite(besoin.QuantiteNecessaire, besoin.UniteCode)</td>
+                        <td class="nombre" data-libelle="Disponible">
+                            @MontantFormatter.FormaterQuantite(besoin.QuantiteDisponible, besoin.UniteCode)</td>
+                        <td class="nombre" data-libelle="Manquant">
+                            @if (besoin.Manquant > 0)
+                            {
+                                <span class="etiquette etiquette-danger">
+                                    @MontantFormatter.FormaterQuantite(besoin.Manquant, besoin.UniteCode)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="etiquette etiquette-succes">Suffisant</span>
+                            }
+                        </td>
+                        <td class="nombre" data-libelle="Coût">@MontantFormatter.Formater(besoin.Cout)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="totaux">
+            <div class="totaux-ligne"><span>Coût des matières</span>
+                <span>@MontantFormatter.Formater(_besoins.CoutMatieres)</span></div>
+            <div class="totaux-ligne total"><span>Coût total estimé</span>
+                <span>@MontantFormatter.Formater(_besoins.CoutTotal)</span></div>
+            <div class="totaux-ligne"><span>Coût par pièce</span>
+                <span>@MontantFormatter.Formater(_besoins.CoutUnitaire)</span></div>
+        </div>
+    }
+</Fenetre>
+
+@code {
+    private List<RecetteDto> _recettes = new();
+    private List<ProduitDto> _produits = new();
+    private List<MatiereDto> _matieres = new();
+    private BesoinsRecetteDto? _besoins;
+
+    private RecetteRequete _formulaire = new();
+    private int? _produitFiltre;
+    private int _idEnCours;
+    private decimal _quantiteCalcul = 10m;
+    private string _nomEnCours = string.Empty;
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _calculVisible;
+    private bool _creation, _enregistrement;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.RecettesGerer);
+
+    private decimal CoutMatieres => _formulaire.Lignes.Sum(CoutLigne);
+
+    private decimal AutresCouts => _formulaire.CoutMainOeuvre + _formulaire.CoutCuisson
+                                   + _formulaire.CoutDecoration + _formulaire.CoutEmballage + _formulaire.AutresCouts;
+
+    private decimal CoutTotal => CoutMatieres + AutresCouts;
+
+    private decimal CoutUnitaire => _formulaire.Rendement > 0
+        ? Math.Round(CoutTotal / _formulaire.Rendement, 2)
+        : 0m;
+
+    private decimal CoutLigne(LigneRecetteRequete ligne)
+    {
+        var matiere = _matieres.FirstOrDefault(m => m.Id == ligne.MatiereId);
+        if (matiere is null) return 0m;
+
+        return Math.Round(ligne.Quantite * (1 + ligne.PourcentagePerte / 100m) * matiere.CoutMoyen, 2);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var produits = await Api.ObtenirAsync<PagedResult<ProduitDto>>("api/produits?taillePage=300");
+        if (produits.Succes && produits.Valeur is not null) _produits = produits.Valeur.Elements.ToList();
+
+        var matieres = await Api.ObtenirAsync<PagedResult<MatiereDto>>("api/matieres?taillePage=300");
+        if (matieres.Succes && matieres.Valeur is not null) _matieres = matieres.Valeur.Elements.ToList();
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = _produitFiltre is null ? "api/recettes" : $"api/recettes?produitId={_produitFiltre}";
+        var resultat = await Api.ObtenirAsync<List<RecetteDto>>(chemin);
+
+        if (resultat.Succes && resultat.Valeur is not null) _recettes = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task FiltrerProduit(ChangeEventArgs args)
+    {
+        _produitFiltre = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _formulaire = new RecetteRequete
+        {
+            Active = true,
+            Rendement = 1m,
+            Lignes = new List<LigneRecetteRequete> { new() }
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirModification(RecetteDto recette)
+    {
+        _creation = false;
+        _idEnCours = recette.Id;
+        _nomEnCours = recette.Nom;
+        _formulaire = new RecetteRequete
+        {
+            ProduitId = recette.ProduitId,
+            Nom = recette.Nom,
+            Rendement = recette.Rendement,
+            CoutMainOeuvre = recette.CoutMainOeuvre,
+            CoutCuisson = recette.CoutCuisson,
+            CoutDecoration = recette.CoutDecoration,
+            CoutEmballage = recette.CoutEmballage,
+            AutresCouts = recette.AutresCouts,
+            ParDefaut = recette.ParDefaut,
+            Active = recette.Active,
+            Notes = recette.Notes,
+            Lignes = recette.Lignes.Select(l => new LigneRecetteRequete
+            {
+                MatiereId = l.MatiereId,
+                UniteId = l.UniteId,
+                Quantite = l.Quantite,
+                PourcentagePerte = l.PourcentagePerte,
+                Notes = l.Notes
+            }).ToList()
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirCalcul(RecetteDto recette)
+    {
+        _idEnCours = recette.Id;
+        _nomEnCours = $"{recette.ProduitNom} — {recette.Nom}";
+        _quantiteCalcul = 10m;
+        await CalculerAsync();
+        _calculVisible = true;
+    }
+
+    private async Task ChangerQuantite(ChangeEventArgs args)
+    {
+        _quantiteCalcul = decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur) && valeur > 0
+            ? valeur
+            : 1m;
+
+        await CalculerAsync();
+    }
+
+    private async Task CalculerAsync()
+    {
+        var resultat = await Api.ObtenirAsync<BesoinsRecetteDto>(
+            $"api/recettes/{_idEnCours}/besoins?quantite={_quantiteCalcul.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+
+        if (resultat.Succes) _besoins = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+    }
+
+    private void AjouterLigne() => _formulaire.Lignes.Add(new LigneRecetteRequete());
+
+    private void RetirerLigne(int position)
+    {
+        if (position >= 0 && position < _formulaire.Lignes.Count)
+        {
+            _formulaire.Lignes.RemoveAt(position);
+        }
+    }
+
+    private void ChoisirMatiere(int position, ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var id)) return;
+
+        var ligne = _formulaire.Lignes[position];
+        ligne.MatiereId = id;
+
+        var matiere = _matieres.FirstOrDefault(m => m.Id == id);
+        if (matiere is not null) ligne.UniteId = matiere.UniteId;
+    }
+
+    private void DefinirQuantite(int position, ChangeEventArgs args)
+        => _formulaire.Lignes[position].Quantite = Nombre(args);
+
+    private void DefinirPerte(int position, ChangeEventArgs args)
+        => _formulaire.Lignes[position].PourcentagePerte = Nombre(args);
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<RecetteDto>("api/recettes", _formulaire)
+                : await Api.MettreAJourAsync<RecetteDto>($"api/recettes/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Recette créée." : "Recette modifiée.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Supprimer(RecetteDto recette)
+    {
+        var resultat = await Api.SupprimerAsync($"api/recettes/{recette.Id}");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Recette supprimée.");
+            await ChargerAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+}

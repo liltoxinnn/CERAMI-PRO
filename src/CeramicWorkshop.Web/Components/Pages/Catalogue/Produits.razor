@@ -1,0 +1,628 @@
+@page "/produits"
+@attribute [Authorize(Policy = PermissionCodes.ProduitsConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+@inject AdresseServeur Serveur
+
+<PageTitle>Produits — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Catalogue des produits"
+            Introduction="Vases, statues, assiettes, décorations murales et pièces artisanales.">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouveau produit</button>
+        }
+    </Actions>
+</EntetePage>
+
+@if (_synthese is not null)
+{
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_synthese.NombreProduits.ToString()" Libelle="produits actifs" />
+        <Statistique Valeur="@_synthese.NombreStockFaible.ToString()" Libelle="en alerte de stock"
+                     Alerte="@(_synthese.NombreStockFaible > 0)" />
+        <Statistique Valeur="@MontantFormatter.Formater(_synthese.ValeurStock)" Libelle="valeur du stock fini" />
+        <Statistique Valeur="@($"{_synthese.MargeMoyenne:0.#} %")" Libelle="marge moyenne" />
+    </div>
+}
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un nom, une référence, un code-barres…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="categorie">Catégorie</label>
+        <select id="categorie" class="saisie saisie-compacte" @onchange="FiltrerCategorie">
+            <option value="">Toutes</option>
+            @foreach (var categorie in _categories)
+            {
+                <option value="@categorie.Id">@categorie.Nom</option>
+            }
+        </select>
+    </div>
+
+    <div class="champ-case">
+        <input type="checkbox" id="alerte" checked="@_filtre.SeulementStockFaible" @onchange="BasculerAlerte" />
+        <label for="alerte">Seulement le stock faible</label>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement du catalogue…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucun produit ne correspond à votre recherche." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Photo</th><th>Référence</th><th>Nom</th><th>Catégorie</th>
+                <th class="nombre">Coût</th><th class="nombre">Prix</th><th class="nombre">Marge</th>
+                <th class="nombre">Stock</th><th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var produit in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Photo">
+                        @if (!string.IsNullOrWhiteSpace(produit.ImagePrincipale))
+                        {
+                            <img class="vignette" src="@Serveur.Fichier(produit.ImagePrincipale)"
+                                 alt="@produit.Nom" />
+                        }
+                        else
+                        {
+                            <span class="vignette vignette-vide" aria-hidden="true">🏺</span>
+                        }
+                    </td>
+                    <td data-libelle="Référence"><code>@produit.Reference</code></td>
+                    <td data-libelle="Nom">
+                        @produit.Nom
+                        @if (produit.Personnalisable)
+                        {
+                            <span class="etiquette etiquette-info">Personnalisable</span>
+                        }
+                        @if (!produit.Actif)
+                        {
+                            <span class="etiquette etiquette-neutre">Inactif</span>
+                        }
+                    </td>
+                    <td data-libelle="Catégorie">@produit.CategorieNom</td>
+                    <td class="nombre" data-libelle="Coût">@MontantFormatter.Formater(produit.CoutProduction)</td>
+                    <td class="nombre" data-libelle="Prix">@MontantFormatter.Formater(produit.PrixVente)</td>
+                    <td class="nombre" data-libelle="Marge">
+                        @MontantFormatter.Formater(produit.Marge)
+                        <br /><span class="champ-aide">@($"{produit.TauxMarge:0.#} %")</span>
+                    </td>
+                    <td class="nombre" data-libelle="Stock">
+                        <span class="etiquette @(produit.StockFaible ? "etiquette-danger" : "etiquette-succes")">
+                            @MontantFormatter.FormaterQuantite(produit.StockActuel)
+                        </span>
+                    </td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirDetail(produit)">Fiche</button>
+                        @if (PeutGerer)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(produit)">Modifier</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="ProduitDto" Page="_page" Libelle="produit(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouveau produit" : $"Modifier « {_nomEnCours} »")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="nom">Nom du produit</label>
+                <InputText id="nom" class="saisie" @bind-Value="_formulaire.Nom" />
+            </div>
+            <div class="champ">
+                <label for="cat">Catégorie</label>
+                <InputSelect id="cat" class="saisie" @bind-Value="_formulaire.CategorieId">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var categorie in _categories)
+                    {
+                        <option value="@categorie.Id">@categorie.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="matiere">Matière</label>
+                <InputText id="matiere" class="saisie" @bind-Value="_formulaire.Matiere" />
+                <span class="champ-aide">Grès, faïence, porcelaine…</span>
+            </div>
+            <div class="champ">
+                <label for="couleur">Couleur</label>
+                <InputText id="couleur" class="saisie" @bind-Value="_formulaire.Couleur" />
+            </div>
+            <div class="champ">
+                <label for="finition">Finition</label>
+                <InputText id="finition" class="saisie" @bind-Value="_formulaire.Finition" />
+            </div>
+            <div class="champ">
+                <label for="largeur">Largeur (cm)</label>
+                <InputNumber id="largeur" class="saisie" @bind-Value="_formulaire.Largeur" />
+            </div>
+            <div class="champ">
+                <label for="hauteur">Hauteur (cm)</label>
+                <InputNumber id="hauteur" class="saisie" @bind-Value="_formulaire.Hauteur" />
+            </div>
+            <div class="champ">
+                <label for="profondeur">Profondeur (cm)</label>
+                <InputNumber id="profondeur" class="saisie" @bind-Value="_formulaire.Profondeur" />
+            </div>
+            <div class="champ">
+                <label for="poids">Poids (kg)</label>
+                <InputNumber id="poids" class="saisie" @bind-Value="_formulaire.Poids" />
+            </div>
+            <div class="champ">
+                <label for="cout">Coût de production</label>
+                <InputNumber id="cout" class="saisie" @bind-Value="_formulaire.CoutProduction" />
+            </div>
+            <div class="champ">
+                <label for="prix">Prix de vente</label>
+                <InputNumber id="prix" class="saisie" @bind-Value="_formulaire.PrixVente" />
+            </div>
+            <div class="champ">
+                <label for="min">Stock minimum</label>
+                <InputNumber id="min" class="saisie" @bind-Value="_formulaire.StockMinimum" />
+            </div>
+            <div class="champ">
+                <label for="code">Code-barres</label>
+                <InputText id="code" class="saisie" @bind-Value="_formulaire.CodeBarres" />
+                <span class="champ-aide">Laissez vide pour utiliser la référence du produit.</span>
+            </div>
+            @if (_creation)
+            {
+                <div class="champ">
+                    <label for="initial">Pièces déjà en stock</label>
+                    <InputNumber id="initial" class="saisie" @bind-Value="_formulaire.StockInitial" />
+                </div>
+            }
+        </div>
+
+        <div class="champ">
+            <label for="description">Description</label>
+            <InputTextArea id="description" class="saisie saisie-multiligne" rows="2"
+                           @bind-Value="_formulaire.Description" />
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="perso" @bind-Value="_formulaire.Personnalisable" />
+            <label for="perso">Ce produit peut être personnalisé pour un client</label>
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="actif" @bind-Value="_formulaire.Actif" />
+            <label for="actif">Produit actif</label>
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_detailVisible" Large="true" Titre="@_nomEnCours" OnFermer="() => _detailVisible = false">
+    @if (_detail is not null)
+    {
+        <div class="onglets">
+            <button type="button" class="onglet @(_onglet == "fiche" ? "actif" : "")"
+                    @onclick="@(() => _onglet = "fiche")">Fiche</button>
+            <button type="button" class="onglet @(_onglet == "photos" ? "actif" : "")"
+                    @onclick="@(() => _onglet = "photos")">Photos (@_photos.Count)</button>
+            <button type="button" class="onglet @(_onglet == "variantes" ? "actif" : "")"
+                    @onclick="@(() => _onglet = "variantes")">Variantes (@_variantes.Count)</button>
+        </div>
+
+        @if (_onglet == "fiche")
+        {
+            <div class="detail-grille">
+                <div><span class="champ-aide">Référence</span><br /><code>@_detail.Reference</code></div>
+                <div><span class="champ-aide">Catégorie</span><br />@_detail.CategorieNom</div>
+                <div><span class="champ-aide">Matière</span><br />@(_detail.Matiere ?? "—")</div>
+                <div><span class="champ-aide">Couleur</span><br />@(_detail.Couleur ?? "—")</div>
+                <div><span class="champ-aide">Finition</span><br />@(_detail.Finition ?? "—")</div>
+                <div><span class="champ-aide">Dimensions</span><br />@Dimensions(_detail)</div>
+                <div><span class="champ-aide">Poids</span><br />
+                    @(_detail.Poids is null ? "—" : MontantFormatter.FormaterQuantite(_detail.Poids.Value, "kg"))</div>
+                <div><span class="champ-aide">Code-barres</span><br /><code>@(_detail.CodeBarres ?? "—")</code></div>
+                <div><span class="champ-aide">Coût de production</span><br />
+                    @MontantFormatter.Formater(_detail.CoutProduction)</div>
+                <div><span class="champ-aide">Prix de vente</span><br />
+                    @MontantFormatter.Formater(_detail.PrixVente)</div>
+                <div><span class="champ-aide">Bénéfice par pièce</span><br />
+                    <strong>@MontantFormatter.Formater(_detail.Marge)</strong></div>
+                <div><span class="champ-aide">Stock actuel</span><br />
+                    @MontantFormatter.FormaterQuantite(_detail.StockActuel)</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_detail.Description))
+            {
+                <p class="carte-texte">@_detail.Description</p>
+            }
+        }
+        else if (_onglet == "photos")
+        {
+            @if (PeutGerer)
+            {
+                <TeleversementFichier Libelle="Ajouter une photo" TypesAcceptes="image/jpeg,image/png,image/webp"
+                                      OnDepose="AjouterPhoto" />
+            }
+
+            @if (_photos.Count == 0)
+            {
+                <EtatVide Message="Aucune photo pour ce produit." />
+            }
+            else
+            {
+                <div class="galerie">
+                    @foreach (var photo in _photos)
+                    {
+                        <figure class="galerie-element">
+                            <img src="@Serveur.Fichier(photo.Chemin)" alt="@(photo.Legende ?? _detail.Nom)" />
+                            <figcaption>
+                                @photo.TypeLibelle
+                                @if (photo.Principale)
+                                {
+                                    <span class="etiquette etiquette-succes">Principale</span>
+                                }
+                            </figcaption>
+                            @if (PeutGerer)
+                            {
+                                <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                        @onclick="() => SupprimerPhoto(photo)">Retirer</button>
+                            }
+                        </figure>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            @if (PeutGerer)
+            {
+                <EditForm Model="_variante" OnValidSubmit="AjouterVariante" class="formulaire">
+                    <div class="grille-formulaire">
+                        <div class="champ">
+                            <label for="v-nom">Nom de la variante</label>
+                            <InputText id="v-nom" class="saisie" @bind-Value="_variante.Nom" />
+                        </div>
+                        <div class="champ">
+                            <label for="v-couleur">Couleur</label>
+                            <InputText id="v-couleur" class="saisie" @bind-Value="_variante.Couleur" />
+                        </div>
+                        <div class="champ">
+                            <label for="v-taille">Taille</label>
+                            <InputText id="v-taille" class="saisie" @bind-Value="_variante.Taille" />
+                        </div>
+                        <div class="champ">
+                            <label for="v-prix">Écart de prix</label>
+                            <InputNumber id="v-prix" class="saisie" @bind-Value="_variante.AjustementPrix" />
+                        </div>
+                    </div>
+                    <button type="submit" class="bouton bouton-secondaire">+ Ajouter la variante</button>
+                </EditForm>
+            }
+
+            @if (_variantes.Count == 0)
+            {
+                <EtatVide Message="Aucune variante pour ce produit." />
+            }
+            else
+            {
+                <div class="tableau-defilant">
+                    <table class="tableau">
+                        <thead>
+                        <tr><th>Référence</th><th>Nom</th><th>Couleur</th><th>Taille</th>
+                            <th class="nombre">Prix</th><th class="nombre">Stock</th>
+                            @if (PeutGerer) { <th class="colonne-actions">Actions</th> }
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var variante in _variantes)
+                        {
+                            <tr>
+                                <td data-libelle="Référence"><code>@variante.Reference</code></td>
+                                <td data-libelle="Nom">@variante.Nom</td>
+                                <td data-libelle="Couleur">@(variante.Couleur ?? "—")</td>
+                                <td data-libelle="Taille">@(variante.Taille ?? "—")</td>
+                                <td class="nombre" data-libelle="Prix">@MontantFormatter.Formater(variante.PrixFinal)</td>
+                                <td class="nombre" data-libelle="Stock">
+                                    @MontantFormatter.FormaterQuantite(variante.StockActuel)</td>
+                                @if (PeutGerer)
+                                {
+                                    <td class="colonne-actions" data-libelle="Actions">
+                                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                                @onclick="() => SupprimerVariante(variante)">Supprimer</button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    }
+</Fenetre>
+
+@code {
+    private PagedResult<ProduitDto>? _page;
+    private SyntheseCatalogueDto? _synthese;
+    private ProduitDto? _detail;
+    private List<ElementReferentielDto> _categories = new();
+    private List<PhotoProduitDto> _photos = new();
+    private List<VarianteProduitDto> _variantes = new();
+
+    private FiltreProduitsRequete _filtre = new();
+    private ProduitRequete _formulaire = new();
+    private VarianteProduitRequete _variante = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _detailVisible;
+    private bool _creation, _enregistrement;
+    private string _onglet = "fiche";
+
+    private int _idEnCours;
+    private string _nomEnCours = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.ProduitsGerer);
+
+    private static string Dimensions(ProduitDto p)
+    {
+        var parties = new List<string>();
+        if (p.Largeur is not null) parties.Add($"L {p.Largeur:0.##}");
+        if (p.Hauteur is not null) parties.Add($"H {p.Hauteur:0.##}");
+        if (p.Profondeur is not null) parties.Add($"P {p.Profondeur:0.##}");
+        return parties.Count == 0 ? "—" : string.Join(" × ", parties) + " cm";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var categories = await Api.ObtenirAsync<List<ElementReferentielDto>>(
+            "api/referentiels/CategorieProduit?inclureInactifs=false");
+        if (categories.Succes && categories.Valeur is not null) _categories = categories.Valeur;
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/produits?page={_filtre.Page}&taillePage={_filtre.TaillePage}" +
+                     $"&seulementStockFaible={_filtre.SeulementStockFaible}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.CategorieId is not null) chemin += $"&categorieId={_filtre.CategorieId}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<ProduitDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        var synthese = await Api.ObtenirAsync<SyntheseCatalogueDto>("api/produits/synthese");
+        if (synthese.Succes) _synthese = synthese.Valeur;
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerCategorie(ChangeEventArgs args)
+    {
+        _filtre.CategorieId = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerAlerte(ChangeEventArgs args)
+    {
+        _filtre.SeulementStockFaible = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _formulaire = new ProduitRequete { Actif = true };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirModification(ProduitDto produit)
+    {
+        _creation = false;
+        _idEnCours = produit.Id;
+        _nomEnCours = produit.Nom;
+        _formulaire = new ProduitRequete
+        {
+            Nom = produit.Nom,
+            CategorieId = produit.CategorieId,
+            Description = produit.Description,
+            Matiere = produit.Matiere,
+            Couleur = produit.Couleur,
+            Finition = produit.Finition,
+            Largeur = produit.Largeur,
+            Hauteur = produit.Hauteur,
+            Profondeur = produit.Profondeur,
+            Poids = produit.Poids,
+            CoutProduction = produit.CoutProduction,
+            PrixVente = produit.PrixVente,
+            StockMinimum = produit.StockMinimum,
+            CodeBarres = produit.CodeBarres,
+            Personnalisable = produit.Personnalisable,
+            Actif = produit.Actif
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirDetail(ProduitDto produit)
+    {
+        _idEnCours = produit.Id;
+        _nomEnCours = produit.Nom;
+        _detail = produit;
+        _onglet = "fiche";
+        _variante = new VarianteProduitRequete { Actif = true };
+
+        await RafraichirPhotosAsync();
+        await RafraichirVariantesAsync();
+
+        _detailVisible = true;
+    }
+
+    private async Task RafraichirPhotosAsync()
+    {
+        var photos = await Api.ObtenirAsync<List<PhotoProduitDto>>($"api/produits/{_idEnCours}/photos");
+        _photos = photos.Succes && photos.Valeur is not null ? photos.Valeur : new List<PhotoProduitDto>();
+    }
+
+    private async Task RafraichirVariantesAsync()
+    {
+        var variantes = await Api.ObtenirAsync<List<VarianteProduitDto>>($"api/produits/{_idEnCours}/variantes");
+        _variantes = variantes.Succes && variantes.Valeur is not null
+            ? variantes.Valeur
+            : new List<VarianteProduitDto>();
+    }
+
+    private async Task AjouterPhoto(string chemin)
+    {
+        var resultat = await Api.PosterAsync<PhotoProduitDto>($"api/produits/{_idEnCours}/photos",
+            new PhotoProduitRequete
+            {
+                Chemin = chemin,
+                Type = ProductImageKind.Supplementaire,
+                Principale = _photos.Count == 0
+            });
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Photo ajoutée.");
+            await RafraichirPhotosAsync();
+            await ChargerAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task SupprimerPhoto(PhotoProduitDto photo)
+    {
+        var resultat = await Api.SupprimerAsync($"api/produits/{_idEnCours}/photos/{photo.Id}");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Photo retirée.");
+            await RafraichirPhotosAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task AjouterVariante()
+    {
+        var resultat = await Api.PosterAsync<VarianteProduitDto>(
+            $"api/produits/{_idEnCours}/variantes", _variante);
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Variante ajoutée.");
+            _variante = new VarianteProduitRequete { Actif = true };
+            await RafraichirVariantesAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task SupprimerVariante(VarianteProduitDto variante)
+    {
+        var resultat = await Api.SupprimerAsync($"api/produits/{_idEnCours}/variantes/{variante.Id}");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Variante supprimée.");
+            await RafraichirVariantesAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<ProduitDto>("api/produits", _formulaire)
+                : await Api.MettreAJourAsync<ProduitDto>($"api/produits/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Produit créé." : "Produit modifié.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

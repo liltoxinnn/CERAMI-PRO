@@ -735,3 +735,20 @@ a { color: var(--terre-fonce); }
     .lignes-document tr { border-bottom: 1px solid var(--gris-bordure); padding: .5rem 0; }
     .lignes-document td { border: none; padding: .3rem 0; }
 }
+
+.vignette {
+    width: 48px; height: 48px; object-fit: cover; border-radius: var(--rayon);
+    border: 1px solid var(--gris-bordure); background: var(--gris-fond);
+}
+
+.vignette-vide { display: inline-flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+
+.galerie { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: 1rem; }
+
+.galerie-element {
+    margin: 0; border: 1px solid var(--gris-bordure); border-radius: var(--rayon);
+    padding: .5rem; background: var(--blanc); text-align: center;
+}
+
+.galerie-element img { width: 100%; height: 140px; object-fit: cover; border-radius: var(--rayon); }
+.galerie-element figcaption { font-size: .8rem; color: var(--gris-texte); margin: .4rem 0; }
