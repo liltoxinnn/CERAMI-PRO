@@ -11,20 +11,51 @@ contrôle qualité, produits finis, commandes clients, paiements et livraison.
 
 ## État d'avancement
 
+Les dix étapes prévues sont terminées.
+
 | Étape | Contenu | État |
 |-------|---------|------|
 | 1 | Architecture, base de données, sécurité, utilisateurs, paramètres | **Terminée** |
-| 2 | Stock : matières, unités, fournisseurs, achats, mouvements | À venir |
-| 3 | Produits : catalogue, photos, variantes, recettes | À venir |
-| 4 | Production : ordres, étapes, consommation des matières | À venir |
-| 5 | Cuisson, décoration, contrôle qualité | À venir |
-| 6 | Clients et commandes personnalisées | À venir |
-| 7 | Ventes, factures, paiements, dettes | À venir |
-| 8 | Dépenses, bénéfices, rapports, statistiques | À venir |
-| 9 | QR codes, codes-barres, scanner | À venir |
-| 10 | Tests finaux, sauvegarde, déploiement | À venir |
+| 2 | Stock : matières, unités, fournisseurs, achats, mouvements | **Terminée** |
+| 3 | Produits : catalogue, photos, variantes, recettes | **Terminée** |
+| 4 | Production : ordres, étapes, consommation des matières | **Terminée** |
+| 5 | Cuisson, décoration, contrôle qualité | **Terminée** |
+| 6 | Clients et commandes personnalisées | **Terminée** |
+| 7 | Ventes, factures, paiements, dettes | **Terminée** |
+| 8 | Dépenses, bénéfices, rapports, statistiques | **Terminée** |
+| 9 | Codes QR, codes-barres, étiquettes et lecture | **Terminée** |
+| 10 | Recherche globale, alertes, sauvegardes, sécurité, documentation | **Terminée** |
 
 Le détail figure dans [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMENT.md).
+
+---
+
+## Ce que fait le logiciel
+
+**Atelier** — tableau de bord (chiffres du jour et du mois, graphiques sur douze
+mois, classements), recherche globale, centre d'alertes, lecture des codes.
+
+**Stock** — matières premières, unités, seuils d'alerte, mouvements tracés,
+coût moyen pondéré recalculé à chaque entrée, régularisations justifiées.
+
+**Fournisseurs** — fiches, achats, réceptions, règlements et dettes.
+
+**Produits** — catalogue, photos, variantes, recettes de fabrication avec pertes
+et rendement, étiquettes à imprimer (code QR et code-barres).
+
+**Production** — ordres de fabrication, contrôle des matières avant lancement,
+suivi des dix étapes en tableau, cuissons par four avec coût d'énergie réparti,
+décoration, contrôle qualité, coût de revient réel calculé à la fin.
+
+**Clients et ventes** — fiches clients, commandes personnalisées suivies étape
+par étape, ventes au comptoir avec lecture de code-barres, factures imprimables,
+paiements partiels et suivi des dettes.
+
+**Gestion** — dépenses, douze rapports exportables vers un tableur, calculateurs
+de matières, de surface et de quantité.
+
+**Administration** — comptes, rôles et droits, listes de référence, paramètres de
+l'atelier, réglages des alertes, sauvegardes.
 
 ---
 
@@ -36,6 +67,8 @@ Le détail figure dans [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMEN
 | [docs/BASE-DE-DONNEES.md](docs/BASE-DE-DONNEES.md) | Arbre des tables, relations, diagramme ERD |
 | [docs/REGLES-METIER.md](docs/REGLES-METIER.md) | Les 20 règles métier et leur mise en œuvre |
 | [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMENT.md) | Les 10 étapes de développement |
+| [docs/GUIDE-UTILISATION.md](docs/GUIDE-UTILISATION.md) | Prise en main écran par écran |
+| [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) | Installation sur l'ordinateur de l'atelier, sauvegarde et restauration |
 
 ---
 
@@ -135,6 +168,9 @@ Les tests d'intégration utilisent la base `CeramicWorkshopDB_Tests`. Pour viser
 autre serveur, définissez la variable `CERAMIPRO_TEST_DB`. Sans serveur joignable,
 ces tests sont ignorés au lieu d'échouer.
 
+Le projet compte **299 tests** : 274 tests unitaires sur les règles métier et
+25 tests d'intégration qui interrogent une vraie base PostgreSQL.
+
 ---
 
 ## Migrations de la base de données
@@ -182,3 +218,10 @@ Le rôle « Administrateur » conserve toujours l'intégralité des droits.
 * Documents financiers supprimés logiquement : l'historique reste consultable.
 * Les identifiants PostgreSQL ne sont jamais exposés à l'interface : celle-ci
   ne communique qu'avec l'API.
+* Fichiers déposés contrôlés sur l'extension, le type déclaré **et** le contenu
+  réel ; le nom d'origine n'est jamais réutilisé.
+* En-têtes de sécurité sur chaque réponse (`nosniff`, `DENY`, `no-referrer`).
+* Le contrôle automatique des formulaires ne s'applique qu'aux formulaires :
+  un paramètre de recherche n'est jamais confondu avec un mot de passe.
+* La recherche globale et la lecture des codes ne parcourent que les modules
+  que l'utilisateur a le droit de consulter.

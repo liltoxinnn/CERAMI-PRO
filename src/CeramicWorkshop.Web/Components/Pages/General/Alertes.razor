@@ -1,0 +1,168 @@
+@page "/alertes"
+@attribute [Authorize]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Alertes — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Alertes"
+            Introduction="Ce qui demande votre attention aujourd'hui : stocks, échéances, retards et impayés.">
+    <Actions>
+        @if (_alertes.Any(a => !a.Lue))
+        {
+            <button type="button" class="bouton bouton-secondaire" @onclick="ToutMarquerLu">
+                Tout marquer comme lu
+            </button>
+        }
+        @if (PeutRegler)
+        {
+            <a class="bouton bouton-discret" href="alertes/reglages">Réglages des alertes</a>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <div class="champ-case">
+        <input id="non-lues" type="checkbox" checked="@_seulementNonLues" @onchange="BasculerNonLues" />
+        <label for="non-lues">Afficher seulement les alertes non lues</label>
+    </div>
+
+    <div class="champ">
+        <label for="gravite">Gravité</label>
+        <select id="gravite" class="saisie saisie-compacte" @onchange="FiltrerGravite">
+            <option value="">Toutes</option>
+            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<NotificationSeverity>())
+            {
+                <option value="@valeur">@libelle</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Vérification de l'atelier…" />
+}
+else if (_alertes.Count == 0)
+{
+    <EtatVide Message="Rien à signaler : tout est à jour." />
+}
+else
+{
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_alertes.Count(a => a.Gravite == NotificationSeverity.Critique).ToString()"
+                     Libelle="alertes critiques" />
+        <Statistique Valeur="@_alertes.Count(a => a.Gravite == NotificationSeverity.Avertissement).ToString()"
+                     Libelle="avertissements" />
+        <Statistique Valeur="@_alertes.Count(a => !a.Lue).ToString()" Libelle="non lues" />
+    </div>
+
+    <ul class="liste-alertes">
+        @foreach (var alerte in _alertes)
+        {
+            <li class="alerte @Classe(alerte.Gravite) @(alerte.Lue ? "alerte-lue" : "")">
+                <div class="alerte-contenu">
+                    <p class="alerte-titre">@alerte.Titre</p>
+                    <p class="alerte-message">@alerte.Message</p>
+                    <p class="alerte-details">
+                        @alerte.TypeLibelle — @alerte.GraviteLibelle —
+                        @MontantFormatter.FormaterDateHeure(alerte.Date)
+                    </p>
+                </div>
+
+                <div class="alerte-actions">
+                    @if (!string.IsNullOrWhiteSpace(alerte.Adresse))
+                    {
+                        <a class="bouton bouton-discret" href="@alerte.Adresse">Ouvrir la fiche</a>
+                    }
+                    @if (!alerte.Lue)
+                    {
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => MarquerLue(alerte.Id)">Marquer comme lue</button>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<AlerteDto> _alertes = new();
+    private bool _chargement = true;
+    private bool _seulementNonLues;
+    private NotificationSeverity? _gravite;
+
+    private bool PeutRegler => Authentification.Session.PossedeDroit(PermissionCodes.ParametresConsulter);
+
+    protected override Task OnInitializedAsync() => Charger();
+
+    private async Task Charger()
+    {
+        _chargement = true;
+
+        try
+        {
+            var chemin = $"api/alertes?seulementNonLues={_seulementNonLues.ToString().ToLowerInvariant()}";
+
+            if (_gravite is not null)
+            {
+                chemin += $"&gravite={_gravite}";
+            }
+
+            var resultat = await Api.ObtenirAsync<List<AlerteDto>>(chemin);
+
+            if (resultat.Succes && resultat.Valeur is not null) _alertes = resultat.Valeur;
+            else Messages.Erreur(resultat.Message);
+        }
+        finally
+        {
+            _chargement = false;
+        }
+    }
+
+    private async Task BasculerNonLues(ChangeEventArgs args)
+    {
+        _seulementNonLues = args.Value is bool coche && coche;
+        await Charger();
+    }
+
+    private async Task FiltrerGravite(ChangeEventArgs args)
+    {
+        _gravite = Enum.TryParse<NotificationSeverity>(args.Value?.ToString(), out var gravite)
+            ? gravite
+            : null;
+
+        await Charger();
+    }
+
+    private async Task MarquerLue(int id)
+    {
+        var resultat = await Api.PosterAsync<object>($"api/alertes/{id}/lue");
+
+        if (resultat.Succes) await Charger();
+        else Messages.Erreur(resultat.Message);
+    }
+
+    private async Task ToutMarquerLu()
+    {
+        var resultat = await Api.PosterAsync<object>("api/alertes/tout-lu");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Toutes les alertes sont marquées comme lues.");
+            await Charger();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private static string Classe(NotificationSeverity gravite) => gravite switch
+    {
+        NotificationSeverity.Critique => "alerte-critique",
+        NotificationSeverity.Avertissement => "alerte-avertissement",
+        _ => "alerte-information"
+    };
+}

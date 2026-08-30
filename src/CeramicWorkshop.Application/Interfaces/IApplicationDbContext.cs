@@ -98,4 +98,10 @@ public interface IApplicationDbContext
     DbSet<SystemSetting> SystemSettings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Oublie les modifications en attente. Sert lorsqu'un enregistrement a
+    /// échoué et qu'il ne faut surtout pas le rejouer.
+    /// </summary>
+    void AnnulerModificationsEnAttente();
 }

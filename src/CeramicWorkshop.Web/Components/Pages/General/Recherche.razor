@@ -1,0 +1,117 @@
+@page "/recherche"
+@attribute [Authorize]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>Recherche — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Recherche"
+            Introduction="Un seul champ pour retrouver un produit, une matière, un client, une commande ou une facture." />
+
+<div class="carte">
+    <div class="champ">
+        <label for="terme">Que cherchez-vous ?</label>
+        <input id="terme" class="saisie saisie-grande" placeholder="Nom, numéro, téléphone…"
+               value="@_terme" autocomplete="off"
+               @oninput="args => _terme = args.Value?.ToString() ?? string.Empty"
+               @onkeydown="Touche" />
+        <p class="champ-aide">
+            L'orthographe exacte n'est pas nécessaire : « emaille » retrouve « émaillé ».
+        </p>
+    </div>
+
+    <div class="barre-boutons">
+        <button type="button" class="bouton bouton-principal" @onclick="Chercher" disabled="@_chargement">
+            @(_chargement ? "Recherche…" : "Chercher")
+        </button>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Recherche en cours…" />
+}
+else if (_resultat is not null && _resultat.Total == 0)
+{
+    <EtatVide Message="@($"Aucune fiche ne correspond à « {_resultat.Terme} ».")" />
+}
+else if (_resultat is not null)
+{
+    <p class="page-introduction">
+        @_resultat.Total fiche(s) trouvée(s) pour « @_resultat.Terme ».
+    </p>
+
+    @foreach (var groupe in _resultat.Groupes)
+    {
+        <article class="carte">
+            <h2 class="carte-titre">@groupe.Libelle</h2>
+
+            <ul class="liste-resultats">
+                @foreach (var resultat in groupe.Resultats)
+                {
+                    <li>
+                        <a class="resultat" href="@resultat.Adresse">
+                            <span class="resultat-titre">@resultat.Titre</span>
+                            <span class="resultat-reference">@resultat.SousTitre</span>
+                            @if (!string.IsNullOrWhiteSpace(resultat.Complement))
+                            {
+                                <span class="resultat-complement">@resultat.Complement</span>
+                            }
+                        </a>
+                    </li>
+                }
+            </ul>
+        </article>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "terme")]
+    private string? TermeUrl { get; set; }
+
+    private string _terme = string.Empty;
+    private bool _chargement;
+    private RechercheGlobaleDto? _resultat;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(TermeUrl) && TermeUrl != _terme)
+        {
+            _terme = TermeUrl;
+            await Chercher();
+        }
+    }
+
+    private async Task Touche(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or "NumpadEnter")
+        {
+            await Chercher();
+        }
+    }
+
+    private async Task Chercher()
+    {
+        if (string.IsNullOrWhiteSpace(_terme) || _terme.Trim().Length < 2)
+        {
+            Messages.Avertissement("Saisissez au moins deux caractères.");
+            return;
+        }
+
+        _chargement = true;
+
+        try
+        {
+            var resultat = await Api.ObtenirAsync<RechercheGlobaleDto>(
+                $"api/recherche?terme={Uri.EscapeDataString(_terme.Trim())}&parFamille=8");
+
+            if (resultat.Succes) _resultat = resultat.Valeur;
+            else Messages.Erreur(resultat.Message);
+        }
+        finally
+        {
+            _chargement = false;
+        }
+    }
+}

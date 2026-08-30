@@ -168,6 +168,14 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 
         builder.HasIndex(n => new { n.IsRead, n.CreatedAt });
 
+        // Une même fiche ne peut porter qu'une seule alerte d'un type donné.
+        // PostgreSQL considère les valeurs nulles comme distinctes : les
+        // messages d'information, qui ne visent aucune fiche, ne sont pas
+        // contraints par cet index.
+        builder.HasIndex(n => new { n.Type, n.EntityName, n.EntityId })
+            .IsUnique()
+            .HasDatabaseName("IX_Notifications_Type_Entite");
+
         builder.HasOne(n => n.User)
             .WithMany()
             .HasForeignKey(n => n.UserId)

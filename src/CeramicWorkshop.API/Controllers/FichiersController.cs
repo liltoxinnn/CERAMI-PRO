@@ -29,6 +29,21 @@ public class FichiersController : ControllerBase
         [".pdf"] = "application/pdf"
     };
 
+    /// <summary>
+    /// Premiers octets attendus pour chaque format. Un fichier renommé en
+    /// « .png » mais qui n'en est pas un est ainsi refusé, quelle que soit
+    /// l'extension annoncée.
+    /// </summary>
+    private static readonly Dictionary<string, byte[][]> SignaturesAttendues =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            [".jpg"] = new[] { new byte[] { 0xFF, 0xD8, 0xFF } },
+            [".jpeg"] = new[] { new byte[] { 0xFF, 0xD8, 0xFF } },
+            [".png"] = new[] { new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A } },
+            [".webp"] = new[] { "RIFF"u8.ToArray() },
+            [".pdf"] = new[] { "%PDF"u8.ToArray() }
+        };
+
     private readonly IWebHostEnvironment _environnement;
     private readonly ILogger<FichiersController> _journal;
 
@@ -74,6 +89,14 @@ public class FichiersController : ControllerBase
             });
         }
 
+        if (!await SignatureValideAsync(fichier, extension, cancellationToken))
+        {
+            return BadRequest(new ErreurApi
+            {
+                Message = "Ce fichier n'est pas une image ou un PDF valide."
+            });
+        }
+
         var racine = string.IsNullOrWhiteSpace(_environnement.WebRootPath)
             ? Path.Combine(_environnement.ContentRootPath, "wwwroot")
             : _environnement.WebRootPath;
@@ -94,5 +117,24 @@ public class FichiersController : ControllerBase
         _journal.LogInformation("Fichier enregistré : {Adresse}", adresse);
 
         return Ok(new { chemin = adresse, nomOrigine = Path.GetFileName(fichier.FileName), taille = fichier.Length });
+    }
+
+    /// <summary>Vérifie que le contenu correspond réellement au format annoncé.</summary>
+    private static async Task<bool> SignatureValideAsync(
+        IFormFile fichier, string extension, CancellationToken cancellationToken)
+    {
+        if (!SignaturesAttendues.TryGetValue(extension, out var signatures))
+        {
+            return false;
+        }
+
+        var longueur = signatures.Max(signature => signature.Length);
+        var debut = new byte[longueur];
+
+        await using var flux = fichier.OpenReadStream();
+        var lus = await flux.ReadAtLeastAsync(debut, longueur, throwOnEndOfStream: false, cancellationToken);
+
+        return lus >= longueur
+               && signatures.Any(signature => debut.AsSpan(0, signature.Length).SequenceEqual(signature));
     }
 }

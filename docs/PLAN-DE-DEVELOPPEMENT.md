@@ -20,7 +20,7 @@ Architecture, base de données et sécurité.
 * Journal des opérations, suppression logique, dates en UTC.
 * 63 tests unitaires et 13 tests d'intégration.
 
-## Étape 2 — Stock
+## Étape 2 — Stock · **terminée**
 
 * Catégories de matières, unités de mesure personnalisées.
 * Fiche matière complète : seuils, coût moyen, emplacement, photo.
@@ -30,7 +30,7 @@ Architecture, base de données et sécurité.
 * Régularisations d'inventaire justifiées.
 * Alertes de stock faible.
 
-## Étape 3 — Produits
+## Étape 3 — Produits · **terminée**
 
 * Catégories et catalogue produit avec fiche détaillée.
 * Photos multiples : principale, supplémentaires, fabrication, produit terminé.
@@ -38,7 +38,7 @@ Architecture, base de données et sécurité.
 * Recettes de fabrication et calcul automatique des besoins pour une série.
 * Calcul du coût de production prévisionnel.
 
-## Étape 4 — Production
+## Étape 4 — Production · **terminée**
 
 * Ordres de production, priorité, employé responsable, dates prévues et réelles.
 * Vérification des matières disponibles avant lancement, avec message explicite.
@@ -47,7 +47,7 @@ Architecture, base de données et sécurité.
 * Historique daté de chaque étape avec quantités acceptées et endommagées.
 * Entrée en stock des produits finis à la clôture.
 
-## Étape 5 — Cuisson, décoration, qualité
+## Étape 5 — Cuisson, décoration, qualité · **terminée**
 
 * Fours : capacité, températures, état.
 * Fournées : température, durée, coût énergétique, pièces enfournées.
@@ -55,7 +55,7 @@ Architecture, base de données et sécurité.
 * Contrôle qualité sur huit points, défauts, gravité, solution.
 * Blocage du passage à « Terminé » sans contrôle qualité conforme.
 
-## Étape 6 — Clients et commandes personnalisées
+## Étape 6 — Clients et commandes personnalisées · **terminée**
 
 * Fiche client : historique, factures, paiements, montant restant.
 * Commandes personnalisées : dimensions, couleurs, matériaux, date limite.
@@ -63,7 +63,7 @@ Architecture, base de données et sécurité.
 * Suivi du statut de la commande jusqu'à la livraison.
 * Signalement des commandes proches de l'échéance ou en retard.
 
-## Étape 7 — Ventes, factures, paiements
+## Étape 7 — Ventes, factures, paiements · **terminée**
 
 * Écran de vente rapide : client, produits, quantité, remise, total.
 * Diminution automatique du stock et mouvements associés.
@@ -71,7 +71,7 @@ Architecture, base de données et sécurité.
 * Paiements complets, partiels, acomptes et règlements de dettes.
 * Suivi des dettes clients et fournisseurs.
 
-## Étape 8 — Gestion financière
+## Étape 8 — Gestion financière · **terminée**
 
 * Dépenses par catégorie, avec justificatif.
 * Calcul du coût réel de production : matières, main-d'œuvre, cuisson,
@@ -82,19 +82,39 @@ Architecture, base de données et sécurité.
 * Rapports exportables en PDF et Excel.
 * Calculateurs : matières, surface avec pourcentage de perte, quantités.
 
-## Étape 9 — Codes-barres et QR codes
+## Étape 9 — Codes-barres et QR codes · **terminée**
 
 * Génération des codes pour chaque produit.
 * Lecture par caméra de téléphone et par lecteur USB.
 * Le scan ouvre la fiche produit, ajoute à une vente ou ouvre une production.
 
-## Étape 10 — Finalisation
+## Étape 10 — Finalisation · **terminée**
 
-* Recherche globale tolérante aux fautes de frappe.
-* Notifications regroupées et réglages associés.
-* Sauvegarde et restauration de la base par l'administrateur.
-* Revue de sécurité, optimisation, vérification sur téléphone et tablette.
-* Documentation d'installation et guide d'utilisation.
+* Recherche globale tolérante aux fautes de frappe et aux accents manquants,
+  limitée aux modules que l'utilisateur a le droit de consulter.
+* Centre d'alertes recalculé depuis l'état réel de l'atelier, avec réglages
+  par type d'alerte, et compteur dans l'en-tête.
+* Sauvegardes : archive de toutes les tables à la demande, sauvegarde
+  automatique quotidienne, purge selon la durée de conservation ; procédure de
+  restauration décrite dans le guide de déploiement.
+* Revue de sécurité : en-têtes de réponse, contrôle réel du contenu des
+  fichiers déposés, validation des formulaires corrigée, vérification des
+  droits sur la recherche et la lecture des codes.
+* Vérification sur téléphone et tablette, en-tête corrigé sur écran étroit.
+* Documentation : guide d'utilisation et guide de déploiement.
+
+---
+
+## Résultat
+
+| Indicateur | Valeur |
+|------------|--------|
+| Projets | 5 (Domain, Application, Infrastructure, API, Web) |
+| Tables PostgreSQL | 49 |
+| Droits fonctionnels | 45, répartis en 9 modules |
+| Écrans | 37 |
+| Tests unitaires | 274 |
+| Tests d'intégration | 25 |
 
 ---
 

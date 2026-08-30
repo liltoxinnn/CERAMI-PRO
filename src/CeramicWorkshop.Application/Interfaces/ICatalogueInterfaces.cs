@@ -1,6 +1,7 @@
 using CeramicWorkshop.Application.Common;
 using CeramicWorkshop.Application.DTOs.Catalogue;
 using CeramicWorkshop.Application.DTOs.Codes;
+using CeramicWorkshop.Application.DTOs.Recherche;
 
 namespace CeramicWorkshop.Application.Interfaces;
 
@@ -89,4 +90,14 @@ public interface ICodeService
 
     /// <summary>Reconnaît un code scanné et indique l'écran à ouvrir.</summary>
     Task<ResultatScanDto> ResoudreAsync(string code, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Recherche globale : un seul champ pour retrouver n'importe quelle fiche de
+/// l'atelier, même quand le nom est mal orthographié.
+/// </summary>
+public interface IRechercheService
+{
+    Task<RechercheGlobaleDto> ChercherAsync(
+        string terme, int maximumParFamille = 5, CancellationToken cancellationToken = default);
 }

@@ -170,6 +170,7 @@ if (builder.Configuration.GetValue("BaseDeDonnees:MigrerAuDemarrage", true))
     }
 }
 
+app.UseMiddleware<EntetesSecuriteMiddleware>();
 app.UseMiddleware<GestionExceptionsMiddleware>();
 
 app.UseRequestLocalization(new RequestLocalizationOptions

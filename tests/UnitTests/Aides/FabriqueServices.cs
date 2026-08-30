@@ -52,6 +52,8 @@ public class AtelierDeTest : IDisposable
         Calculateurs = new CalculateurService();
         Images = new CeramicWorkshop.Infrastructure.Services.CodeGraphiqueService();
         Codes = new CodeService(Contexte, Images, UtilisateurCourant);
+        Recherche = new RechercheService(Contexte, UtilisateurCourant);
+        Alertes = new AlerteService(Contexte, Horloge);
 
         PreparerReferentiel();
     }
@@ -83,6 +85,8 @@ public class AtelierDeTest : IDisposable
     public ICalculateurService Calculateurs { get; }
     public ICodeGraphiqueService Images { get; }
     public ICodeService Codes { get; }
+    public IRechercheService Recherche { get; }
+    public IAlerteService Alertes { get; }
 
     public int CategorieId { get; private set; }
     public int UniteKiloId { get; private set; }
@@ -126,6 +130,36 @@ public class AtelierDeTest : IDisposable
             Description = description,
             Date = date ?? Horloge.UtcNow
         })).Id;
+
+    /// <summary>Crée les réglages d'alertes, comme le fait l'amorçage de la base.</summary>
+    public void PreparerAlertes()
+    {
+        var types = new[]
+        {
+            Domain.Enums.NotificationType.StockFaible,
+            Domain.Enums.NotificationType.MatiereInsuffisante,
+            Domain.Enums.NotificationType.CommandeEcheance,
+            Domain.Enums.NotificationType.CommandeRetard,
+            Domain.Enums.NotificationType.PaiementEnAttente,
+            Domain.Enums.NotificationType.DetteClient,
+            Domain.Enums.NotificationType.DetteFournisseur,
+            Domain.Enums.NotificationType.ProductionBloquee,
+            Domain.Enums.NotificationType.ProductionRetard,
+            Domain.Enums.NotificationType.AttenteProlongee
+        };
+
+        foreach (var type in types)
+        {
+            Contexte.NotificationSettings.Add(new Domain.Entities.Notifications.NotificationSetting
+            {
+                Type = type,
+                IsEnabled = true,
+                ThresholdDays = type is Domain.Enums.NotificationType.CommandeEcheance ? 3 : 7
+            });
+        }
+
+        Contexte.SaveChanges();
+    }
 
     /// <summary>
     /// Donne tous les droits à l'utilisateur de test. Par défaut il n'en a

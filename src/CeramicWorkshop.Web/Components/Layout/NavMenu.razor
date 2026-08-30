@@ -36,7 +36,7 @@
     </ul>
 
     <p class="menu-note">
-        Les modules production, clients et ventes s'ajouteront ici au fil des prochaines étapes.
+        Un doute sur un écran ? La recherche en haut de page retrouve n'importe quelle fiche.
     </p>
 </nav>
 
@@ -52,7 +52,9 @@
         new("Atelier", new List<ElementMenu>
         {
             new("Tableau de bord", "", "🏠"),
-            new("Scanner un code", "scanner", "📷")
+            new("Scanner un code", "scanner", "📷"),
+            new("Alertes", "alertes", "🔔"),
+            new("Recherche", "recherche", "🔎")
         }),
         new("Stock", new List<ElementMenu>
         {
@@ -102,7 +104,9 @@
             new("Utilisateurs", "utilisateurs", "👤", PermissionCodes.UtilisateursConsulter),
             new("Rôles et droits", "roles", "🔐", PermissionCodes.UtilisateursConsulter),
             new("Listes de référence", "parametres/listes", "🗂️", PermissionCodes.MatieresConsulter),
-            new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter)
+            new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter),
+            new("Réglages des alertes", "alertes/reglages", "🔕", PermissionCodes.ParametresConsulter),
+            new("Sauvegardes", "sauvegardes", "💾", PermissionCodes.SauvegardeGerer)
         })
     };
 
