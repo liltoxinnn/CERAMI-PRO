@@ -1,0 +1,29 @@
+@if (Visible)
+{
+    <div class="fenetre-fond" @onclick="Fermer">
+        <div class="fenetre @(Large ? "fenetre-large" : string.Empty)" role="dialog" aria-modal="true"
+             aria-label="@Titre" @onclick:stopPropagation="true">
+            <div class="fenetre-barre">
+                <h2 class="fenetre-titre">@Titre</h2>
+                <button type="button" class="fenetre-croix" title="Fermer" aria-label="Fermer"
+                        @onclick="Fermer">✕</button>
+            </div>
+            @ChildContent
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+
+    [Parameter, EditorRequired] public string Titre { get; set; } = string.Empty;
+
+    /// <summary>Fenêtre élargie, pour les formulaires à plusieurs colonnes.</summary>
+    [Parameter] public bool Large { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public EventCallback OnFermer { get; set; }
+
+    private Task Fermer() => OnFermer.InvokeAsync();
+}

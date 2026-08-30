@@ -1,0 +1,387 @@
+@page "/fournisseurs"
+@attribute [Authorize(Policy = PermissionCodes.FournisseursConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Fournisseurs — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Fournisseurs" Introduction="Coordonnées, historique d'achats et montants restant à régler.">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouveau fournisseur</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un nom, une entreprise, un téléphone…"
+                    OnRechercher="Rechercher" />
+    <div class="champ-case">
+        <input type="checkbox" id="dette" checked="@_filtre.SeulementAvecDette" @onchange="BasculerDette" />
+        <label for="dette">Seulement ceux à qui je dois de l'argent</label>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des fournisseurs…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucun fournisseur ne correspond à votre recherche." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Numéro</th><th>Nom</th><th>Téléphone</th>
+                <th class="nombre">Total acheté</th><th class="nombre">Payé</th><th class="nombre">Reste à payer</th>
+                <th>Dernier achat</th>
+                @if (PeutGerer) { <th class="colonne-actions">Actions</th> }
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var fournisseur in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Numéro"><code>@fournisseur.Numero</code></td>
+                    <td data-libelle="Nom">
+                        @fournisseur.Nom
+                        @if (!string.IsNullOrWhiteSpace(fournisseur.Entreprise))
+                        {
+                            <br /><span class="champ-aide">@fournisseur.Entreprise</span>
+                        }
+                    </td>
+                    <td data-libelle="Téléphone">@(fournisseur.Telephone ?? "—")</td>
+                    <td class="nombre" data-libelle="Total acheté">@MontantFormatter.Formater(fournisseur.TotalAchats)</td>
+                    <td class="nombre" data-libelle="Payé">@MontantFormatter.Formater(fournisseur.TotalPaye)</td>
+                    <td class="nombre" data-libelle="Reste à payer">
+                        <span class="etiquette @(fournisseur.Reste > 0 ? "etiquette-danger" : "etiquette-succes")">
+                            @MontantFormatter.Formater(fournisseur.Reste)
+                        </span>
+                    </td>
+                    <td data-libelle="Dernier achat">
+                        @(fournisseur.DernierAchat is null
+                            ? "—"
+                            : MontantFormatter.FormaterDate(fournisseur.DernierAchat.Value.ToLocalTime()))
+                    </td>
+                    @if (PeutGerer)
+                    {
+                        <td class="colonne-actions" data-libelle="Actions">
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(fournisseur)">Modifier</button>
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirReglements(fournisseur)">Règlements</button>
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="FournisseurDto" Page="_page" Libelle="fournisseur(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouveau fournisseur" : $"Modifier « {_nomEnCours} »")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="nom">Nom du contact</label>
+                <InputText id="nom" class="saisie" @bind-Value="_formulaire.Nom" />
+            </div>
+            <div class="champ">
+                <label for="entreprise">Entreprise</label>
+                <InputText id="entreprise" class="saisie" @bind-Value="_formulaire.Entreprise" />
+            </div>
+            <div class="champ">
+                <label for="tel">Téléphone</label>
+                <InputText id="tel" class="saisie" @bind-Value="_formulaire.Telephone" />
+            </div>
+            <div class="champ">
+                <label for="email">Email</label>
+                <InputText id="email" class="saisie" @bind-Value="_formulaire.Email" />
+            </div>
+            <div class="champ">
+                <label for="adresse">Adresse</label>
+                <InputText id="adresse" class="saisie" @bind-Value="_formulaire.Adresse" />
+            </div>
+            <div class="champ">
+                <label for="ville">Ville</label>
+                <InputText id="ville" class="saisie" @bind-Value="_formulaire.Ville" />
+            </div>
+        </div>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="actif" @bind-Value="_formulaire.Actif" />
+            <label for="actif">Fournisseur actif</label>
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_reglementsVisibles" Large="true" Titre="@($"Règlements — {_nomEnCours}")"
+         OnFermer="() => _reglementsVisibles = false">
+    <div class="totaux">
+        <div class="totaux-ligne"><span>Total acheté</span><span>@MontantFormatter.Formater(_totalAchats)</span></div>
+        <div class="totaux-ligne"><span>Déjà payé</span><span>@MontantFormatter.Formater(_totalPaye)</span></div>
+        <div class="totaux-ligne total"><span>Reste à payer</span><span>@MontantFormatter.Formater(_reste)</span></div>
+    </div>
+
+    @if (PeutRegler && _reste > 0)
+    {
+        <EditForm Model="_reglement" OnValidSubmit="EnregistrerReglement" class="formulaire">
+            <ResumeErreurs Message="@_erreur" Details="_details" />
+
+            <div class="grille-formulaire">
+                <div class="champ">
+                    <label for="montant">Montant à régler</label>
+                    <InputNumber id="montant" class="saisie" @bind-Value="_reglement.Montant" />
+                </div>
+                <div class="champ">
+                    <label for="mode">Mode de règlement</label>
+                    <InputSelect id="mode" class="saisie" @bind-Value="_reglement.ModeReglementId">
+                        <option value="0">— Choisir —</option>
+                        @foreach (var mode in _modes)
+                        {
+                            <option value="@mode.Id">@mode.Nom</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="champ">
+                    <label for="ref">Référence</label>
+                    <InputText id="ref" class="saisie" @bind-Value="_reglement.Reference" />
+                </div>
+            </div>
+
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer le règlement")
+            </button>
+        </EditForm>
+    }
+
+    @if (_reglements.Count == 0)
+    {
+        <EtatVide Message="Aucun règlement enregistré pour ce fournisseur." />
+    }
+    else
+    {
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Numéro</th><th>Date</th><th class="nombre">Montant</th><th>Mode</th><th>Achat</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var reglement in _reglements)
+                {
+                    <tr>
+                        <td data-libelle="Numéro"><code>@reglement.Numero</code></td>
+                        <td data-libelle="Date">@MontantFormatter.FormaterDate(reglement.Date.ToLocalTime())</td>
+                        <td class="nombre" data-libelle="Montant">@MontantFormatter.Formater(reglement.Montant)</td>
+                        <td data-libelle="Mode">@reglement.ModeReglement</td>
+                        <td data-libelle="Achat">@(reglement.AchatNumero ?? "—")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</Fenetre>
+
+@code {
+    private PagedResult<FournisseurDto>? _page;
+    private List<ReglementFournisseurDto> _reglements = new();
+    private List<ModeReglementDto> _modes = new();
+
+    private FiltreFournisseursRequete _filtre = new();
+    private FournisseurRequete _formulaire = new();
+    private ReglementFournisseurRequete _reglement = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible;
+    private bool _reglementsVisibles;
+    private bool _creation;
+    private bool _enregistrement;
+
+    private int _idEnCours;
+    private string _nomEnCours = string.Empty;
+    private decimal _totalAchats, _totalPaye, _reste;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.FournisseursGerer);
+    private bool PeutRegler => Authentification.Session.PossedeDroit(PermissionCodes.PaiementsEnregistrer);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var modes = await Api.ObtenirAsync<List<ModeReglementDto>>("api/modes-reglement");
+        if (modes.Succes && modes.Valeur is not null) _modes = modes.Valeur;
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/fournisseurs?page={_filtre.Page}&taillePage={_filtre.TaillePage}" +
+                     $"&seulementAvecDette={_filtre.SeulementAvecDette}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<FournisseurDto>>(chemin);
+
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerDette(ChangeEventArgs args)
+    {
+        _filtre.SeulementAvecDette = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _formulaire = new FournisseurRequete { Actif = true };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirModification(FournisseurDto fournisseur)
+    {
+        _creation = false;
+        _idEnCours = fournisseur.Id;
+        _nomEnCours = fournisseur.Nom;
+        _formulaire = new FournisseurRequete
+        {
+            Nom = fournisseur.Nom,
+            Entreprise = fournisseur.Entreprise,
+            Telephone = fournisseur.Telephone,
+            Email = fournisseur.Email,
+            Adresse = fournisseur.Adresse,
+            Ville = fournisseur.Ville,
+            Notes = fournisseur.Notes,
+            Actif = fournisseur.Actif
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirReglements(FournisseurDto fournisseur)
+    {
+        _idEnCours = fournisseur.Id;
+        _nomEnCours = fournisseur.Nom;
+        _totalAchats = fournisseur.TotalAchats;
+        _totalPaye = fournisseur.TotalPaye;
+        _reste = fournisseur.Reste;
+        _reglement = new ReglementFournisseurRequete { FournisseurId = fournisseur.Id, Montant = fournisseur.Reste };
+        _erreur = null;
+        _details = Array.Empty<string>();
+
+        var resultat = await Api.ObtenirAsync<List<ReglementFournisseurDto>>(
+            $"api/fournisseurs/{fournisseur.Id}/reglements");
+        _reglements = resultat.Succes && resultat.Valeur is not null
+            ? resultat.Valeur
+            : new List<ReglementFournisseurDto>();
+
+        _reglementsVisibles = true;
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<FournisseurDto>("api/fournisseurs", _formulaire)
+                : await Api.MettreAJourAsync<FournisseurDto>($"api/fournisseurs/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Fournisseur créé." : "Fournisseur modifié.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task EnregistrerReglement()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<ReglementFournisseurDto>("api/fournisseurs/reglements", _reglement);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes("Règlement enregistré.");
+            _reglementsVisibles = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

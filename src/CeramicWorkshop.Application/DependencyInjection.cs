@@ -18,6 +18,14 @@ public static class DependencyInjection
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IParametresService, ParametresService>();
 
+        services.AddScoped<IReferenceNumberService, ReferenceNumberService>();
+        services.AddScoped<IInventaireService, InventaireService>();
+        services.AddScoped<IReferentielService, ReferentielService>();
+        services.AddScoped<IUniteService, UniteService>();
+        services.AddScoped<IMatiereService, MatiereService>();
+        services.AddScoped<IFournisseurService, FournisseurService>();
+        services.AddScoped<IAchatService, AchatService>();
+
         return services;
     }
 }

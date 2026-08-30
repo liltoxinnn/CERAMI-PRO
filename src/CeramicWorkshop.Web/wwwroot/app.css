@@ -642,3 +642,96 @@ a { color: var(--terre-fonce); }
     .liste-definitions { grid-template-columns: 1fr; }
     .liste-definitions dd { margin-bottom: .4rem; }
 }
+
+/* =========================================================================
+   Compléments : statistiques, fenêtres, listes de modules métier.
+   ========================================================================= */
+
+.page-actions { display: flex; gap: .6rem; flex-wrap: wrap; }
+
+.bandeau-statistiques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0;
+}
+
+.statistique {
+    background: var(--blanc);
+    border: 1px solid var(--gris-bordure);
+    border-left: 4px solid var(--terre);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+}
+
+.statistique-alerte { border-left-color: var(--danger); }
+.statistique-valeur { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
+.statistique-alerte .statistique-valeur { color: var(--danger); }
+.statistique-libelle { font-size: .84rem; color: var(--gris-texte); }
+
+.fenetre-barre { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+
+.fenetre-croix {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: var(--gris-texte);
+    padding: .2rem .45rem;
+    border-radius: var(--rayon);
+}
+
+.fenetre-croix:hover { background: var(--gris-fond); color: var(--ardoise); }
+
+.filtres { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; margin: 1rem 0; }
+.filtres .champ { min-width: 170px; }
+.filtres .champ label { font-size: .82rem; }
+
+.saisie-compacte { min-height: 40px; padding: .4rem .6rem; font-size: .92rem; }
+
+.nombre { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tableau th.nombre { text-align: right; }
+
+.etiquette-info { background: var(--info-fond, #e8f1fa); color: var(--information); }
+.etiquette-attention { background: var(--avertissement-fond); color: var(--avertissement); }
+
+.lignes-document { width: 100%; border-collapse: collapse; font-size: .92rem; margin-top: .75rem; }
+.lignes-document th { text-align: left; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--gris-texte); padding: .4rem .5rem; border-bottom: 1px solid var(--gris-bordure); }
+.lignes-document td { padding: .4rem .5rem; border-bottom: 1px solid var(--gris-bordure); vertical-align: middle; }
+.lignes-document .saisie { min-height: 38px; padding: .35rem .5rem; font-size: .9rem; }
+.lignes-document tfoot td { font-weight: 600; border-bottom: none; }
+
+.totaux { display: flex; flex-direction: column; gap: .35rem; margin-top: 1rem; max-width: 320px; margin-left: auto; }
+.totaux-ligne { display: flex; justify-content: space-between; gap: 1.5rem; font-size: .95rem; }
+.totaux-ligne.total { font-size: 1.15rem; font-weight: 700; border-top: 1px solid var(--gris-bordure); padding-top: .45rem; }
+
+.detail-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem 1.5rem; }
+
+.onglets { display: flex; gap: .3rem; border-bottom: 1px solid var(--gris-bordure); margin: 1.25rem 0; flex-wrap: wrap; }
+
+.onglet {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: .6rem .9rem;
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--gris-texte);
+    cursor: pointer;
+}
+
+.onglet:hover { color: var(--ardoise); }
+.onglet.actif { color: var(--terre-fonce); border-bottom-color: var(--terre); }
+
+@media (max-width: 860px) {
+    .totaux { margin-left: 0; max-width: none; }
+    .lignes-document thead { display: none; }
+    .lignes-document, .lignes-document tbody, .lignes-document tr, .lignes-document td { display: block; width: 100%; }
+    .lignes-document tr { border-bottom: 1px solid var(--gris-bordure); padding: .5rem 0; }
+    .lignes-document td { border: none; padding: .3rem 0; }
+}

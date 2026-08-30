@@ -36,7 +36,7 @@
     </ul>
 
     <p class="menu-note">
-        Les autres modules (stock, production, ventes…) s'ajouteront ici au fil des prochaines étapes.
+        Les modules production, clients et ventes s'ajouteront ici au fil des prochaines étapes.
     </p>
 </nav>
 
@@ -53,10 +53,21 @@
         {
             new("Tableau de bord", "", "🏠")
         }),
+        new("Stock", new List<ElementMenu>
+        {
+            new("Matières premières", "stock/matieres", "🧱", PermissionCodes.MatieresConsulter),
+            new("Mouvements de stock", "stock/mouvements", "🔄", PermissionCodes.MouvementsConsulter)
+        }),
+        new("Fournisseurs", new List<ElementMenu>
+        {
+            new("Fournisseurs", "fournisseurs", "🚚", PermissionCodes.FournisseursConsulter),
+            new("Achats", "achats", "📦", PermissionCodes.AchatsConsulter)
+        }),
         new("Administration", new List<ElementMenu>
         {
             new("Utilisateurs", "utilisateurs", "👤", PermissionCodes.UtilisateursConsulter),
             new("Rôles et droits", "roles", "🔐", PermissionCodes.UtilisateursConsulter),
+            new("Listes de référence", "parametres/listes", "🗂️", PermissionCodes.MatieresConsulter),
             new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter)
         })
     };

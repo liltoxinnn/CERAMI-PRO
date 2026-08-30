@@ -42,6 +42,9 @@ public class ClientApi
         string chemin, object corps, CancellationToken cancellationToken = default)
         => EnvoyerAsync<TReponse>(() => CreerRequete(HttpMethod.Put, chemin, corps), cancellationToken);
 
+    public Task<ResultatApi<object>> SupprimerAsync(string chemin, CancellationToken cancellationToken = default)
+        => EnvoyerAsync<object>(() => new HttpRequestMessage(HttpMethod.Delete, chemin), cancellationToken);
+
     private static HttpRequestMessage CreerRequete(HttpMethod methode, string chemin, object? corps)
     {
         var requete = new HttpRequestMessage(methode, chemin);

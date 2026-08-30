@@ -1,0 +1,10 @@
+<div class="encart-vide">
+    <p>@Message</p>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Aucun élément à afficher.";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
