@@ -822,3 +822,78 @@ a { color: var(--terre-fonce); }
 .liste-points { list-style: none; margin: 0 0 1rem; padding: 0;
     display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .35rem; }
 .liste-points li { font-size: .9rem; }
+
+.liste-produits {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: .6rem;
+    margin-bottom: 1rem;
+}
+
+.carte-produit {
+    display: flex; flex-direction: column; gap: .2rem; text-align: left;
+    background: var(--blanc); border: 1px solid var(--gris-bordure);
+    border-radius: var(--rayon); padding: .7rem .8rem; cursor: pointer;
+    min-height: 76px;
+}
+
+.carte-produit:hover { border-color: var(--terre); background: var(--terre-claire); }
+.carte-produit-nom { font-weight: 600; font-size: .92rem; }
+.carte-produit-prix { font-weight: 700; color: var(--terre-fonce); }
+.carte-produit-stock { font-size: .8rem; color: var(--gris-texte); }
+
+/* ============================ Documents imprimables ===================== */
+
+.page-impression { padding: 1.5rem; background: var(--gris-fond); min-height: 100vh; }
+
+.barre-impression { display: flex; gap: .75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+
+.document {
+    background: var(--blanc);
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2.5rem;
+    border: 1px solid var(--gris-bordure);
+    box-shadow: var(--ombre);
+    color: var(--ardoise);
+}
+
+.document-entete { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap;
+    border-bottom: 2px solid var(--ardoise); padding-bottom: 1.25rem; margin-bottom: 1.5rem; }
+.document-entete p { margin: 0 0 .15rem; font-size: .88rem; }
+.document-logo { max-height: 70px; margin-bottom: .5rem; }
+.document-atelier { font-size: 1.5rem; margin: 0 0 .4rem; letter-spacing: .04em; }
+.document-identite { text-align: right; }
+.document-identite h2 { font-size: 1.4rem; margin: 0 0 .3rem; letter-spacing: .1em; color: var(--terre-fonce); }
+.document-numero { font-size: 1.1rem; font-weight: 700; }
+.document-etat { font-weight: 600; }
+
+.document-client { margin-bottom: 1.5rem; }
+.document-client h3, .document-reglements h3 { font-size: .82rem; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--gris-texte); margin: 0 0 .4rem; }
+.document-client-nom { font-size: 1.1rem; font-weight: 600; margin: 0 0 .2rem; }
+.document-client p { margin: 0 0 .15rem; font-size: .9rem; }
+
+.document-lignes { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 1.25rem; }
+.document-lignes th { text-align: left; padding: .5rem .6rem; border-bottom: 2px solid var(--ardoise);
+    font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.document-lignes td { padding: .5rem .6rem; border-bottom: 1px solid var(--gris-bordure); }
+.document-lignes .nombre { text-align: right; font-variant-numeric: tabular-nums; }
+
+.document-totaux { margin-left: auto; max-width: 320px; display: flex; flex-direction: column; gap: .3rem; }
+.document-totaux div { display: flex; justify-content: space-between; gap: 1.5rem; font-size: .95rem; }
+.document-total { font-size: 1.15rem; font-weight: 700; border-top: 2px solid var(--ardoise);
+    padding-top: .4rem; margin-top: .3rem; }
+.document-reste { font-weight: 700; color: var(--terre-fonce); }
+
+.document-reglements { margin-top: 2rem; }
+.document-pied { margin-top: 2.5rem; border-top: 1px solid var(--gris-bordure); padding-top: 1rem;
+    font-size: .85rem; color: var(--gris-texte); text-align: center; }
+.document-mentions { font-size: .78rem; }
+
+@media print {
+    .page-impression { padding: 0; background: none; }
+    .barre-impression { display: none; }
+    .document { border: none; box-shadow: none; max-width: none; padding: 0; }
+    @page { margin: 15mm; }
+}

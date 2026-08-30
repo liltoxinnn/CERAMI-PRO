@@ -71,6 +71,19 @@
             new("Catalogue", "produits", "🏺", PermissionCodes.ProduitsConsulter),
             new("Recettes", "recettes", "🧪", PermissionCodes.RecettesConsulter)
         }),
+        new("Clients", new List<ElementMenu>
+        {
+            new("Clients", "clients", "👥", PermissionCodes.ClientsConsulter),
+            new("Commandes personnalisées", "commandes", "🎨", PermissionCodes.CommandesConsulter),
+            new("Dettes clients", "clients/dettes", "⚠️", PermissionCodes.ClientsConsulter)
+        }),
+        new("Ventes", new List<ElementMenu>
+        {
+            new("Nouvelle vente", "ventes/nouvelle", "🛒", PermissionCodes.VentesCreer),
+            new("Historique des ventes", "ventes", "📑", PermissionCodes.VentesConsulter),
+            new("Factures", "factures", "📄", PermissionCodes.FacturesConsulter),
+            new("Paiements", "paiements", "💳", PermissionCodes.PaiementsConsulter)
+        }),
         new("Fournisseurs", new List<ElementMenu>
         {
             new("Fournisseurs", "fournisseurs", "🚚", PermissionCodes.FournisseursConsulter),

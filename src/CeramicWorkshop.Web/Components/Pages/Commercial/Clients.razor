@@ -1,0 +1,395 @@
+@page "/clients"
+@attribute [Authorize(Policy = PermissionCodes.ClientsConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Clients — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Clients" Introduction="Coordonnées, historique d'achats et montants restant dus.">
+    <Actions>
+        <a class="bouton bouton-secondaire" href="clients/dettes">Dettes clients</a>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouveau client</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un nom, un numéro, un téléphone…"
+                    OnRechercher="Rechercher" />
+    <div class="champ-case">
+        <input type="checkbox" id="dette" checked="@_filtre.SeulementAvecDette" @onchange="BasculerDette" />
+        <label for="dette">Seulement ceux qui me doivent de l'argent</label>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des clients…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucun client ne correspond à votre recherche." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Numéro</th><th>Nom</th><th>Téléphone</th>
+                <th class="nombre">Total dépensé</th><th class="nombre">Payé</th><th class="nombre">Reste</th>
+                <th class="nombre">Ventes</th><th class="nombre">Commandes</th>
+                <th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var client in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Numéro"><code>@client.Numero</code></td>
+                    <td data-libelle="Nom">@client.Nom</td>
+                    <td data-libelle="Téléphone">@(client.Telephone ?? "—")</td>
+                    <td class="nombre" data-libelle="Total dépensé">@MontantFormatter.Formater(client.TotalDepense)</td>
+                    <td class="nombre" data-libelle="Payé">@MontantFormatter.Formater(client.TotalPaye)</td>
+                    <td class="nombre" data-libelle="Reste">
+                        <span class="etiquette @(client.Reste > 0 ? "etiquette-danger" : "etiquette-succes")">
+                            @MontantFormatter.Formater(client.Reste)
+                        </span>
+                    </td>
+                    <td class="nombre" data-libelle="Ventes">@client.NombreVentes</td>
+                    <td class="nombre" data-libelle="Commandes">@client.NombreCommandes</td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirFiche(client)">Fiche</button>
+                        @if (PeutGerer)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(client)">Modifier</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="ClientDto" Page="_page" Libelle="client(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouveau client" : $"Modifier « {_nomEnCours} »")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="nom">Nom du client</label>
+                <InputText id="nom" class="saisie" @bind-Value="_formulaire.Nom" />
+            </div>
+            <div class="champ">
+                <label for="tel">Téléphone</label>
+                <InputText id="tel" class="saisie" @bind-Value="_formulaire.Telephone" />
+            </div>
+            <div class="champ">
+                <label for="email">Email</label>
+                <InputText id="email" class="saisie" @bind-Value="_formulaire.Email" />
+            </div>
+            <div class="champ">
+                <label for="ville">Ville</label>
+                <InputText id="ville" class="saisie" @bind-Value="_formulaire.Ville" />
+            </div>
+            <div class="champ">
+                <label for="adresse">Adresse</label>
+                <InputText id="adresse" class="saisie" @bind-Value="_formulaire.Adresse" />
+            </div>
+        </div>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="champ-case">
+            <InputCheckbox id="actif" @bind-Value="_formulaire.Actif" />
+            <label for="actif">Client actif</label>
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_ficheVisible" Large="true" Titre="@_nomEnCours" OnFermer="() => _ficheVisible = false">
+    @if (_fiche is not null)
+    {
+        <div class="detail-grille">
+            <div><span class="champ-aide">Numéro</span><br /><code>@_fiche.Numero</code></div>
+            <div><span class="champ-aide">Téléphone</span><br />@(_fiche.Telephone ?? "—")</div>
+            <div><span class="champ-aide">Email</span><br />@(_fiche.Email ?? "—")</div>
+            <div><span class="champ-aide">Ville</span><br />@(_fiche.Ville ?? "—")</div>
+            <div><span class="champ-aide">Total dépensé</span><br />
+                <strong>@MontantFormatter.Formater(_fiche.TotalDepense)</strong></div>
+            <div><span class="champ-aide">Reste à payer</span><br />
+                <strong>@MontantFormatter.Formater(_fiche.Reste)</strong></div>
+            <div><span class="champ-aide">Dernière transaction</span><br />
+                @(_fiche.DerniereTransaction is null
+                    ? "—"
+                    : MontantFormatter.FormaterDate(_fiche.DerniereTransaction.Value.ToLocalTime()))</div>
+        </div>
+
+        <h3>Ventes</h3>
+        @if (_ventes.Count == 0)
+        {
+            <EtatVide Message="Aucune vente enregistrée pour ce client." />
+        }
+        else
+        {
+            <div class="tableau-defilant">
+                <table class="tableau">
+                    <thead>
+                    <tr><th>Numéro</th><th>Date</th><th class="nombre">Total</th><th class="nombre">Reste</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var vente in _ventes)
+                    {
+                        <tr>
+                            <td data-libelle="Numéro"><code>@vente.Numero</code></td>
+                            <td data-libelle="Date">@MontantFormatter.FormaterDate(vente.Date.ToLocalTime())</td>
+                            <td class="nombre" data-libelle="Total">@MontantFormatter.Formater(vente.Total)</td>
+                            <td class="nombre" data-libelle="Reste">@MontantFormatter.Formater(vente.Reste)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <h3>Commandes personnalisées</h3>
+        @if (_commandes.Count == 0)
+        {
+            <EtatVide Message="Aucune commande personnalisée." />
+        }
+        else
+        {
+            <div class="tableau-defilant">
+                <table class="tableau">
+                    <thead>
+                    <tr><th>Numéro</th><th>Titre</th><th>État</th><th>Échéance</th><th class="nombre">Reste</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var commande in _commandes)
+                    {
+                        <tr>
+                            <td data-libelle="Numéro"><code>@commande.Numero</code></td>
+                            <td data-libelle="Titre">@commande.Titre</td>
+                            <td data-libelle="État">@commande.StatutLibelle</td>
+                            <td data-libelle="Échéance">
+                                @MontantFormatter.FormaterDate(commande.DateLimite.ToLocalTime())</td>
+                            <td class="nombre" data-libelle="Reste">@MontantFormatter.Formater(commande.Reste)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <h3>Notes</h3>
+        @if (PeutGerer)
+        {
+            <div class="champ">
+                <label for="nouvelle-note">Ajouter une note</label>
+                <textarea id="nouvelle-note" class="saisie saisie-multiligne" rows="2" @bind="_nouvelleNote"></textarea>
+            </div>
+            <button type="button" class="bouton bouton-secondaire" @onclick="AjouterNote">Enregistrer la note</button>
+        }
+
+        @if (_notes.Count > 0)
+        {
+            <ul class="chronologie">
+                @foreach (var note in _notes)
+                {
+                    <li>
+                        @note.Contenu
+                        <span class="champ-aide">
+                            @MontantFormatter.FormaterDateHeure(note.Date.ToLocalTime())
+                            @if (note.Auteur is not null)
+                            {
+                                <text> · @note.Auteur</text>
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</Fenetre>
+
+@code {
+    private PagedResult<ClientDto>? _page;
+    private ClientDto? _fiche;
+    private List<VenteDto> _ventes = new();
+    private List<CommandeDto> _commandes = new();
+    private List<NoteClientDto> _notes = new();
+
+    private FiltreClientsRequete _filtre = new();
+    private ClientRequete _formulaire = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _ficheVisible, _creation, _enregistrement;
+    private int _idEnCours;
+    private string _nomEnCours = string.Empty;
+    private string _nouvelleNote = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.ClientsGerer);
+
+    protected override async Task OnInitializedAsync() => await ChargerAsync();
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/clients?page={_filtre.Page}&taillePage={_filtre.TaillePage}" +
+                     $"&seulementAvecDette={_filtre.SeulementAvecDette}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<ClientDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerDette(ChangeEventArgs args)
+    {
+        _filtre.SeulementAvecDette = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _formulaire = new ClientRequete { Actif = true };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void OuvrirModification(ClientDto client)
+    {
+        _creation = false;
+        _idEnCours = client.Id;
+        _nomEnCours = client.Nom;
+        _formulaire = new ClientRequete
+        {
+            Nom = client.Nom, Telephone = client.Telephone, Email = client.Email,
+            Adresse = client.Adresse, Ville = client.Ville, Notes = client.Notes, Actif = client.Actif
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirFiche(ClientDto client)
+    {
+        _idEnCours = client.Id;
+        _nomEnCours = client.Nom;
+        _fiche = client;
+        _nouvelleNote = string.Empty;
+
+        var ventes = await Api.ObtenirAsync<PagedResult<VenteDto>>(
+            $"api/ventes?clientId={client.Id}&taillePage=50");
+        _ventes = ventes.Succes && ventes.Valeur is not null ? ventes.Valeur.Elements.ToList() : new();
+
+        var commandes = await Api.ObtenirAsync<PagedResult<CommandeDto>>(
+            $"api/commandes?clientId={client.Id}&taillePage=50");
+        _commandes = commandes.Succes && commandes.Valeur is not null
+            ? commandes.Valeur.Elements.ToList()
+            : new();
+
+        await ChargerNotesAsync();
+
+        _ficheVisible = true;
+    }
+
+    private async Task ChargerNotesAsync()
+    {
+        var notes = await Api.ObtenirAsync<List<NoteClientDto>>($"api/clients/{_idEnCours}/notes");
+        _notes = notes.Succes && notes.Valeur is not null ? notes.Valeur : new List<NoteClientDto>();
+    }
+
+    private async Task AjouterNote()
+    {
+        if (string.IsNullOrWhiteSpace(_nouvelleNote)) return;
+
+        var resultat = await Api.PosterAsync<NoteClientDto>(
+            $"api/clients/{_idEnCours}/notes", new NoteRequete { Contenu = _nouvelleNote });
+
+        if (resultat.Succes)
+        {
+            Messages.Succes("Note enregistrée.");
+            _nouvelleNote = string.Empty;
+            await ChargerNotesAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<ClientDto>("api/clients", _formulaire)
+                : await Api.MettreAJourAsync<ClientDto>($"api/clients/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Client créé." : "Client modifié.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

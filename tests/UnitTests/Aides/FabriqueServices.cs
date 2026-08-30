@@ -33,6 +33,12 @@ public class AtelierDeTest : IDisposable
         Cuissons = new CuissonService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
         Decorations = new DecorationService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
         Qualite = new QualiteService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Clients = new ClientService(Contexte, Numerotation, UtilisateurCourant, Audit);
+        Commandes = new CommandeService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Paiements = new PaiementService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Factures = new FactureService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Ventes = new VenteService(
+            Contexte, Inventaire, Paiements, Numerotation, UtilisateurCourant, Horloge, Audit);
 
         PreparerReferentiel();
     }
@@ -53,6 +59,11 @@ public class AtelierDeTest : IDisposable
     public ICuissonService Cuissons { get; }
     public IDecorationService Decorations { get; }
     public IQualiteService Qualite { get; }
+    public IClientService Clients { get; }
+    public ICommandeService Commandes { get; }
+    public IPaiementService Paiements { get; }
+    public IFactureService Factures { get; }
+    public IVenteService Ventes { get; }
 
     public int CategorieId { get; private set; }
     public int UniteKiloId { get; private set; }
@@ -130,6 +141,13 @@ public class AtelierDeTest : IDisposable
 
         return (produitId, recette.Id, argileId);
     }
+
+    /// <summary>Crée un client de test.</summary>
+    public async Task<int> CreerClientAsync(string nom = "Mohamed Benali")
+        => (await Clients.CreerAsync(new Application.DTOs.Commercial.ClientRequete
+        {
+            Nom = nom, Telephone = "0550 11 22 33"
+        })).Id;
 
     /// <summary>Enregistre un contrôle qualité conforme sur une production.</summary>
     public Task ControlerAsync(int productionId, decimal quantite)

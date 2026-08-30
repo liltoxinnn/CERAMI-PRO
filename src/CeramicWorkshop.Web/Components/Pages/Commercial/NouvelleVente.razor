@@ -1,0 +1,293 @@
+@page "/ventes/nouvelle"
+@attribute [Authorize(Policy = PermissionCodes.VentesCreer)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject NavigationManager Navigation
+
+<PageTitle>Nouvelle vente — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Nouvelle vente"
+            Introduction="Choisissez le client, ajoutez les produits, encaissez et la facture est émise." />
+
+<ResumeErreurs Message="@_erreur" Details="_details" />
+
+<div class="carte">
+    <h2 class="carte-titre">Client</h2>
+    <div class="grille-formulaire">
+        <div class="champ">
+            <label for="client">Client</label>
+            <select id="client" class="saisie" @onchange="args => _vente.ClientId = EntierOuNull(args)">
+                <option value="">Client de passage</option>
+                @foreach (var client in _clients)
+                {
+                    <option value="@client.Id">@client.Nom</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="carte">
+    <h2 class="carte-titre">Produits</h2>
+
+    <div class="filtres">
+        <ChampRecherche Valeur="@_recherche" Placeholder="Rechercher un produit ou scanner un code-barres…"
+                        OnRechercher="RechercherProduit" />
+    </div>
+
+    @if (_produitsTrouves.Count > 0)
+    {
+        <div class="liste-produits">
+            @foreach (var produit in _produitsTrouves)
+            {
+                <button type="button" class="carte-produit" @onclick="() => Ajouter(produit)">
+                    <span class="carte-produit-nom">@produit.Nom</span>
+                    <span class="carte-produit-prix">@MontantFormatter.Formater(produit.PrixVente)</span>
+                    <span class="carte-produit-stock">
+                        Stock : @MontantFormatter.FormaterQuantite(produit.StockActuel)
+                    </span>
+                </button>
+            }
+        </div>
+    }
+
+    @if (_lignes.Count == 0)
+    {
+        <EtatVide Message="Aucun produit dans cette vente. Recherchez un produit puis cliquez dessus." />
+    }
+    else
+    {
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Produit</th><th>Quantité</th><th>Prix unitaire</th><th>Remise</th><th>Total</th><th></th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _lignes.Count; index++)
+            {
+                var position = index;
+                var ligne = _lignes[position];
+                <tr>
+                    <td data-libelle="Produit">
+                        @ligne.Nom
+                        <br /><span class="champ-aide">
+                            Stock : @MontantFormatter.FormaterQuantite(ligne.StockDisponible)
+                        </span>
+                    </td>
+                    <td data-libelle="Quantité">
+                        <input type="number" step="1" min="1" class="saisie" value="@ligne.Quantite"
+                               @onchange="args => ligne.Quantite = Nombre(args)" />
+                    </td>
+                    <td data-libelle="Prix unitaire">
+                        <input type="number" step="0.01" class="saisie" value="@ligne.PrixUnitaire"
+                               @onchange="args => ligne.PrixUnitaire = Nombre(args)" />
+                    </td>
+                    <td data-libelle="Remise">
+                        <input type="number" step="0.01" class="saisie" value="@ligne.Remise"
+                               @onchange="args => ligne.Remise = Nombre(args)" />
+                    </td>
+                    <td class="nombre" data-libelle="Total">@MontantFormatter.Formater(ligne.Total)</td>
+                    <td>
+                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                @onclick="() => _lignes.RemoveAt(position)">Retirer</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
+
+<div class="carte">
+    <h2 class="carte-titre">Règlement</h2>
+
+    <div class="grille-formulaire">
+        <div class="champ">
+            <label for="remise-globale">Remise globale</label>
+            <input id="remise-globale" type="number" step="0.01" class="saisie" value="@_vente.Remise"
+                   @onchange="args => _vente.Remise = Nombre(args)" />
+        </div>
+        <div class="champ">
+            <label for="paye">Montant encaissé</label>
+            <input id="paye" type="number" step="0.01" class="saisie" value="@_vente.MontantPaye"
+                   @onchange="args => _vente.MontantPaye = Nombre(args)" />
+        </div>
+        <div class="champ">
+            <label for="mode">Mode de règlement</label>
+            <select id="mode" class="saisie" @onchange="args => _vente.ModeReglementId = EntierOuNull(args)">
+                <option value="">— Choisir —</option>
+                @foreach (var mode in _modes)
+                {
+                    <option value="@mode.Id">@mode.Nom</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="totaux">
+        <div class="totaux-ligne"><span>Sous-total</span><span>@MontantFormatter.Formater(SousTotal)</span></div>
+        <div class="totaux-ligne"><span>Remise</span><span>− @MontantFormatter.Formater(_vente.Remise)</span></div>
+        <div class="totaux-ligne total"><span>Total à payer</span><span>@MontantFormatter.Formater(Total)</span></div>
+        <div class="totaux-ligne"><span>Encaissé</span><span>@MontantFormatter.Formater(_vente.MontantPaye)</span></div>
+        <div class="totaux-ligne"><span>Reste à payer</span><span>@MontantFormatter.Formater(Reste)</span></div>
+    </div>
+
+    <div class="champ">
+        <label for="notes">Notes</label>
+        <textarea id="notes" class="saisie saisie-multiligne" rows="2" @bind="_vente.Notes"></textarea>
+    </div>
+
+    <div class="champ-case">
+        <input type="checkbox" id="facture" checked="@_vente.EmettreFacture"
+               @onchange="args => _vente.EmettreFacture = args.Value is true" />
+        <label for="facture">Émettre la facture</label>
+    </div>
+
+    <div class="actions-formulaire">
+        <button type="button" class="bouton bouton-principal bouton-large"
+                disabled="@(_enregistrement || _lignes.Count == 0)" @onclick="Enregistrer">
+            @(_enregistrement ? "Enregistrement…" : "Enregistrer la vente")
+        </button>
+    </div>
+</div>
+
+@code {
+    private readonly VenteRequete _vente = new() { EmettreFacture = true };
+    private readonly List<LigneSaisie> _lignes = new();
+
+    private List<ClientDto> _clients = new();
+    private List<ModeReglementDto> _modes = new();
+    private List<ProduitDto> _produitsTrouves = new();
+
+    private string _recherche = string.Empty;
+    private bool _enregistrement;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private decimal SousTotal => _lignes.Sum(l => l.Total);
+    private decimal Total => Math.Max(0m, SousTotal - _vente.Remise);
+    private decimal Reste => Math.Max(0m, Total - _vente.MontantPaye);
+
+    /// <summary>Ligne en cours de saisie dans l'écran de vente.</summary>
+    private sealed class LigneSaisie
+    {
+        public int ProduitId { get; init; }
+        public string Nom { get; init; } = string.Empty;
+        public decimal StockDisponible { get; init; }
+        public decimal Quantite { get; set; } = 1m;
+        public decimal PrixUnitaire { get; set; }
+        public decimal Remise { get; set; }
+        public decimal Total => Math.Round(Quantite * PrixUnitaire - Remise, 2);
+    }
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    private static int? EntierOuNull(ChangeEventArgs args)
+        => int.TryParse(args.Value?.ToString(), out var valeur) ? valeur : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var clients = await Api.ObtenirAsync<PagedResult<ClientDto>>("api/clients?taillePage=300");
+        if (clients.Succes && clients.Valeur is not null) _clients = clients.Valeur.Elements.ToList();
+
+        var modes = await Api.ObtenirAsync<List<ModeReglementDto>>("api/modes-reglement");
+        if (modes.Succes && modes.Valeur is not null) _modes = modes.Valeur;
+
+        await RechercherProduit(string.Empty);
+    }
+
+    private async Task RechercherProduit(string texte)
+    {
+        _recherche = texte;
+
+        var chemin = "api/produits?taillePage=12&inclureInactifs=false";
+        if (!string.IsNullOrWhiteSpace(texte))
+        {
+            chemin += $"&recherche={Uri.EscapeDataString(texte)}";
+        }
+
+        var resultat = await Api.ObtenirAsync<PagedResult<ProduitDto>>(chemin);
+        _produitsTrouves = resultat.Succes && resultat.Valeur is not null
+            ? resultat.Valeur.Elements.ToList()
+            : new List<ProduitDto>();
+
+        // Un code-barres scanné correspond à un seul produit : il est ajouté directement.
+        if (_produitsTrouves.Count == 1 && !string.IsNullOrWhiteSpace(texte)
+            && _produitsTrouves[0].CodeBarres == texte.Trim())
+        {
+            Ajouter(_produitsTrouves[0]);
+            _recherche = string.Empty;
+        }
+    }
+
+    private void Ajouter(ProduitDto produit)
+    {
+        var existante = _lignes.FirstOrDefault(l => l.ProduitId == produit.Id);
+
+        if (existante is not null)
+        {
+            existante.Quantite += 1m;
+            return;
+        }
+
+        _lignes.Add(new LigneSaisie
+        {
+            ProduitId = produit.Id,
+            Nom = produit.Nom,
+            StockDisponible = produit.StockActuel,
+            PrixUnitaire = produit.PrixVente
+        });
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+
+        if (_lignes.Count == 0)
+        {
+            _erreur = "Ajoutez au moins un produit à la vente.";
+            return;
+        }
+
+        if (_vente.MontantPaye > 0 && _vente.ModeReglementId is null)
+        {
+            _erreur = "Choisissez le mode de règlement.";
+            return;
+        }
+
+        _vente.Lignes = _lignes.Select(l => new LigneVenteRequete
+        {
+            ProduitId = l.ProduitId,
+            Quantite = l.Quantite,
+            PrixUnitaire = l.PrixUnitaire,
+            Remise = l.Remise
+        }).ToList();
+
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<VenteDto>("api/ventes", _vente);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(
+                $"Vente {resultat.Valeur!.Numero} enregistrée — {MontantFormatter.Formater(resultat.Valeur.Total)}.");
+            Navigation.NavigateTo("ventes");
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}
