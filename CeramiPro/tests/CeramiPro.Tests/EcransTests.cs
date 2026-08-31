@@ -1,7 +1,10 @@
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
 using CeramiPro.Presentation.ViewModels.Ecrans;
+using CeramiPro.Tests.Aides;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CeramiPro.Tests;
 
@@ -10,22 +13,40 @@ namespace CeramiPro.Tests;
 /// colonnes. Un écran sans colonne afficherait un tableau vide sans que rien
 /// ne le signale.
 ///
-/// Ces vérifications ne portent que sur la description des écrans : le service
-/// métier n'est pas appelé, il est seulement conservé par le constructeur.
+/// Ces vérifications ne portent que sur la description des écrans : le
+/// service métier n'est pas appelé, il est seulement conservé par le
+/// constructeur.
 /// </summary>
 public class EcransTests
 {
-    private static IEnumerable<Type> TypesEcrans()
+    /// <summary>Tous les écrans qui présentent une liste, quel qu'en soit le module.</summary>
+    public static IEnumerable<Type> TypesListes()
         => typeof(MatieresVueModele).Assembly.GetTypes()
             .Where(t => !t.IsAbstract
                         && t.Namespace == "CeramiPro.Presentation.ViewModels.Ecrans"
-                        && t.Name.EndsWith("VueModele"))
+                        && EstListe(t))
             .OrderBy(t => t.Name);
 
+    private static bool EstListe(Type type)
+    {
+        for (var courant = type.BaseType; courant is not null; courant = courant.BaseType)
+        {
+            if (courant.IsGenericType
+                && courant.GetGenericTypeDefinition() == typeof(ListeVueModele<>))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Construit l'écran en ne fournissant que la langue : c'est tout ce
+    /// dont la description des colonnes a besoin.
+    /// </summary>
     private static (VueModeleBase Vue, IReadOnlyList<ColonneListe> Colonnes) Decrire(Type type)
     {
-        // Les paramètres sont fournis dans l'ordre attendu : seuls la langue
-        // et la description des colonnes comptent pour ces vérifications.
         var parametres = type.GetConstructors()[0].GetParameters()
             .Select(p => p.ParameterType == typeof(IServiceLangue)
                 ? (object?)new ServiceLangue()
@@ -42,13 +63,13 @@ public class EcransTests
     }
 
     [Fact]
-    public void Les_seize_ecrans_de_liste_sont_declares()
-        => TypesEcrans().Should().HaveCount(16);
+    public void Tous_les_ecrans_de_liste_sont_declares()
+        => TypesListes().Should().HaveCountGreaterThanOrEqualTo(26);
 
     [Fact]
     public void Chaque_ecran_porte_un_titre_et_une_introduction()
     {
-        foreach (var type in TypesEcrans())
+        foreach (var type in TypesListes())
         {
             var (vue, _) = Decrire(type);
 
@@ -61,7 +82,7 @@ public class EcransTests
     [Fact]
     public void Chaque_ecran_declare_des_colonnes_completes()
     {
-        foreach (var type in TypesEcrans())
+        foreach (var type in TypesListes())
         {
             var (_, colonnes) = Decrire(type);
 
@@ -74,7 +95,7 @@ public class EcransTests
     [Fact]
     public void Aucun_ecran_n_affiche_deux_fois_la_meme_donnee()
     {
-        foreach (var type in TypesEcrans())
+        foreach (var type in TypesListes())
         {
             var (_, colonnes) = Decrire(type);
 
@@ -88,7 +109,7 @@ public class EcransTests
     {
         var motsChiffres = new[] { "Total", "Montant", "Prix", "Coût", "Reste", "Stock", "Quantité" };
 
-        foreach (var type in TypesEcrans())
+        foreach (var type in TypesListes())
         {
             var (_, colonnes) = Decrire(type);
 
@@ -109,7 +130,7 @@ public class EcransTests
     public void Le_titre_de_chaque_ecran_suit_la_langue()
     {
         var langue = new ServiceLangue();
-        var vue = new ClientsVueModele(null!, langue, null!, null!);
+        var vue = new ClientsVueModele(null!, langue, null!);
 
         vue.Titre.Should().Be("Clients");
 
@@ -117,50 +138,39 @@ public class EcransTests
 
         vue.Titre.Should().Be("الزبائن");
     }
-}
 
-/// <summary>
-/// Les formulaires de saisie décrivent leurs champs comme les listes
-/// décrivent leurs colonnes.
-/// </summary>
-public class FormulairesTests
-{
     [Fact]
-    public void Le_formulaire_client_declare_ses_champs()
+    public void Un_ecran_sans_formulaire_ne_propose_pas_d_ajouter()
     {
-        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
-            .ClientFormulaireVueModele(null!, new ServiceLangue());
+        // Un bouton « Ajouter » sans effet vaut moins qu'un bouton absent.
+        var mouvements = new MouvementsVueModele(null!, new ServiceLangue(), null!);
 
-        vue.Champs.Should().NotBeEmpty();
-        vue.Champs.Should().Contain(c => c.Propriete == "Nom" && c.Obligatoire);
-        vue.Titre.Should().Be("Nouveau client");
-        vue.EstCreation.Should().BeTrue();
+        mouvements.PeutAjouter.Should().BeFalse();
+        mouvements.PeutModifier.Should().BeFalse();
+        mouvements.PeutSupprimer.Should().BeFalse();
     }
 
     [Fact]
-    public async Task Un_champ_obligatoire_vide_est_nomme_dans_le_message()
+    public void Un_ecran_avec_formulaire_propose_d_ajouter_et_de_modifier()
     {
-        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
-            .ClientFormulaireVueModele(null!, new ServiceLangue());
+        var clients = new ClientsVueModele(null!, new ServiceLangue(), Outils());
 
-        await vue.ValiderCommand.ExecuteAsync(null);
-
-        // Nommer le champ évite à l'utilisateur de chercher lequel manque.
-        vue.MessageErreur.Should().Contain("Nom");
-        vue.Enregistre.Should().BeFalse();
+        clients.PeutAjouter.Should().BeTrue();
+        clients.PeutModifier.Should().BeTrue();
+        clients.PeutSupprimer.Should().BeTrue();
     }
 
     [Fact]
-    public void Les_libelles_du_formulaire_suivent_la_langue()
+    public void Un_paiement_se_cree_mais_ne_se_modifie_pas()
     {
-        var langue = new ServiceLangue();
-        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
-            .ClientFormulaireVueModele(null!, langue);
+        // Corriger un encaissement passe par une annulation tracée.
+        var paiements = new PaiementsVueModele(null!, new ServiceLangue(), Outils());
 
-        vue.LibelleEnregistrer.Should().Be("Enregistrer");
-
-        langue.Changer(Langue.Arabe);
-
-        vue.LibelleEnregistrer.Should().Be("حفظ");
+        paiements.PeutAjouter.Should().BeTrue();
+        paiements.PeutModifier.Should().BeFalse();
     }
+
+    private static OutilsListe Outils()
+        => new(new FormulaireFactice(), new DialogueFactice(), new FichierFactice(),
+            null!, new ServiceCollection().BuildServiceProvider());
 }

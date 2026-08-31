@@ -2,21 +2,25 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Pièces sur mesure : dimensions, couleurs, acompte et échéance.</summary>
+/// <summary>Commandes personnalisées : pièces sur mesure demandées par un client.</summary>
 public partial class CommandesVueModele : ListeVueModele<CommandeDto>
 {
     private readonly ICommandeService _service;
 
-    public CommandesVueModele(ICommandeService service, IServiceLangue langue)
-        : base(langue)
+    public CommandesVueModele(ICommandeService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
+    protected override Type TypeFormulaire => typeof(CommandeFormulaireVueModele);
 
     public override string Titre => Langue["menu.commandes"];
 
-    public override string Introduction => "Pièces sur mesure : dimensions, couleurs, acompte et échéance.";
+    public override string Introduction => "Commandes personnalisées : pièces sur mesure demandées par un client.";
 
     protected override Task<PagedResult<CommandeDto>> LireAsync()
         => _service.ListerAsync(new FiltreCommandesRequete
@@ -32,9 +36,11 @@ public partial class CommandesVueModele : ListeVueModele<CommandeDto>
         new("Numéro", "Numero", ColonneAlignement.Gauche),
         new("Client", "ClientNom", ColonneAlignement.Gauche),
         new("Titre", "Titre", ColonneAlignement.Gauche),
-        new("Échéance", "EcheanceAffichee", ColonneAlignement.Gauche),
-        new("Total", "TotalAffiche", ColonneAlignement.Droite),
-        new("Reste", "ResteAffiche", ColonneAlignement.Droite),
-        new("Statut", "StatutLibelle", ColonneAlignement.Gauche)
+        new("Quantité", "Quantite", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Échéance", "DateLimite", ColonneAlignement.Gauche, FormatColonne.Date),
+        new("Total", "Total", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Reste", "Reste", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Statut", "StatutLibelle", ColonneAlignement.Gauche),
+        new("En retard", "EnRetard", ColonneAlignement.Centre)
     };
 }

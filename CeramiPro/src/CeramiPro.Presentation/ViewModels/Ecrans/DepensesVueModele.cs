@@ -12,20 +12,11 @@ public partial class DepensesVueModele : ListeVueModele<DepenseDto>
 {
     private readonly IDepenseService _service;
 
-    public DepensesVueModele(IDepenseService service, IServiceLangue langue,
-        IServiceFormulaire formulaires, IServiceProvider services)
-        : base(langue, formulaires)
-    {
-        _service = service;
-        _services = services;
-    }
+    public DepensesVueModele(IDepenseService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
+        => _service = service;
 
-    private readonly IServiceProvider _services;
-
-    public override bool PeutAjouter => true;
-
-    protected override object? CreerFormulaire(int? id = null)
-        => _services.GetService(typeof(DepenseFormulaireVueModele));
+    protected override Type TypeFormulaire => typeof(DepenseFormulaireVueModele);
 
     public override string Titre => Langue["menu.depenses"];
 
@@ -43,9 +34,10 @@ public partial class DepensesVueModele : ListeVueModele<DepenseDto>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
         new("Référence", "Reference", ColonneAlignement.Gauche),
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
+        new("Date", "Date", ColonneAlignement.Gauche, FormatColonne.Date),
         new("Catégorie", "CategorieNom", ColonneAlignement.Gauche),
         new("Description", "Description", ColonneAlignement.Gauche),
-        new("Montant", "MontantAffiche", ColonneAlignement.Droite)
+        new("Mode", "ModeReglement", ColonneAlignement.Gauche),
+        new("Montant", "Montant", ColonneAlignement.Droite, FormatColonne.Montant)
     };
 }

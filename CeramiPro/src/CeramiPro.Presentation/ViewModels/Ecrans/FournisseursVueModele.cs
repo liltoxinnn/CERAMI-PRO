@@ -2,21 +2,29 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Stock;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Fiches fournisseurs, achats et règlements.</summary>
+/// <summary>Fournisseurs de matières premières, achats et règlements.</summary>
 public partial class FournisseursVueModele : ListeVueModele<FournisseurDto>
 {
     private readonly IFournisseurService _service;
 
-    public FournisseursVueModele(IFournisseurService service, IServiceLangue langue)
-        : base(langue)
+    public FournisseursVueModele(IFournisseurService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
+    protected override Type TypeFormulaire => typeof(FournisseurFormulaireVueModele);
+
+    public override bool PeutSupprimer => true;
+
+    protected override Task SupprimerElementAsync(int id) => _service.SupprimerAsync(id);
 
     public override string Titre => Langue["menu.fournisseurs"];
 
-    public override string Introduction => "Fiches fournisseurs, achats et règlements.";
+    public override string Introduction => "Fournisseurs de matières premières, achats et règlements.";
 
     protected override Task<PagedResult<FournisseurDto>> LireAsync()
         => _service.ListerAsync(new FiltreFournisseursRequete
@@ -31,8 +39,10 @@ public partial class FournisseursVueModele : ListeVueModele<FournisseurDto>
     {
         new("Numéro", "Numero", ColonneAlignement.Gauche),
         new("Nom", "Nom", ColonneAlignement.Gauche),
+        new("Entreprise", "Entreprise", ColonneAlignement.Gauche),
         new("Téléphone", "Telephone", ColonneAlignement.Gauche),
         new("Ville", "Ville", ColonneAlignement.Gauche),
-        new("Reste dû", "ResteAffiche", ColonneAlignement.Droite)
+        new("Total des achats", "TotalAchats", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Reste dû", "Reste", ColonneAlignement.Droite, FormatColonne.Montant)
     };
 }

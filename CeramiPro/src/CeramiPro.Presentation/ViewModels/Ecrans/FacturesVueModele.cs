@@ -2,21 +2,23 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Factures émises, payées et restant dues.</summary>
+/// <summary>Factures émises pour les ventes et les commandes personnalisées.</summary>
 public partial class FacturesVueModele : ListeVueModele<FactureDto>
 {
     private readonly IFactureService _service;
 
-    public FacturesVueModele(IFactureService service, IServiceLangue langue)
-        : base(langue)
+    public FacturesVueModele(IFactureService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
 
     public override string Titre => Langue["menu.factures"];
 
-    public override string Introduction => "Factures émises, payées et restant dues.";
+    public override string Introduction => "Factures émises pour les ventes et les commandes personnalisées.";
 
     protected override Task<PagedResult<FactureDto>> LireAsync()
         => _service.ListerAsync(new FiltreFacturesRequete
@@ -30,10 +32,12 @@ public partial class FacturesVueModele : ListeVueModele<FactureDto>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
         new("Numéro", "Numero", ColonneAlignement.Gauche),
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
+        new("Émise le", "DateEmission", ColonneAlignement.Gauche, FormatColonne.Date),
+        new("Échéance", "DateEcheance", ColonneAlignement.Gauche, FormatColonne.Date),
         new("Client", "ClientNom", ColonneAlignement.Gauche),
-        new("Total", "TotalAffiche", ColonneAlignement.Droite),
-        new("Reste", "ResteAffiche", ColonneAlignement.Droite),
+        new("Total", "Total", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Payé", "Paye", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Reste", "Reste", ColonneAlignement.Droite, FormatColonne.Montant),
         new("Statut", "StatutLibelle", ColonneAlignement.Gauche)
     };
 }

@@ -2,21 +2,25 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Production;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Ordres de fabrication et suivi des étapes.</summary>
+/// <summary>Ordres de fabrication, du façonnage à l'emballage.</summary>
 public partial class ProductionVueModele : ListeVueModele<OrdreProductionDto>
 {
     private readonly IProductionService _service;
 
-    public ProductionVueModele(IProductionService service, IServiceLangue langue)
-        : base(langue)
+    public ProductionVueModele(IProductionService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
+    protected override Type TypeFormulaire => typeof(OrdreProductionFormulaireVueModele);
 
     public override string Titre => Langue["menu.production.ordres"];
 
-    public override string Introduction => "Ordres de fabrication et suivi des étapes.";
+    public override string Introduction => "Ordres de fabrication, du façonnage à l'emballage.";
 
     protected override Task<PagedResult<OrdreProductionDto>> LireAsync()
         => _service.ListerAsync(new FiltreProductionsRequete
@@ -31,9 +35,12 @@ public partial class ProductionVueModele : ListeVueModele<OrdreProductionDto>
     {
         new("Numéro", "Numero", ColonneAlignement.Gauche),
         new("Produit", "ProduitNom", ColonneAlignement.Gauche),
-        new("Prévu", "QuantitePrevue", ColonneAlignement.Droite),
-        new("Produit", "QuantiteProduite", ColonneAlignement.Droite),
+        new("Prévu", "QuantitePrevue", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Terminé", "QuantiteTerminee", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Cassé", "QuantiteEndommagee", ColonneAlignement.Droite, FormatColonne.Quantite),
         new("Étape", "StatutLibelle", ColonneAlignement.Gauche),
-        new("Échéance", "EcheanceAffichee", ColonneAlignement.Gauche)
+        new("Priorité", "PrioriteLibelle", ColonneAlignement.Gauche),
+        new("Fin prévue", "DateFinPrevue", ColonneAlignement.Gauche, FormatColonne.Date),
+        new("En retard", "EnRetard", ColonneAlignement.Centre)
     };
 }

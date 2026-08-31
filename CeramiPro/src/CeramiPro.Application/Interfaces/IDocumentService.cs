@@ -1,3 +1,4 @@
+using CeramiPro.Application.DTOs.Codes;
 using CeramiPro.Application.DTOs.Commercial;
 
 namespace CeramiPro.Application.Interfaces;
@@ -19,4 +20,11 @@ public interface IDocumentService
 
     /// <summary>Enregistre le document et renvoie le chemin du fichier.</summary>
     Task<string> EnregistrerFactureAsync(int factureId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Planche d'étiquettes au format A4, à imprimer sur du papier
+    /// autocollant : nom, prix, code-barres et code QR de chaque produit.
+    /// </summary>
+    Task<byte[]> EtiquettesPdfAsync(
+        IReadOnlyList<EtiquetteDto> etiquettes, CancellationToken cancellationToken = default);
 }

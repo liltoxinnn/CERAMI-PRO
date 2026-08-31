@@ -2,6 +2,8 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Stock;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
@@ -10,9 +12,15 @@ public partial class MatieresVueModele : ListeVueModele<MatiereDto>
 {
     private readonly IMatiereService _service;
 
-    public MatieresVueModele(IMatiereService service, IServiceLangue langue)
-        : base(langue)
+    public MatieresVueModele(IMatiereService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
+    protected override Type TypeFormulaire => typeof(MatiereFormulaireVueModele);
+
+    public override bool PeutSupprimer => true;
+
+    protected override Task SupprimerElementAsync(int id) => _service.SupprimerAsync(id);
 
     public override string Titre => Langue["menu.stock.matieres"];
 
@@ -32,8 +40,10 @@ public partial class MatieresVueModele : ListeVueModele<MatiereDto>
         new("Référence", "Reference", ColonneAlignement.Gauche),
         new("Nom", "Nom", ColonneAlignement.Gauche),
         new("Catégorie", "CategorieNom", ColonneAlignement.Gauche),
-        new("Stock", "StockAffiche", ColonneAlignement.Droite),
-        new("Seuil", "StockMinimum", ColonneAlignement.Droite),
-        new("Coût moyen", "CoutMoyenAffiche", ColonneAlignement.Droite)
+        new("Unité", "UniteCode", ColonneAlignement.Centre),
+        new("Stock", "QuantiteActuelle", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Seuil", "StockMinimum", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Coût moyen", "CoutMoyen", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Valeur", "ValeurStock", ColonneAlignement.Droite, FormatColonne.Montant)
     };
 }

@@ -2,21 +2,23 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Production;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Lots de cuisson : four, température, durée et coût d'énergie.</summary>
+/// <summary>Fournées : four employé, température, durée et coût de l'énergie.</summary>
 public partial class CuissonsVueModele : ListeVueModele<CuissonDto>
 {
     private readonly ICuissonService _service;
 
-    public CuissonsVueModele(ICuissonService service, IServiceLangue langue)
-        : base(langue)
+    public CuissonsVueModele(ICuissonService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
 
     public override string Titre => Langue["menu.cuisson.lots"];
 
-    public override string Introduction => "Lots de cuisson : four, température, durée et coût d'énergie.";
+    public override string Introduction => "Fournées : four employé, température, durée et coût de l'énergie. Un enfournement se saisit depuis l'écran « Enfourner ».";
 
     protected override Task<PagedResult<CuissonDto>> LireAsync()
         => _service.ListerAsync(new FiltreCuissonsRequete
@@ -31,9 +33,13 @@ public partial class CuissonsVueModele : ListeVueModele<CuissonDto>
     {
         new("Numéro", "Numero", ColonneAlignement.Gauche),
         new("Four", "FourNom", ColonneAlignement.Gauche),
-        new("Température", "TemperatureAffichee", ColonneAlignement.Droite),
-        new("Début", "DebutAffiche", ColonneAlignement.Gauche),
-        new("Durée", "DureeAffichee", ColonneAlignement.Gauche),
-        new("Coût", "CoutAffiche", ColonneAlignement.Droite)
+        new("Type", "TypeLibelle", ColonneAlignement.Gauche),
+        new("Température", "Temperature", ColonneAlignement.Droite, FormatColonne.Nombre),
+        new("Début", "Debut", ColonneAlignement.Gauche, FormatColonne.DateHeure),
+        new("Durée (h)", "DureeHeures", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Pièces", "QuantiteTotale", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Cassées", "QuantiteEndommagee", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Coût énergie", "CoutEnergie", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Statut", "StatutLibelle", ColonneAlignement.Gauche)
     };
 }

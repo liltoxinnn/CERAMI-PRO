@@ -15,10 +15,11 @@ public class CatalogueNavigationTests
         var menu = CatalogueNavigation.Construire(new ServiceLangue());
 
         menu.Select(e => e.CleLibelle).Should().ContainInOrder(
-            "menu.tableauDeBord", "menu.stock", "menu.produits", "menu.production",
-            "menu.cuisson", "menu.decoration", "menu.qualite", "menu.clients",
-            "menu.commandes", "menu.fournisseurs", "menu.ventes", "menu.paiements",
-            "menu.factures", "menu.depenses", "menu.rapports", "menu.parametres");
+            "menu.tableauDeBord", "menu.caisse", "menu.stock", "menu.produits",
+            "menu.production", "menu.cuisson", "menu.decoration", "menu.qualite",
+            "menu.clients", "menu.commandes", "menu.fournisseurs", "menu.ventes",
+            "menu.factures", "menu.paiements", "menu.depenses", "menu.rapports",
+            "menu.administration", "menu.parametres");
     }
 
     [Fact]
@@ -32,6 +33,19 @@ public class CatalogueNavigationTests
     }
 
     [Fact]
+    public void Aucun_libelle_ne_reste_a_l_etat_de_cle_technique()
+    {
+        // Une clé sans traduction s'afficherait telle quelle dans le menu.
+        var brutes = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+            .Where(e => e.Libelle.StartsWith("menu.", StringComparison.Ordinal))
+            .Select(e => e.CleLibelle)
+            .ToList();
+
+        brutes.Should().BeEmpty("ces entrées de menu n'ont pas de traduction : "
+            + string.Join(", ", brutes));
+    }
+
+    [Fact]
     public void Les_groupes_ont_des_sous_entrees()
     {
         var menu = CatalogueNavigation.Construire(new ServiceLangue());
@@ -41,38 +55,49 @@ public class CatalogueNavigationTests
                 "Mouvements", "Alertes");
 
         menu.First(e => e.CleLibelle == "menu.cuisson").Enfants.Should().HaveCount(3);
+        menu.First(e => e.CleLibelle == "menu.administration").Enfants.Should().HaveCount(5);
     }
 
     [Fact]
-    public void Les_ecrans_developpes_sont_atteignables_depuis_le_menu()
+    public void Toute_entree_ouvre_un_ecran_ou_deplie_un_groupe()
     {
-        var avecDestination = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
-            .Where(e => e.Destination is not null)
-            .ToList();
-
-        avecDestination.Should().HaveCountGreaterThanOrEqualTo(15);
-        avecDestination.Select(e => e.Destination).Should().Contain(typeof(TableauDeBordVueModele));
-    }
-
-    [Fact]
-    public void Toute_entree_sans_ecran_est_un_groupe_depliable()
-    {
-        // Une entrée qui n'ouvre rien et ne déplie rien serait sans effet.
+        // Une entrée qui n'ouvre rien et ne déplie rien serait sans effet :
+        // il n'en reste aucune, tous les écrans étant développés.
         var inertes = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
             .Where(e => e.Destination is null && !e.EstGroupe)
             .Select(e => e.CleLibelle)
             .ToList();
 
-        inertes.Should().BeSubsetOf(new[]
-        {
-            "menu.stock.vueGenerale", "menu.stock.produitsFinis", "menu.stock.alertes",
-            "menu.produits.categories", "menu.produits.variantes", "menu.produits.recettes",
-            "menu.production.planning", "menu.production.enCours", "menu.production.historique",
-            "menu.cuisson.fours", "menu.decoration.types", "menu.rapports", "menu.parametres"
-        }, "seuls les écrans encore à développer peuvent être inactifs");
+        inertes.Should().BeEmpty("ces entrées de menu n'ont aucun effet : "
+            + string.Join(", ", inertes));
     }
 
-    private static IEnumerable<ElementNavigation> Aplatir(IEnumerable<ElementNavigation> elements)
+    [Fact]
+    public void Chaque_destination_est_bien_un_ecran()
+    {
+        foreach (var element in Aplatir(CatalogueNavigation.Construire(new ServiceLangue())))
+        {
+            if (element.Destination is { } destination)
+            {
+                typeof(VueModeleBase).IsAssignableFrom(destination).Should().BeTrue(
+                    $"la destination de « {element.CleLibelle} » doit être un écran");
+            }
+        }
+    }
+
+    [Fact]
+    public void Aucun_ecran_n_est_atteignable_par_deux_entrees_differentes()
+    {
+        var destinations = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+            .Where(e => e.Destination is not null)
+            .Select(e => e.Destination!)
+            .ToList();
+
+        destinations.Should().OnlyHaveUniqueItems(
+            "deux entrées de menu qui ouvrent le même écran prêtent à confusion");
+    }
+
+    public static IEnumerable<ElementNavigation> Aplatir(IEnumerable<ElementNavigation> elements)
     {
         foreach (var element in elements)
         {
@@ -139,6 +164,11 @@ public class FenetrePrincipaleTests
 {
     private static FenetrePrincipaleVueModele Construire(UtilisateurFactice utilisateur)
     {
+        foreach (var droit in CeramiPro.Domain.Common.PermissionCodes.Catalogue)
+        {
+            utilisateur.Droits.Add(droit.Code);
+        }
+
         var services = new ServiceCollection();
         services.AddTransient<TableauDeBordVueModele>();
         services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
@@ -149,12 +179,66 @@ public class FenetrePrincipaleTests
     }
 
     [Fact]
-    public void Le_menu_complet_est_visible_sans_restriction_de_droits()
+    public void Un_administrateur_voit_le_menu_complet()
     {
         var fenetre = Construire(new UtilisateurFactice());
 
-        fenetre.Menu.Should().HaveCount(16);
+        fenetre.Menu.Should().HaveCount(19);
         fenetre.Menu.First().Libelle.Should().Be("Tableau de bord");
+    }
+
+    [Fact]
+    public void Un_caissier_ne_voit_pas_l_administration()
+    {
+        // Le menu ne montre que ce à quoi la personne a droit ; la couche
+        // métier refuse de son côté, l'écran n'est pas la seule barrière.
+        var caissier = new UtilisateurFactice { CodeRole = "caissier", NomRole = "Caissier" };
+        caissier.Droits.Add(CeramiPro.Domain.Common.PermissionCodes.TableauDeBordConsulter);
+        caissier.Droits.Add(CeramiPro.Domain.Common.PermissionCodes.VentesCreer);
+        caissier.Droits.Add(CeramiPro.Domain.Common.PermissionCodes.VentesConsulter);
+
+        var services = new ServiceCollection();
+        services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
+
+        var fenetre = new FenetrePrincipaleVueModele(
+            new ServiceNavigation(services.BuildServiceProvider()), caissier, new ServiceLangue());
+
+        var cles = fenetre.Menu.Select(e => e.CleLibelle).ToList();
+
+        cles.Should().Contain("menu.caisse");
+        cles.Should().Contain("menu.ventes");
+        cles.Should().NotContain("menu.administration");
+        cles.Should().NotContain("menu.parametres");
+        cles.Should().NotContain("menu.depenses");
+    }
+
+    [Fact]
+    public void Un_groupe_dont_tout_est_interdit_disparait()
+    {
+        // Un groupe vide qui se déplie sur rien serait déroutant : il doit
+        // disparaître, pendant que celui dont une entrée reste permise tient.
+        var employe = new UtilisateurFactice { CodeRole = "employe", NomRole = "Employé" };
+        employe.Droits.Add(CeramiPro.Domain.Common.PermissionCodes.TableauDeBordConsulter);
+        employe.Droits.Add(CeramiPro.Domain.Common.PermissionCodes.ProductionConsulter);
+
+        var services = new ServiceCollection();
+        services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
+
+        var fenetre = new FenetrePrincipaleVueModele(
+            new ServiceNavigation(services.BuildServiceProvider()), employe, new ServiceLangue());
+
+        var cles = fenetre.Menu.Select(e => e.CleLibelle).ToList();
+
+        cles.Should().Contain("menu.production");
+        cles.Should().NotContain("menu.stock");
+        cles.Should().NotContain("menu.administration");
+
+        fenetre.Menu.Where(e => e.EstGroupe).Should().NotBeEmpty()
+            .And.OnlyContain(e => e.Enfants.Count > 0);
     }
 
     [Fact]
@@ -216,9 +300,16 @@ public class DepliageMenuTests
         services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
             EtatBaseFactice>();
 
+        var utilisateur = new UtilisateurFactice();
+
+        foreach (var droit in CeramiPro.Domain.Common.PermissionCodes.Catalogue)
+        {
+            utilisateur.Droits.Add(droit.Code);
+        }
+
         return new FenetrePrincipaleVueModele(
             new ServiceNavigation(services.BuildServiceProvider()),
-            new UtilisateurFactice(), new ServiceLangue());
+            utilisateur, new ServiceLangue());
     }
 
     [Fact]

@@ -5,8 +5,11 @@
                     xmlns:vues="clr-namespace:CeramiPro.App.Vues">
 
     <!--
-        Association entre chaque vue-modèle et son écran. Les seize écrans de
-        liste partagent la même vue générique : leurs colonnes viennent de la
+        Association entre chaque vue-modèle et son écran.
+
+        Les écrans de liste partagent la même vue générique, et les trois
+        écrans de saisie ligne par ligne — caisse, achat, enfournement — la
+        même vue de document : leurs colonnes et leurs champs viennent de la
         vue-modèle, pas du XAML.
     -->
 
@@ -14,11 +17,16 @@
         <vues:TableauDeBordVue />
     </DataTemplate>
 
+    <!-- Écrans de liste -->
     <DataTemplate DataType="{x:Type ecrans:MatieresVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type ecrans:ProduitsVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:ProduitsStockVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
@@ -62,6 +70,14 @@
         <vues:VueListe />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type ecrans:ProductionEnCoursVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:HistoriqueProductionVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type ecrans:CuissonsVueModele}">
         <vues:VueListe />
     </DataTemplate>
@@ -77,4 +93,79 @@
     <DataTemplate DataType="{x:Type ecrans:UtilisateursVueModele}">
         <vues:VueListe />
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:FoursVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:UnitesVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:RecettesVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:CategoriesMatieresVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:CategoriesProduitsVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:CategoriesDepensesVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:TypesDecorationVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <!-- Saisie ligne par ligne -->
+    <DataTemplate DataType="{x:Type ecrans:CaisseVueModele}">
+        <vues:VueDocument />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:NouvelAchatVueModele}">
+        <vues:VueDocument />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:EnfournementVueModele}">
+        <vues:VueDocument />
+    </DataTemplate>
+
+    <!-- Écrans particuliers -->
+    <DataTemplate DataType="{x:Type ecrans:RapportsVueModele}">
+        <vues:RapportsVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:AlertesVueModele}">
+        <vues:AlertesVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:StockVueModele}">
+        <vues:StockVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:ParametresVueModele}">
+        <vues:ParametresVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:SauvegardeVueModele}">
+        <vues:SauvegardeVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:EtiquettesVueModele}">
+        <vues:EtiquettesVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:TableauProductionVueModele}">
+        <vues:TableauProductionVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:CalculateursVueModele}">
+        <vues:CalculateursVue />
+    </DataTemplate>
+
 </ResourceDictionary>

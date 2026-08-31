@@ -2,21 +2,23 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Stock;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Toute entrée et toute sortie de stock, avec son motif.</summary>
+/// <summary>Toutes les entrées et sorties de stock, dans l'ordre où elles ont eu lieu.</summary>
 public partial class MouvementsVueModele : ListeVueModele<MouvementStockDto>
 {
     private readonly IInventaireService _service;
 
-    public MouvementsVueModele(IInventaireService service, IServiceLangue langue)
-        : base(langue)
+    public MouvementsVueModele(IInventaireService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
 
     public override string Titre => Langue["menu.stock.mouvements"];
 
-    public override string Introduction => "Toute entrée et toute sortie de stock, avec son motif.";
+    public override string Introduction => "Toutes les entrées et sorties de stock, dans l'ordre où elles ont eu lieu.";
 
     protected override Task<PagedResult<MouvementStockDto>> LireAsync()
         => _service.ListerAsync(new FiltreMouvementsRequete
@@ -29,12 +31,14 @@ public partial class MouvementsVueModele : ListeVueModele<MouvementStockDto>
     /// <summary>Colonnes du tableau, dans l'ordre d'affichage.</summary>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
-        new("Type", "TypeLibelle", ColonneAlignement.Gauche),
-        new("Article", "ArticleNom", ColonneAlignement.Gauche),
-        new("Quantité", "QuantiteAffichee", ColonneAlignement.Droite),
-        new("Avant", "QuantiteAvant", ColonneAlignement.Droite),
-        new("Après", "QuantiteApres", ColonneAlignement.Droite),
-        new("Référence", "Reference", ColonneAlignement.Gauche)
+        new("Date", "Date", ColonneAlignement.Gauche, FormatColonne.DateHeure),
+        new("Type", "TypeMouvement", ColonneAlignement.Gauche),
+        new("Article", "Article", ColonneAlignement.Gauche),
+        new("Quantité", "Quantite", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Unité", "Unite", ColonneAlignement.Centre),
+        new("Avant", "StockAvant", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Après", "StockApres", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Document", "Document", ColonneAlignement.Gauche),
+        new("Utilisateur", "Utilisateur", ColonneAlignement.Gauche)
     };
 }

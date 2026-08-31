@@ -51,6 +51,7 @@ public static class InjectionDependances
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<ISauvegardeService, SauvegardeService>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IExportService, ExportService>();
         services.AddHostedService<SauvegardeAutomatique>();
 
         services.AddSingleton<IServiceDateHeure>(fournisseur => new ServiceDateHeure(

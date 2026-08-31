@@ -2,21 +2,23 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Production;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Contrôles effectués avant qu'une pièce devienne un produit fini.</summary>
+/// <summary>Contrôles qualité effectués avant emballage.</summary>
 public partial class QualiteVueModele : ListeVueModele<ControleQualiteDto>
 {
     private readonly IQualiteService _service;
 
-    public QualiteVueModele(IQualiteService service, IServiceLangue langue)
-        : base(langue)
+    public QualiteVueModele(IQualiteService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
 
     public override string Titre => Langue["menu.qualite"];
 
-    public override string Introduction => "Contrôles effectués avant qu'une pièce devienne un produit fini.";
+    public override string Introduction => "Contrôles qualité effectués avant emballage : pièces acceptées, refusées et à retoucher.";
 
     protected override Task<PagedResult<ControleQualiteDto>> LireAsync()
         => _service.ListerAsync(new FiltreControlesRequete
@@ -29,11 +31,14 @@ public partial class QualiteVueModele : ListeVueModele<ControleQualiteDto>
     /// <summary>Colonnes du tableau, dans l'ordre d'affichage.</summary>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
-        new("Numéro", "Numero", ColonneAlignement.Gauche),
+        new("Référence", "Reference", ColonneAlignement.Gauche),
+        new("Date", "Date", ColonneAlignement.Gauche, FormatColonne.Date),
         new("Production", "ProductionNumero", ColonneAlignement.Gauche),
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
-        new("Contrôlées", "QuantiteControlee", ColonneAlignement.Droite),
-        new("Acceptées", "QuantiteAcceptee", ColonneAlignement.Droite),
-        new("Refusées", "QuantiteRefusee", ColonneAlignement.Droite)
+        new("Contrôleur", "Controleur", ColonneAlignement.Gauche),
+        new("Contrôlées", "QuantiteControlee", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Acceptées", "QuantiteAcceptee", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Refusées", "QuantiteRefusee", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("À retoucher", "QuantiteARetoucher", ColonneAlignement.Droite, FormatColonne.Quantite),
+        new("Résultat", "ResultatLibelle", ColonneAlignement.Gauche)
     };
 }

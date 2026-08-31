@@ -15,6 +15,16 @@ public class BooleenEnVisibilite : IValueConverter
         => value is Visibility.Visible;
 }
 
+/// <summary>Masque un élément quand la valeur est vraie, l'affiche sinon.</summary>
+public class BooleenEnVisibiliteInverse : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is not Visibility.Visible;
+}
+
 /// <summary>
 /// Couleur d'état : vert quand tout va bien, rouge sinon. La couleur ne porte
 /// jamais l'information seule — elle accompagne toujours un texte.
@@ -82,4 +92,40 @@ public class TexteEnVisibilite : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Couleur d'une alerte selon sa gravité. La couleur ne porte jamais
+/// l'information seule : le libellé de la gravité est toujours affiché à
+/// côté, afin que l'écran reste lisible par une personne daltonienne.
+/// </summary>
+public class GraviteEnCouleur : IValueConverter
+{
+    private static readonly SolidColorBrush Critique = new(Color.FromRgb(0xB3, 0x26, 0x1E));
+    private static readonly SolidColorBrush Avertissement = new(Color.FromRgb(0x8A, 0x5B, 0x00));
+    private static readonly SolidColorBrush Information = new(Color.FromRgb(0x1C, 0x5D, 0x99));
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value switch
+        {
+            CeramiPro.Domain.Enums.NotificationSeverity.Critique => Critique,
+            CeramiPro.Domain.Enums.NotificationSeverity.Avertissement => Avertissement,
+            _ => Information
+        };
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Écrit un booléen en toutes lettres. Une case cochée est ambiguë dans un
+/// tableau imprimé ; « Oui » et « Non » ne le sont jamais.
+/// </summary>
+public class BooleenEnOuiNon : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is true ? "Oui" : "Non";
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is "Oui";
 }

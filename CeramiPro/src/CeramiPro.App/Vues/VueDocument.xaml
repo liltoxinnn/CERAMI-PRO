@@ -1,0 +1,238 @@
+<UserControl x:Class="CeramiPro.App.Vues.VueDocument"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource PoliceInterface}">
+
+    <!--
+        Écran de saisie d'un document ligne par ligne : la caisse, un achat
+        chez un fournisseur, un enfournement.
+
+        Les trois se composent de la même façon — on choisit un article, on
+        l'ajoute, le total suit — et partagent donc cet écran. Ce qui les
+        distingue tient dans les champs d'en-tête, construits à droite à
+        partir de ceux que la vue-modèle déclare.
+    -->
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" MinWidth="440" />
+            <ColumnDefinition Width="360" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ============ Colonne de gauche : articles et lignes ============ -->
+        <DockPanel Grid.Column="0" Margin="0,0,16,0">
+
+            <!-- Douchette -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16"
+                    Background="{StaticResource TerreClaire}" BorderBrush="{StaticResource Terre}"
+                    Visibility="{Binding AccepteScan, Converter={StaticResource BooleenEnVisibilite}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="🔍" FontSize="18"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                    <Button DockPanel.Dock="Right" Content="Ajouter" Command="{Binding ScannerCommand}"
+                            Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0" MinWidth="100" />
+
+                    <TextBox x:Name="ZoneScan" Style="{StaticResource Saisie}" FontSize="15"
+                             Text="{Binding CodeScanne, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Scannez l'étiquette du produit, ou tapez son code puis Entrée.">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding ScannerCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Choix d'un article -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="Article" Style="{StaticResource EtiquetteChamp}" />
+                        <ComboBox ItemsSource="{Binding Articles}"
+                                  DisplayMemberPath="Libelle" SelectedValuePath="Valeur"
+                                  SelectedValue="{Binding ArticleChoisi}"
+                                  IsEditable="True" IsTextSearchEnabled="True"
+                                  TextSearch.TextPath="Libelle"
+                                  MinHeight="38" Padding="8,6"
+                                  VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="Quantité" Style="{StaticResource EtiquetteChamp}" />
+                        <TextBox Style="{StaticResource Saisie}" Width="90"
+                                 HorizontalContentAlignment="Right"
+                                 Text="{Binding Quantite, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="0,0,12,0"
+                                Visibility="{Binding AfficherPrix,
+                                             Converter={StaticResource BooleenEnVisibilite}}">
+                        <TextBlock Text="Prix unitaire" Style="{StaticResource EtiquetteChamp}" />
+                        <TextBox Style="{StaticResource Saisie}" Width="120"
+                                 HorizontalContentAlignment="Right"
+                                 Text="{Binding PrixUnitaire, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Margin="0,0,12,0"
+                                Visibility="{Binding AfficherPrix,
+                                             Converter={StaticResource BooleenEnVisibilite}}">
+                        <TextBlock Text="Remise" Style="{StaticResource EtiquetteChamp}" />
+                        <TextBox Style="{StaticResource Saisie}" Width="100"
+                                 HorizontalContentAlignment="Right"
+                                 Text="{Binding RemiseLigne, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="4" Content="Ajouter" Command="{Binding AjouterLigneCommand}"
+                            Style="{StaticResource BoutonPrincipal}" MinWidth="110"
+                            VerticalAlignment="Bottom" />
+                </Grid>
+            </Border>
+
+            <!-- Message d'erreur -->
+            <Border DockPanel.Dock="Top" Background="{StaticResource DangerFond}" CornerRadius="6"
+                    Padding="12,9" Margin="0,0,0,12"
+                    Visibility="{Binding MessageErreur, Converter={StaticResource TexteEnVisibilite}}">
+                <TextBlock Text="{Binding MessageErreur}" TextWrapping="Wrap"
+                           Foreground="{StaticResource Danger}" FontSize="12.5" />
+            </Border>
+
+            <!-- Barre d'action sur les lignes -->
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,12,0,0">
+                <Button Content="Retirer la ligne" Command="{Binding RetirerLigneCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0" />
+                <Button Content="Tout vider" Command="{Binding ViderCommand}"
+                        Style="{StaticResource BoutonSecondaire}" />
+            </StackPanel>
+
+            <!-- Lignes du document -->
+            <Grid MinHeight="220">
+                <DataGrid x:Name="Tableau" ItemsSource="{Binding Lignes}"
+                          SelectedItem="{Binding LigneSelectionnee}"
+                          Style="{StaticResource TableauDonnees}" />
+
+                <Border Background="{StaticResource Surface}" CornerRadius="8"
+                        BorderBrush="{StaticResource Bordure}" BorderThickness="1"
+                        Padding="30" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding AucuneLigne,
+                                     Converter={StaticResource BooleenEnVisibilite}}">
+                    <TextBlock Text="Aucune ligne pour l'instant." FontSize="14"
+                               Foreground="{StaticResource TexteSecondaire}" />
+                </Border>
+            </Grid>
+
+        </DockPanel>
+
+        <!-- ============ Colonne de droite : en-tête et total ============ -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Champs d'en-tête, construits par le fichier compagnon -->
+                <Border Style="{StaticResource Carte}" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="Détails" Style="{StaticResource TitreCarte}" />
+                        <StackPanel x:Name="ZoneChamps" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Total -->
+                <Border Style="{StaticResource Carte}" Padding="16"
+                        Background="{StaticResource TerreClaire}"
+                        BorderBrush="{StaticResource Terre}">
+                    <StackPanel>
+                        <TextBlock Text="Total" Style="{StaticResource TitreCarte}" />
+
+                        <DockPanel Margin="0,4">
+                            <TextBlock DockPanel.Dock="Left" Text="Lignes" FontSize="12.5"
+                                       Foreground="{StaticResource TexteSecondaire}" />
+                            <TextBlock Text="{Binding NombreLignes}" FontSize="12.5"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <DockPanel Margin="0,4"
+                                   Visibility="{Binding AfficherPrix,
+                                                Converter={StaticResource BooleenEnVisibilite}}">
+                            <TextBlock DockPanel.Dock="Left" Text="Sous-total" FontSize="12.5"
+                                       Foreground="{StaticResource TexteSecondaire}" />
+                            <TextBlock Text="{Binding SousTotalAffiche}" FontSize="12.5"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <StackPanel Margin="0,8,0,0"
+                                    Visibility="{Binding AfficherPrix,
+                                                 Converter={StaticResource BooleenEnVisibilite}}">
+                            <TextBlock Text="Remise globale" Style="{StaticResource EtiquetteChamp}" />
+                            <TextBox Style="{StaticResource Saisie}" HorizontalContentAlignment="Right"
+                                     Text="{Binding RemiseDocument, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <Border Height="1" Background="{StaticResource Terre}" Margin="0,12" />
+
+                        <DockPanel Visibility="{Binding AfficherPrix,
+                                                Converter={StaticResource BooleenEnVisibilite}}">
+                            <TextBlock DockPanel.Dock="Left" Text="À payer" FontSize="15"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding TotalAffiche}" FontSize="22" FontWeight="Bold"
+                                       Foreground="{StaticResource TerreFoncee}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <DockPanel Visibility="{Binding AfficherPrix,
+                                                Converter={StaticResource BooleenEnVisibiliteInverse}}">
+                            <TextBlock DockPanel.Dock="Left" Text="Pièces" FontSize="15"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding QuantiteTotaleAffichee}" FontSize="22"
+                                       FontWeight="Bold" Foreground="{StaticResource TerreFoncee}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Règlement : seulement à la caisse -->
+                <Border Style="{StaticResource Carte}" Padding="16"
+                        Visibility="{Binding GereReglement,
+                                     Converter={StaticResource BooleenEnVisibilite}}">
+                    <StackPanel>
+                        <TextBlock Text="Règlement" Style="{StaticResource TitreCarte}" />
+
+                        <TextBlock Text="Montant reçu" Style="{StaticResource EtiquetteChamp}" />
+                        <TextBox Style="{StaticResource Saisie}" FontSize="16"
+                                 HorizontalContentAlignment="Right"
+                                 Text="{Binding MontantPaye, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <DockPanel Margin="0,12,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="Monnaie à rendre" FontSize="13"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding RenduAffiche}" FontSize="19" FontWeight="Bold"
+                                       Foreground="{StaticResource Succes}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <DockPanel Margin="0,6,0,0">
+                            <TextBlock DockPanel.Dock="Left" Text="Reste dû" FontSize="12.5"
+                                       Foreground="{StaticResource TexteSecondaire}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ResteAffiche}" FontSize="13.5"
+                                       FontWeight="SemiBold" Foreground="{StaticResource Danger}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+                <Button Content="{Binding LibelleEnregistrer}" Command="{Binding EnregistrerCommand}"
+                        Style="{StaticResource BoutonPrincipal}" FontSize="15" MinHeight="52"
+                        IsEnabled="{Binding ChargementEnCours,
+                                    Converter={StaticResource BooleenInverse}}" />
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+</UserControl>

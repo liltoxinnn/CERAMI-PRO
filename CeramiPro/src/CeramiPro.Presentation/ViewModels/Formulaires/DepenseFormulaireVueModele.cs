@@ -27,7 +27,7 @@ public class DepenseFormulaireVueModele : FormulaireVueModele<DepenseRequete>
     public override IReadOnlyList<ChampFormulaire> Champs => _champs;
 
     /// <summary>Charge les catégories avant d'afficher le formulaire.</summary>
-    public async Task PreparerAsync()
+    public override async Task PreparerAsync()
     {
         var categories = await _referentiels.ListerAsync(TypeReferentiel.CategorieDepense);
 

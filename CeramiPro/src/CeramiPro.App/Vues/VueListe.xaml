@@ -13,28 +13,58 @@
 
         <!-- Barre de recherche et actions -->
         <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16" Margin="0,0,0,12">
-            <DockPanel LastChildFill="True">
-                <Button DockPanel.Dock="Right" Content="{Binding LibelleAjouter}"
-                        Command="{Binding AjouterCommand}"
-                        Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0"
-                        Visibility="{Binding PeutAjouter,
-                                     Converter={StaticResource BooleenEnVisibilite}}" />
+            <StackPanel>
 
-                <Button DockPanel.Dock="Right" Content="{Binding LibelleActualiser}"
-                        Command="{Binding RafraichirCommand}"
-                        Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="{Binding LibelleActualiser}"
+                            Command="{Binding RafraichirCommand}"
+                            Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
 
-                <Button DockPanel.Dock="Right" Content="{Binding LibelleRechercher}"
-                        Command="{Binding ChercherCommand}"
-                        Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
+                    <Button DockPanel.Dock="Right" Content="{Binding LibelleRechercher}"
+                            Command="{Binding ChercherCommand}"
+                            Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0" />
 
-                <TextBox Style="{StaticResource Saisie}"
-                         Text="{Binding Recherche, UpdateSourceTrigger=PropertyChanged}">
-                    <TextBox.InputBindings>
-                        <KeyBinding Key="Enter" Command="{Binding ChercherCommand}" />
-                    </TextBox.InputBindings>
-                </TextBox>
-            </DockPanel>
+                    <TextBox Style="{StaticResource Saisie}"
+                             Text="{Binding Recherche, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding ChercherCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                </DockPanel>
+
+                <!-- Actions sur la fiche choisie -->
+                <WrapPanel Margin="0,12,0,0">
+                    <Button Content="{Binding LibelleAjouter}" Command="{Binding AjouterCommand}"
+                            Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0"
+                            Visibility="{Binding PeutAjouter,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+
+                    <Button Content="{Binding LibelleModifier}" Command="{Binding ModifierCommand}"
+                            Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0"
+                            Visibility="{Binding PeutModifier,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+
+                    <Button Content="{Binding LibelleSupprimer}" Command="{Binding SupprimerCommand}"
+                            Style="{StaticResource BoutonDanger}" Margin="0,0,8,0"
+                            Visibility="{Binding PeutSupprimer,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+
+                    <Border Width="1" Background="{StaticResource Bordure}" Margin="4,2,12,2"
+                            Visibility="{Binding PeutExporter,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+
+                    <Button Content="Exporter vers Excel" Command="{Binding ExporterExcelCommand}"
+                            Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0"
+                            Visibility="{Binding PeutExporter,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+
+                    <Button Content="Imprimer en PDF" Command="{Binding ExporterPdfCommand}"
+                            Style="{StaticResource BoutonSecondaire}"
+                            Visibility="{Binding PeutExporter,
+                                         Converter={StaticResource BooleenEnVisibilite}}" />
+                </WrapPanel>
+
+            </StackPanel>
         </Border>
 
         <!-- Pagination -->
@@ -63,11 +93,20 @@
             </DockPanel>
         </Border>
 
+        <!-- Message d'erreur -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource DangerFond}" CornerRadius="6"
+                Padding="12,9" Margin="0,0,0,12"
+                Visibility="{Binding MessageErreur, Converter={StaticResource TexteEnVisibilite}}">
+            <TextBlock Text="{Binding MessageErreur}" TextWrapping="Wrap"
+                       Foreground="{StaticResource Danger}" FontSize="12.5" />
+        </Border>
+
         <!-- Tableau -->
-        <Grid>
+        <Grid MinHeight="240">
             <DataGrid x:Name="Tableau" ItemsSource="{Binding Elements}"
                       SelectedItem="{Binding ElementSelectionne}"
-                      Style="{StaticResource TableauDonnees}" />
+                      Style="{StaticResource TableauDonnees}"
+                      MouseDoubleClick="OuvrirLaFiche" />
 
             <!-- Message affiché quand la recherche ne donne rien -->
             <Border Background="{StaticResource Surface}" CornerRadius="8"

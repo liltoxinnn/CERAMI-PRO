@@ -176,11 +176,20 @@ public class MenuBilingueTests
 
         var langue = new ServiceLangue();
 
+        // Le menu ne montre que ce à quoi la personne a droit : pour vérifier
+        // la traduction, il faut donc une session qui les possède tous.
+        var utilisateur = new Aides.UtilisateurFactice();
+
+        foreach (var droit in CeramiPro.Domain.Common.PermissionCodes.Catalogue)
+        {
+            utilisateur.Droits.Add(droit.Code);
+        }
+
         var fenetre = new CeramiPro.Presentation.ViewModels.FenetrePrincipaleVueModele(
             new CeramiPro.Presentation.Navigation.ServiceNavigation(
                 Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions
                     .BuildServiceProvider(services)),
-            new Aides.UtilisateurFactice(),
+            utilisateur,
             langue);
 
         return (fenetre, langue);

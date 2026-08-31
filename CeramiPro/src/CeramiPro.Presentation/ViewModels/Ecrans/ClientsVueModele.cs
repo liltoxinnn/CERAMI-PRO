@@ -12,20 +12,15 @@ public partial class ClientsVueModele : ListeVueModele<ClientDto>
 {
     private readonly IClientService _service;
 
-    public ClientsVueModele(IClientService service, IServiceLangue langue,
-        IServiceFormulaire formulaires, IServiceProvider services)
-        : base(langue, formulaires)
-    {
-        _service = service;
-        _services = services;
-    }
+    public ClientsVueModele(IClientService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
+        => _service = service;
 
-    private readonly IServiceProvider _services;
+    protected override Type TypeFormulaire => typeof(ClientFormulaireVueModele);
 
-    public override bool PeutAjouter => true;
+    public override bool PeutSupprimer => true;
 
-    protected override object? CreerFormulaire(int? id = null)
-        => _services.GetService(typeof(ClientFormulaireVueModele));
+    protected override Task SupprimerElementAsync(int id) => _service.SupprimerAsync(id);
 
     public override string Titre => Langue["menu.clients"];
 

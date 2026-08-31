@@ -1,0 +1,121 @@
+<UserControl x:Class="CeramiPro.App.Vues.RapportsVue"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource PoliceInterface}">
+
+    <!--
+        Écran des rapports. Le tableau est construit dans le fichier compagnon
+        à partir des colonnes renvoyées par le rapport : un même écran sert
+        ainsi les douze rapports de l'atelier.
+    -->
+
+    <DockPanel>
+
+        <!-- Choix du rapport et de la période -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="18">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <TextBlock Text="Rapport" Style="{StaticResource EtiquetteChamp}" />
+                    <ComboBox x:Name="ChoixRapport"
+                              ItemsSource="{Binding RapportsDisponibles}"
+                              DisplayMemberPath="Libelle"
+                              SelectedValuePath="Valeur"
+                              SelectedValue="{Binding TypeChoisi}"
+                              MinHeight="38" Padding="8,6"
+                              VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                    <TextBlock Text="Du" Style="{StaticResource EtiquetteChamp}" />
+                    <DatePicker SelectedDate="{Binding Du}" Width="150" MinHeight="38"
+                                VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                    <TextBlock Text="Au" Style="{StaticResource EtiquetteChamp}" />
+                    <DatePicker SelectedDate="{Binding Au}" Width="150" MinHeight="38"
+                                VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <Button Grid.Column="3" Content="Afficher" Command="{Binding AfficherCommand}"
+                        Style="{StaticResource BoutonPrincipal}" MinWidth="120"
+                        VerticalAlignment="Bottom" />
+            </Grid>
+        </Border>
+
+        <!-- Titre du rapport affiché et boutons d'export -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,12"
+                Visibility="{Binding RapportAffiche, Converter={StaticResource BooleenEnVisibilite}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="Exporter vers Excel" Command="{Binding ExporterExcelCommand}"
+                            Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0" />
+                    <Button Content="Exporter en PDF" Command="{Binding ExporterPdfCommand}"
+                            Style="{StaticResource BoutonSecondaire}" />
+                </StackPanel>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TitreRapport}" Style="{StaticResource TitreCarte}"
+                               Margin="0" />
+                    <TextBlock Text="{Binding PeriodeRapport}" FontSize="12"
+                               Foreground="{StaticResource TexteSecondaire}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Totaux du rapport -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource TerreClaire}"
+                CornerRadius="8" Padding="16,12" Margin="0,12,0,0"
+                Visibility="{Binding RapportAffiche, Converter={StaticResource BooleenEnVisibilite}}">
+            <ItemsControl ItemsSource="{Binding Totaux}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TerreFoncee}" Margin="0,0,26,0" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- Message d'erreur -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource DangerFond}" CornerRadius="6"
+                Padding="12,9" Margin="0,0,0,12"
+                Visibility="{Binding MessageErreur, Converter={StaticResource TexteEnVisibilite}}">
+            <TextBlock Text="{Binding MessageErreur}" TextWrapping="Wrap"
+                       Foreground="{StaticResource Danger}" FontSize="12.5" />
+        </Border>
+
+        <!-- Tableau du rapport -->
+        <Grid MinHeight="260">
+            <DataGrid x:Name="Tableau" ItemsSource="{Binding Lignes}"
+                      Style="{StaticResource TableauDonnees}"
+                      Visibility="{Binding RapportAffiche,
+                                   Converter={StaticResource BooleenEnVisibilite}}" />
+
+            <Border Background="{StaticResource Surface}" CornerRadius="8"
+                    BorderBrush="{StaticResource Bordure}" BorderThickness="1"
+                    Padding="30" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Visibility="{Binding AucuneDonnee, Converter={StaticResource BooleenEnVisibilite}}">
+                <TextBlock Text="Aucune donnée sur cette période." FontSize="14"
+                           Foreground="{StaticResource TexteSecondaire}" />
+            </Border>
+
+            <Border Background="#88FFFFFF"
+                    Visibility="{Binding ChargementEnCours, Converter={StaticResource BooleenEnVisibilite}}">
+                <TextBlock Text="…" FontSize="26" VerticalAlignment="Center"
+                           HorizontalAlignment="Center" Foreground="{StaticResource Terre}" />
+            </Border>
+        </Grid>
+
+    </DockPanel>
+</UserControl>

@@ -127,3 +127,41 @@ public class EtatBaseFactice : IServiceEtatBaseDeDonnees
             ? EtatBaseDeDonnees.Connectee("CeramiProDB")
             : EtatBaseDeDonnees.Injoignable());
 }
+
+/// <summary>
+/// Fenêtre de saisie simulée : on choisit si l'utilisateur enregistre ou
+/// renonce, et l'on retient les formulaires qui ont été affichés.
+/// </summary>
+public class FormulaireFactice : IServiceFormulaire
+{
+    public List<object> Affiches { get; } = new();
+
+    public bool Enregistre { get; set; } = true;
+
+    public bool Afficher(object vueModeleFormulaire)
+    {
+        Affiches.Add(vueModeleFormulaire);
+        return Enregistre;
+    }
+}
+
+/// <summary>
+/// Boîte « Enregistrer sous » simulée : on choisit le chemin renvoyé, ou
+/// <c>null</c> pour représenter un utilisateur qui renonce.
+/// </summary>
+public class FichierFactice : IServiceFichier
+{
+    public string? CheminChoisi { get; set; }
+
+    public List<string> Demandes { get; } = new();
+
+    public List<string> Ouverts { get; } = new();
+
+    public string? DemanderOuEnregistrer(string nomPropose, string filtre)
+    {
+        Demandes.Add(nomPropose);
+        return CheminChoisi;
+    }
+
+    public void Ouvrir(string chemin) => Ouverts.Add(chemin);
+}

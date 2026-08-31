@@ -2,21 +2,28 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
-/// <summary>Encaissements, acomptes et règlements de dettes.</summary>
+/// <summary>Encaissements reçus des clients.</summary>
 public partial class PaiementsVueModele : ListeVueModele<PaiementDto>
 {
     private readonly IPaiementService _service;
 
-    public PaiementsVueModele(IPaiementService service, IServiceLangue langue)
-        : base(langue)
+    public PaiementsVueModele(IPaiementService service, IServiceLangue langue, OutilsListe outils)
+        : base(langue, outils)
         => _service = service;
+
+    protected override Type TypeFormulaire => typeof(PaiementFormulaireVueModele);
+
+    /// <summary>Un paiement se corrige par une annulation tracée, jamais par une modification.</summary>
+    public override bool PeutModifier => false;
 
     public override string Titre => Langue["menu.paiements"];
 
-    public override string Introduction => "Encaissements, acomptes et règlements de dettes.";
+    public override string Introduction => "Encaissements reçus des clients : acomptes, soldes et règlements de factures.";
 
     protected override Task<PagedResult<PaiementDto>> LireAsync()
         => _service.ListerAsync(new FiltrePaiementsRequete
@@ -30,9 +37,13 @@ public partial class PaiementsVueModele : ListeVueModele<PaiementDto>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
         new("Numéro", "Numero", ColonneAlignement.Gauche),
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
+        new("Date", "Date", ColonneAlignement.Gauche, FormatColonne.Date),
         new("Client", "ClientNom", ColonneAlignement.Gauche),
-        new("Montant", "MontantAffiche", ColonneAlignement.Droite),
-        new("Mode", "ModeReglement", ColonneAlignement.Gauche)
+        new("Vente", "VenteNumero", ColonneAlignement.Gauche),
+        new("Facture", "FactureNumero", ColonneAlignement.Gauche),
+        new("Montant", "Montant", ColonneAlignement.Droite, FormatColonne.Montant),
+        new("Mode", "ModeReglement", ColonneAlignement.Gauche),
+        new("Acompte", "Acompte", ColonneAlignement.Centre),
+        new("Encaissé par", "Utilisateur", ColonneAlignement.Gauche)
     };
 }

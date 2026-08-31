@@ -1,4 +1,5 @@
 using CeramiPro.Application.Common;
+using CeramiPro.Application.DTOs.Codes;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.DTOs.Settings;
 using CeramiPro.Application.Interfaces;
@@ -327,4 +328,98 @@ public class DocumentService : IDocumentService
 
     private static string? Mention(string etiquette, string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : $"{etiquette} : {valeur}";
+
+    // ------------------------------------------------------------ Étiquettes
+
+    /// <summary>Trois étiquettes par rangée : la taille habituelle du papier autocollant A4.</summary>
+    private const int EtiquettesParRangee = 3;
+
+    public async Task<byte[]> EtiquettesPdfAsync(
+        IReadOnlyList<EtiquetteDto> etiquettes, CancellationToken cancellationToken = default)
+    {
+        if (etiquettes.Count == 0)
+        {
+            throw new RegleMetierException("Aucune étiquette à imprimer.");
+        }
+
+        var atelier = await _parametres.ObtenirAsync(cancellationToken);
+
+        return Document.Create(document => document.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(1, Unit.Centimetre);
+            page.DefaultTextStyle(t => t.FontSize(8).FontFamily("Arial"));
+
+            page.Header().PaddingBottom(8).Row(rangee =>
+            {
+                rangee.RelativeItem().Text(atelier.NomAtelier).Bold().FontSize(11).FontColor(Terre);
+
+                rangee.ConstantItem(150).AlignRight()
+                    .Text($"{etiquettes.Count} étiquette(s) — {Formatage.Date(_horloge.Aujourdhui)}")
+                    .FontSize(8).FontColor(Colors.Grey.Darken1);
+            });
+
+            page.Content().Table(tableau =>
+            {
+                tableau.ColumnsDefinition(colonnes =>
+                {
+                    for (var rang = 0; rang < EtiquettesParRangee; rang++)
+                    {
+                        colonnes.RelativeColumn();
+                    }
+                });
+
+                foreach (var etiquette in etiquettes)
+                {
+                    tableau.Cell().Padding(3).Border(0.75f).BorderColor(Colors.Grey.Medium)
+                        .Padding(7).Column(carte =>
+                        {
+                            carte.Item().Text(etiquette.Nom).Bold().FontSize(9);
+
+                            carte.Item().Text(etiquette.Categorie)
+                                .FontSize(7).FontColor(Colors.Grey.Darken1);
+
+                            carte.Item().PaddingTop(3).Text(etiquette.PrixAffiche)
+                                .Bold().FontSize(13).FontColor(Terre);
+
+                            carte.Item().PaddingTop(5).Row(codes =>
+                            {
+                                // Le code-barres sert à la caisse, le QR à
+                                // retrouver la fiche depuis un téléphone.
+                                if (!string.IsNullOrWhiteSpace(etiquette.CodeBarresSvg))
+                                {
+                                    codes.RelativeItem().Height(28).Svg(etiquette.CodeBarresSvg);
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(etiquette.CodeQrSvg))
+                                {
+                                    codes.ConstantItem(38).Height(38).Svg(etiquette.CodeQrSvg);
+                                }
+                            });
+
+                            carte.Item().PaddingTop(2).Text(etiquette.CodeBarres)
+                                .FontSize(6.5f).FontColor(Colors.Grey.Darken2);
+                        });
+                }
+
+                // Compléter la dernière rangée : sans cela, QuestPDF étirerait
+                // la dernière étiquette sur toute la largeur restante.
+                var manquantes = (EtiquettesParRangee - etiquettes.Count % EtiquettesParRangee)
+                    % EtiquettesParRangee;
+
+                for (var rang = 0; rang < manquantes; rang++)
+                {
+                    tableau.Cell().Padding(3);
+                }
+            });
+
+            page.Footer().AlignCenter().Text(texte =>
+            {
+                texte.DefaultTextStyle(t => t.FontSize(7).FontColor(Colors.Grey.Darken1));
+                texte.CurrentPageNumber();
+                texte.Span(" / ");
+                texte.TotalPages();
+            });
+        })).GeneratePdf();
+    }
 }

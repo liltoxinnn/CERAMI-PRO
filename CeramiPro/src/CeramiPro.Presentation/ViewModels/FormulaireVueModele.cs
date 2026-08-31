@@ -13,7 +13,7 @@ namespace CeramiPro.Presentation.ViewModels;
 /// ne concerne que la saisie elle-même — un champ laissé vide, un nombre
 /// négatif — afin d'éviter un aller-retour inutile jusqu'à la base.
 /// </summary>
-public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
+public abstract partial class FormulaireVueModele<TRequete> : ObservableObject, IFormulaire
     where TRequete : class, new()
 {
     protected readonly IServiceLangue Langue;
@@ -48,6 +48,12 @@ public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
 
     /// <summary>Enregistre auprès du service métier.</summary>
     protected abstract Task EnregistrerAsync();
+
+    /// <summary>
+    /// Charge les listes déroulantes du formulaire. Les formulaires qui
+    /// n'en ont pas gardent le comportement par défaut : ne rien faire.
+    /// </summary>
+    public virtual Task PreparerAsync() => Task.CompletedTask;
 
     /// <summary>Charge les valeurs d'une fiche existante.</summary>
     public virtual Task PreparerModificationAsync(int id) => Task.CompletedTask;
