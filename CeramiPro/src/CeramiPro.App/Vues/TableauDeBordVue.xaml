@@ -1,0 +1,33 @@
+<UserControl x:Class="CeramiPro.App.Vues.TableauDeBordVue"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource PoliceInterface}">
+
+    <StackPanel>
+
+        <Border Style="{StaticResource Carte}">
+            <StackPanel>
+                <TextBlock Text="Socle technique" Style="{StaticResource TitreCarte}" />
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
+                           Text="Les fondations de CeramiPro sont en place : fenêtre Windows, menu de l'atelier, injection de dépendances, connexion PostgreSQL, journalisation et formats algériens." />
+
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                    <TextBlock Text="Base de données :" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding EtatBaseDeDonnees}" Margin="8,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Carte}">
+            <StackPanel>
+                <TextBlock Text="Prochaines étapes" Style="{StaticResource TitreCarte}" />
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
+                           Text="Les modules du menu s'activeront un par un, en suivant le chemin de l'atelier : matières et fournisseurs, puis produits et recettes, puis production, cuisson, décoration, qualité, clients, ventes et rapports." />
+                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
+                           Text="Les chiffres du tableau de bord apparaîtront ici dès que les ventes et la production existeront. Aucun chiffre n'est inventé en attendant." />
+            </StackPanel>
+        </Border>
+
+    </StackPanel>
+</UserControl>

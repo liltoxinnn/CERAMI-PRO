@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Application Windows native (WPF).
+
+    Ce projet ne se compile que sous Windows : le kit WindowsDesktop n'existe
+    pas sur les autres systèmes. Il est volontairement absent de la solution
+    principale, afin que la couche métier reste compilable et testable partout.
+    Sous Windows, ouvrez CeramiPro.Windows.sln, ou lancez directement :
+        dotnet run (option projet) src\CeramiPro.App
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(VersionDotNetWindows)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>CeramiPro</AssemblyName>
+    <RootNamespace>CeramiPro.App</RootNamespace>
+    <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CeramiPro.Application\CeramiPro.Application.csproj" />
+    <ProjectReference Include="..\CeramiPro.Infrastructure\CeramiPro.Infrastructure.csproj" />
+    <ProjectReference Include="..\CeramiPro.Presentation\CeramiPro.Presentation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

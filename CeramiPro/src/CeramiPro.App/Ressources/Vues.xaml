@@ -1,0 +1,16 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:CeramiPro.Presentation.ViewModels;assembly=CeramiPro.Presentation"
+                    xmlns:vues="clr-namespace:CeramiPro.App.Vues">
+
+    <!--
+        Association entre chaque vue-modèle et son écran. C'est ce qui permet
+        à la zone de contenu d'afficher le bon écran sans que la fenêtre
+        principale ait à connaître les vues une par une.
+    -->
+
+    <DataTemplate DataType="{x:Type vm:TableauDeBordVueModele}">
+        <vues:TableauDeBordVue />
+    </DataTemplate>
+
+</ResourceDictionary>

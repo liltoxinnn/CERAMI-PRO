@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A51DACAF-EC54-4C63-8BA7-5EBDAB3A39F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeramiPro.Domain", "src\CeramiPro.Domain\CeramiPro.Domain.csproj", "{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeramiPro.Application", "src\CeramiPro.Application\CeramiPro.Application.csproj", "{91493C7A-149C-40E4-BC66-E9F6CF6082ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeramiPro.Infrastructure", "src\CeramiPro.Infrastructure\CeramiPro.Infrastructure.csproj", "{C1BB8684-44C0-4B09-B137-A8C706423D7F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeramiPro.Presentation", "src\CeramiPro.Presentation\CeramiPro.Presentation.csproj", "{B557C77F-CF19-4038-A204-6BF06ED99938}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{35789CBC-DABE-4467-817C-9ACABCAC3365}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CeramiPro.Tests", "tests\CeramiPro.Tests\CeramiPro.Tests.csproj", "{5D137011-16A5-49A7-9FAA-984DF9540DA0}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CeramiPro.App", "src\CeramiPro.App\CeramiPro.App.csproj", "{26C00F25-C2C6-5E7E-9795-30D5DA74047D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+		{26C00F25-C2C6-5E7E-9795-30D5DA74047D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26C00F25-C2C6-5E7E-9795-30D5DA74047D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26C00F25-C2C6-5E7E-9795-30D5DA74047D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26C00F25-C2C6-5E7E-9795-30D5DA74047D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91493C7A-149C-40E4-BC66-E9F6CF6082ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91493C7A-149C-40E4-BC66-E9F6CF6082ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91493C7A-149C-40E4-BC66-E9F6CF6082ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91493C7A-149C-40E4-BC66-E9F6CF6082ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1BB8684-44C0-4B09-B137-A8C706423D7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1BB8684-44C0-4B09-B137-A8C706423D7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1BB8684-44C0-4B09-B137-A8C706423D7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1BB8684-44C0-4B09-B137-A8C706423D7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B557C77F-CF19-4038-A204-6BF06ED99938}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B557C77F-CF19-4038-A204-6BF06ED99938}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B557C77F-CF19-4038-A204-6BF06ED99938}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B557C77F-CF19-4038-A204-6BF06ED99938}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5D137011-16A5-49A7-9FAA-984DF9540DA0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D137011-16A5-49A7-9FAA-984DF9540DA0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D137011-16A5-49A7-9FAA-984DF9540DA0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D137011-16A5-49A7-9FAA-984DF9540DA0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9D1CAE20-4003-4573-A6D4-E7762DDFF3FC} = {A51DACAF-EC54-4C63-8BA7-5EBDAB3A39F4}
+		{91493C7A-149C-40E4-BC66-E9F6CF6082ED} = {A51DACAF-EC54-4C63-8BA7-5EBDAB3A39F4}
+		{C1BB8684-44C0-4B09-B137-A8C706423D7F} = {A51DACAF-EC54-4C63-8BA7-5EBDAB3A39F4}
+		{B557C77F-CF19-4038-A204-6BF06ED99938} = {A51DACAF-EC54-4C63-8BA7-5EBDAB3A39F4}
+		{5D137011-16A5-49A7-9FAA-984DF9540DA0} = {35789CBC-DABE-4467-817C-9ACABCAC3365}
+	EndGlobalSection
+EndGlobal
