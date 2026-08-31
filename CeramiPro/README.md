@@ -65,10 +65,11 @@ passe pour l'utilisateur `postgres` : notez-le.
 ## Lancer l'application
 
 ```bat
-copy src\CeramiPro.App\appsettings.Development.exemple.json src\CeramiPro.App\appsettings.Development.json
+copy src\CeramiPro.App\appsettings.Local.exemple.json src\CeramiPro.App\appsettings.Local.json
+notepad src\CeramiPro.App\appsettings.Local.json
 ```
 
-Renseignez le mot de passe PostgreSQL dans ce fichier, puis :
+Renseignez le mot de passe PostgreSQL après `Password=`, enregistrez, puis :
 
 ```bat
 dotnet run --project src\CeramiPro.App

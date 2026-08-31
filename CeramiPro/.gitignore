@@ -1,4 +1,6 @@
 bin/
 obj/
 *.user
-appsettings.Development.json
+
+# Réglages propres à chaque ordinateur : contiennent le mot de passe de la base.
+appsettings.Local.json
