@@ -28,6 +28,15 @@ public partial class App : System.Windows.Application
 {
     private IHost? _hote;
 
+    /// <summary>Réglages livrés avec le logiciel.</summary>
+    public const string FichierReglages = "appsettings.json";
+
+    /// <summary>
+    /// Réglages propres à l'ordinateur, à créer à l'installation. Il contient
+    /// le mot de passe de la base : il n'est donc jamais versionné.
+    /// </summary>
+    public const string FichierReglagesLocaux = "appsettings.Local.json";
+
     /// <summary>Dossier de travail : journaux, images, documents, sauvegardes.</summary>
     public static string DossierDonnees { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CeramiPro");
@@ -95,8 +104,12 @@ public partial class App : System.Windows.Application
         .UseContentRoot(AppContext.BaseDirectory)
         .ConfigureAppConfiguration((contexte, configuration) => configuration
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false)
-            .AddJsonFile($"appsettings.{contexte.HostingEnvironment.EnvironmentName}.json", optional: true)
+            // Réglages livrés avec le logiciel, sans mot de passe.
+            .AddJsonFile(FichierReglages, optional: false)
+            // Réglages propres à cet ordinateur : mot de passe de la base,
+            // dossier de sauvegarde. Ce fichier n'est jamais versionné et il
+            // est toujours lu, quel que soit le mode de lancement.
+            .AddJsonFile(FichierReglagesLocaux, optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("CERAMIPRO_"))
         .UseSerilog((contexte, journalisation) => journalisation
             .ReadFrom.Configuration(contexte.Configuration)
@@ -141,9 +154,12 @@ public partial class App : System.Windows.Application
 
             MessageBox.Show(
                 "Impossible de se connecter à la base de données.\n\n" +
-                "Vérifiez que le service PostgreSQL est démarré, puis que le nom\n" +
-                "de la base, l'utilisateur et le mot de passe sont corrects dans\n" +
-                "le fichier appsettings.json.",
+                "Vérifiez, dans l'ordre :\n\n" +
+                "1. Le service PostgreSQL est démarré.\n" +
+                $"2. Le fichier « {FichierReglagesLocaux} » existe à côté du\n" +
+                "    programme et contient le bon mot de passe.\n\n" +
+                "Emplacement attendu :\n" +
+                Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux),
                 "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
 
             return false;
