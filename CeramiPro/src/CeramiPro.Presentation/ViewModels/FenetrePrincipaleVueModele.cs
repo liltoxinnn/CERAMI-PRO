@@ -16,15 +16,18 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     private readonly IServiceNavigation _navigation;
     private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly IServiceLangue _langue;
+    private readonly IServiceCompte? _compte;
 
     public FenetrePrincipaleVueModele(
         IServiceNavigation navigation,
         IUtilisateurCourant utilisateurCourant,
-        IServiceLangue langue)
+        IServiceLangue langue,
+        IServiceCompte? compte = null)
     {
         _navigation = navigation;
         _utilisateurCourant = utilisateurCourant;
         _langue = langue;
+        _compte = compte;
 
         Menu = FiltrerSelonLesDroits(CatalogueNavigation.Construire(langue));
 
@@ -70,6 +73,24 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     /// <summary>Nom lisible du rôle, jamais son code technique.</summary>
     public string NomRole => _utilisateurCourant.NomRole ?? string.Empty;
 
+    public string LibelleDeconnexion => _langue["action.deconnexion"];
+
+    public string LibelleChangerMotDePasse => "Changer mon mot de passe";
+
+    /// <summary>
+    /// Ouvre la fenêtre de changement de mot de passe. Chacun doit pouvoir
+    /// changer le sien sans passer par un administrateur.
+    /// </summary>
+    [RelayCommand]
+    private void ChangerMotDePasse() => _compte?.ChangerMotDePasse();
+
+    /// <summary>
+    /// Ferme la session et rend la main à l'écran de connexion : c'est ce
+    /// qu'il faut quand deux personnes se relaient au comptoir.
+    /// </summary>
+    [RelayCommand]
+    private void Deconnecter() => _compte?.Deconnecter();
+
     /// <summary>
     /// Un clic ouvre l'écran d'une entrée simple, ou déplie un groupe. Aucun
     /// élément du menu n'est ainsi sans effet.
@@ -108,6 +129,7 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
         OnPropertyChanged(nameof(NomApplication));
         OnPropertyChanged(nameof(SousTitreApplication));
         OnPropertyChanged(nameof(NomUtilisateur));
+        OnPropertyChanged(nameof(LibelleDeconnexion));
     }
 
     /// <summary>

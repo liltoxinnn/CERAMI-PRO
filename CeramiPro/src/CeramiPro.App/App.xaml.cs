@@ -235,6 +235,16 @@ public partial class App : System.Windows.Application
 
         return Host.CreateDefaultBuilder()
         .UseContentRoot(AppContext.BaseDirectory)
+        // Un logiciel de bureau n'a qu'un utilisateur et qu'une session : les
+        // écrans sont construits depuis le conteneur racine, qui tient lieu
+        // de portée pour toute la durée de l'exécution. La vérification à la
+        // construction reste active — elle signale un service impossible à
+        // fabriquer avant que l'utilisateur ne clique.
+        .UseDefaultServiceProvider(options =>
+        {
+            options.ValidateOnBuild = true;
+            options.ValidateScopes = false;
+        })
         .ConfigureAppConfiguration((contexte, configuration) => configuration
             .SetBasePath(AppContext.BaseDirectory)
             // Réglages livrés avec le logiciel, sans mot de passe.
@@ -272,6 +282,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
             services.AddSingleton<IServiceFormulaire, ServiceFormulaire>();
             services.AddSingleton<IServiceFichier, ServiceFichier>();
+            services.AddSingleton<IServiceCompte, ServiceCompte>();
             services.AddSingleton<FenetrePrincipale>();
 
             // Les écrans et les formulaires sont déclarés dans la couche
