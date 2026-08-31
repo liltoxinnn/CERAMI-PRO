@@ -182,9 +182,13 @@ public partial class App : System.Windows.Application
     /// </summary>
     private bool OuvrirSession()
     {
+        // La connexion vit dans sa propre portée : son contexte de base de
+        // données est refermé une fois les identifiants vérifiés.
+        using var portee = _hote!.Services.CreateScope();
+
         var connexion = new FenetreConnexion
         {
-            DataContext = _hote!.Services.GetRequiredService<ConnexionVueModele>()
+            DataContext = portee.ServiceProvider.GetRequiredService<ConnexionVueModele>()
         };
 
         var vue = (ConnexionVueModele)connexion.DataContext;
@@ -210,7 +214,9 @@ public partial class App : System.Windows.Application
     /// <summary>Impose le remplacement d'un mot de passe provisoire.</summary>
     private bool ChangerLeMotDePasse()
     {
-        var vueModele = _hote!.Services.GetRequiredService<ChangementMotDePasseVueModele>();
+        using var portee = _hote!.Services.CreateScope();
+
+        var vueModele = portee.ServiceProvider.GetRequiredService<ChangementMotDePasseVueModele>();
         vueModele.Obligatoire = true;
 
         var fenetre = new FenetreMotDePasse { DataContext = vueModele };
@@ -235,11 +241,14 @@ public partial class App : System.Windows.Application
 
         return Host.CreateDefaultBuilder()
         .UseContentRoot(AppContext.BaseDirectory)
-        // Un logiciel de bureau n'a qu'un utilisateur et qu'une session : les
-        // écrans sont construits depuis le conteneur racine, qui tient lieu
-        // de portée pour toute la durée de l'exécution. La vérification à la
-        // construction reste active — elle signale un service impossible à
-        // fabriquer avant que l'utilisateur ne clique.
+        // La vérification à la construction reste active : elle signale un
+        // service impossible à fabriquer avant que l'utilisateur ne clique.
+        //
+        // Le contrôle des portées, lui, est désactivé : quelques fenêtres —
+        // la connexion, le changement de mot de passe — sont ouvertes depuis
+        // le conteneur racine, chacune dans sa propre portée créée à la main
+        // juste avant. Les écrans, eux, passent par le service de navigation,
+        // qui leur en donne une.
         .UseDefaultServiceProvider(options =>
         {
             options.ValidateOnBuild = true;

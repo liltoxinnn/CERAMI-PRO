@@ -18,20 +18,21 @@ namespace CeramiPro.App.Services;
 public class ServiceCompte : IServiceCompte
 {
     private readonly IServiceProvider _services;
-    private readonly IAuthService _auth;
     private readonly IServiceDialogue _dialogue;
 
-    public ServiceCompte(
-        IServiceProvider services, IAuthService auth, IServiceDialogue dialogue)
+    public ServiceCompte(IServiceProvider services, IServiceDialogue dialogue)
     {
         _services = services;
-        _auth = auth;
         _dialogue = dialogue;
     }
 
     public void ChangerMotDePasse()
     {
-        var vueModele = _services.GetRequiredService<ChangementMotDePasseVueModele>();
+        // La fenêtre vit dans sa propre portée : son contexte de base de
+        // données est refermé dès qu'elle se ferme.
+        using var portee = _services.CreateScope();
+
+        var vueModele = portee.ServiceProvider.GetRequiredService<ChangementMotDePasseVueModele>();
         vueModele.Obligatoire = false;
 
         var fenetre = new FenetreMotDePasse
@@ -58,7 +59,15 @@ public class ServiceCompte : IServiceCompte
 
         // La session est fermée avant la fenêtre : les droits ne survivent
         // pas à la déconnexion, même le temps de l'extinction.
-        _ = _auth.DeconnecterAsync();
+        //
+        // Le service d'authentification vit le temps d'une opération : le
+        // retenir dans ce service, qui dure autant que l'application, lui
+        // ferait garder un contexte de base de données ouvert en permanence.
+        using (var portee = _services.CreateScope())
+        {
+            portee.ServiceProvider.GetRequiredService<IAuthService>()
+                .DeconnecterAsync().GetAwaiter().GetResult();
+        }
 
         System.Windows.Application.Current.MainWindow?.Close();
     }
