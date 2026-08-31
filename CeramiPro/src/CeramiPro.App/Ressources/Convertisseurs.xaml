@@ -6,5 +6,7 @@
     <conv:BooleenEnPastille x:Key="BooleenEnPastille" />
     <conv:SensEnFlowDirection x:Key="SensEnFlowDirection" />
     <conv:LangueEnNom x:Key="LangueEnNom" />
+    <conv:BooleenInverse x:Key="BooleenInverse" />
+    <conv:TexteEnVisibilite x:Key="TexteEnVisibilite" />
 
 </ResourceDictionary>

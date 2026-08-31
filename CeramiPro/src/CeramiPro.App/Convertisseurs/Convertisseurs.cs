@@ -60,3 +60,26 @@ public class LangueEnNom : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>Inverse un booléen : sert à désactiver un bouton pendant un chargement.</summary>
+public class BooleenInverse : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is not true;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is not true;
+}
+
+/// <summary>
+/// Affiche un bloc seulement lorsqu'il porte un texte. Un encadré d'erreur
+/// vide ne doit pas occuper d'espace à l'écran.
+/// </summary>
+public class TexteEnVisibilite : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

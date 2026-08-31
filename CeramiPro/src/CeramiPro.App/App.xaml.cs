@@ -108,6 +108,12 @@ public partial class App : System.Windows.Application
                 return;
             }
 
+            if (!OuvrirSession())
+            {
+                Shutdown(0);
+                return;
+            }
+
             var fenetre = _hote.Services.GetRequiredService<FenetrePrincipale>();
             fenetre.DataContext = _hote.Services.GetRequiredService<FenetrePrincipaleVueModele>();
             MainWindow = fenetre;
@@ -140,6 +146,29 @@ public partial class App : System.Windows.Application
 
         Log.CloseAndFlush();
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Demande les identifiants avant d'ouvrir l'atelier. Fermer la fenêtre
+    /// de connexion ferme le logiciel : rien n'est accessible sans session.
+    /// </summary>
+    private bool OuvrirSession()
+    {
+        var connexion = new FenetreConnexion
+        {
+            DataContext = _hote!.Services.GetRequiredService<ConnexionVueModele>()
+        };
+
+        var vue = (ConnexionVueModele)connexion.DataContext;
+        vue.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ConnexionVueModele.ConnexionReussie) && vue.ConnexionReussie)
+            {
+                connexion.DialogResult = true;
+            }
+        };
+
+        return connexion.ShowDialog() == true;
     }
 
     private static IHost ConstruireHote()
@@ -181,6 +210,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<FenetrePrincipaleVueModele>();
 
             services.AddTransient<TableauDeBordVueModele>();
+            services.AddTransient<ConnexionVueModele>();
         })
             .Build();
     }
