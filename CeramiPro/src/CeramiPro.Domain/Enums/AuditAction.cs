@@ -13,5 +13,6 @@ public enum AuditAction
     [Libelle("Annulation")] Annulation = 5,
     [Libelle("Dérogation")] Derogation = 6,
     [Libelle("Échec de connexion")] EchecConnexion = 7,
-    [Libelle("Sauvegarde")] Sauvegarde = 8
+    [Libelle("Sauvegarde")] Sauvegarde = 8,
+    [Libelle("Restauration")] Restauration = 9
 }

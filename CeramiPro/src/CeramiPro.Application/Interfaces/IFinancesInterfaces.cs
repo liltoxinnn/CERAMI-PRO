@@ -87,4 +87,12 @@ public interface ISauvegardeService
 
     /// <summary>Supprime les sauvegardes dépassant la durée de conservation.</summary>
     Task<int> PurgerAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Remet la base dans l'état d'une sauvegarde. Toutes les données
+    /// enregistrées depuis sont perdues : l'opération est irréversible et
+    /// réservée à l'administrateur.
+    /// </summary>
+    Task<RestaurationDto> RestaurerAsync(
+        string nomFichier, CancellationToken cancellationToken = default);
 }

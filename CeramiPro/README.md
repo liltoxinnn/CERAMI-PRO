@@ -158,6 +158,11 @@ tourne chaque jour, avec purge des archives trop anciennes.
 Copiez régulièrement la dernière archive sur une clé USB : une sauvegarde
 restée sur le même ordinateur ne protège de rien.
 
+Le bouton **Restaurer** du même écran remet la base dans l'état d'une archive
+choisie. L'opération remplace toutes les données actuelles et ne se défait
+pas : elle demande deux confirmations, et il faut sauvegarder l'état présent
+avant de s'en servir. Fermez puis rouvrez le logiciel après une restauration.
+
 ---
 
 ## Documentation

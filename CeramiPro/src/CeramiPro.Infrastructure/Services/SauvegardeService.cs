@@ -213,6 +213,368 @@ public class SauvegardeService : ISauvegardeService
         return Path.Combine(_dossier, nom);
     }
 
+
+    // ---------------------------------------------------------- Restauration
+
+    /// <summary>
+    /// Sous PostgreSQL, ce réglage suspend le contrôle des clés étrangères le
+    /// temps de la restauration : les tables se remplissent alors dans
+    /// n'importe quel ordre, sans avoir à deviner lequel.
+    /// </summary>
+    private const string SuspendreLesLiens = "SET session_replication_role = 'replica'";
+
+    private const string RetablirLesLiens = "SET session_replication_role = 'origin'";
+
+    public async Task<RestaurationDto> RestaurerAsync(
+        string nomFichier, CancellationToken cancellationToken = default)
+    {
+        var chemin = CheminSur(nomFichier);
+
+        if (!File.Exists(chemin))
+        {
+            throw new IntrouvableException($"La sauvegarde « {nomFichier} » est introuvable.");
+        }
+
+        using var archive = ZipFile.OpenRead(chemin);
+
+        var tables = TablesDuModele().ToList();
+        var connues = tables.ToHashSet(StringComparer.Ordinal);
+
+        var contenus = archive.Entries
+            .Where(e => e.FullName.StartsWith("donnees/", StringComparison.Ordinal)
+                        && e.FullName.EndsWith(".csv", StringComparison.Ordinal))
+            .ToDictionary(
+                e => Path.GetFileNameWithoutExtension(e.FullName),
+                e => e,
+                StringComparer.Ordinal);
+
+        if (contenus.Count == 0)
+        {
+            throw new RegleMetierException(
+                $"Le fichier « {nomFichier} » ne contient aucune donnée : "
+                + "ce n'est pas une sauvegarde CeramiPro.");
+        }
+
+        // Une archive qui parle de tables que ce logiciel ne connaît pas vient
+        // d'une autre version : la restaurer laisserait la base incohérente.
+        var etrangeres = contenus.Keys.Where(nom => !connues.Contains(nom)).ToList();
+
+        if (etrangeres.Count > 0)
+        {
+            throw new RegleMetierException(
+                $"La sauvegarde « {nomFichier} » comporte des tables inconnues de cette "
+                + "version du logiciel : " + string.Join(", ", etrangeres.Take(5)) + ". "
+                + "Elle a probablement été produite par une version plus récente.");
+        }
+
+        var connexion = _context.Database.GetDbConnection();
+        var ouverte = connexion.State == System.Data.ConnectionState.Open;
+
+        if (!ouverte)
+        {
+            await connexion.OpenAsync(cancellationToken);
+        }
+
+        var lignesRestaurees = 0;
+        var tablesRestaurees = 0;
+
+        try
+        {
+            await using var transaction = await connexion.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                await ExecuterAsync(connexion, transaction, SuspendreLesLiens, cancellationToken);
+            }
+            catch (DbException erreur)
+            {
+                throw new RegleMetierException(
+                    "La restauration demande des droits que le compte de base de données ne "
+                    + "possède pas. Connectez-vous à PostgreSQL avec le compte administrateur, "
+                    + "puis recommencez.\n\nDétail : " + erreur.Message);
+            }
+
+            // Toutes les tables sont vidées d'abord : restaurer une archive
+            // partielle ne doit pas laisser d'anciennes lignes derrière elle.
+            foreach (var table in tables)
+            {
+                await ExecuterAsync(
+                    connexion, transaction, $"TRUNCATE TABLE \"{table}\" CASCADE", cancellationToken);
+            }
+
+            foreach (var table in tables.Where(contenus.ContainsKey))
+            {
+                var lignes = await RemplirTableAsync(
+                    connexion, transaction, table, contenus[table], cancellationToken);
+
+                lignesRestaurees += lignes;
+                tablesRestaurees++;
+            }
+
+            // Les compteurs d'identifiants doivent repartir après la dernière
+            // ligne remise en place, sans quoi le prochain enregistrement
+            // entrerait en collision avec une fiche restaurée.
+            foreach (var table in await TablesAvecCompteurAsync(connexion, transaction, cancellationToken))
+            {
+                await RemettreLeCompteurAsync(connexion, transaction, table, cancellationToken);
+            }
+
+            await ExecuterAsync(connexion, transaction, RetablirLesLiens, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            if (!ouverte)
+            {
+                await connexion.CloseAsync();
+            }
+        }
+
+        _journal.LogInformation(
+            "Base restaurée depuis « {Fichier} » : {Tables} tables, {Lignes} lignes.",
+            nomFichier, tablesRestaurees, lignesRestaurees);
+
+        await _audit.EnregistrerAsync(
+            AuditAction.Restauration, "Sauvegarde", nomFichier,
+            $"Restauration de {tablesRestaurees} table(s) et {lignesRestaurees} ligne(s).",
+            cancellationToken: cancellationToken);
+
+        return new RestaurationDto(
+            Path.GetFileName(chemin),
+            File.GetLastWriteTime(chemin),
+            tablesRestaurees,
+            lignesRestaurees);
+    }
+
+    private static async Task ExecuterAsync(
+        DbConnection connexion, DbTransaction transaction, string sql,
+        CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = sql;
+
+        await commande.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Réinsère les lignes d'une table. Les valeurs sont transmises comme du
+    /// texte : c'est PostgreSQL qui les convertit au type de chaque colonne,
+    /// ce qui évite d'avoir à deviner ce type depuis le fichier.
+    /// </summary>
+    private static async Task<int> RemplirTableAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        string table,
+        ZipArchiveEntry entree,
+        CancellationToken cancellationToken)
+    {
+        await using var flux = entree.Open();
+        using var lecture = new StreamReader(flux, new UTF8Encoding(true));
+
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } enTete)
+        {
+            return 0;
+        }
+
+        var colonnes = DecouperLigne(enTete)
+            .Select(c => c.Valeur ?? string.Empty)
+            .ToList();
+
+        if (colonnes.Count == 0 || colonnes.Any(c => !NomDeTableValide(c)))
+        {
+            throw new RegleMetierException(
+                $"Les colonnes de la table « {table} » ne sont pas lisibles dans cette sauvegarde.");
+        }
+
+        var noms = string.Join(", ", colonnes.Select(c => $"\"{c}\""));
+        var marques = string.Join(", ", colonnes.Select((_, rang) => $"@p{rang}"));
+        var sql = $"INSERT INTO \"{table}\" ({noms}) VALUES ({marques})";
+
+        var lignes = 0;
+
+        while (await LireLigneAsync(lecture, cancellationToken) is { } ligne)
+        {
+            var valeurs = DecouperLigne(ligne);
+
+            if (valeurs.Count != colonnes.Count)
+            {
+                throw new RegleMetierException(
+                    $"Une ligne de la table « {table} » ne comporte pas le bon nombre de colonnes : "
+                    + "la sauvegarde est abîmée.");
+            }
+
+            await using var commande = connexion.CreateCommand();
+            commande.Transaction = transaction;
+            commande.CommandText = sql;
+
+            for (var rang = 0; rang < valeurs.Count; rang++)
+            {
+                var parametre = commande.CreateParameter();
+                parametre.ParameterName = $"@p{rang}";
+
+                // Une case vide représente une valeur absente ; deux
+                // guillemets, un texte vide.
+                parametre.Value = valeurs[rang].Valeur is null
+                    ? DBNull.Value
+                    : valeurs[rang].Valeur!;
+
+                if (parametre is Npgsql.NpgsqlParameter npgsql)
+                {
+                    npgsql.NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown;
+                }
+
+                commande.Parameters.Add(parametre);
+            }
+
+            await commande.ExecuteNonQueryAsync(cancellationToken);
+            lignes++;
+        }
+
+        return lignes;
+    }
+
+    /// <summary>
+    /// Lit une ligne du fichier, en tenant compte des valeurs qui contiennent
+    /// elles-mêmes un retour à la ligne, entre guillemets.
+    /// </summary>
+    private static async Task<string?> LireLigneAsync(
+        StreamReader lecture, CancellationToken cancellationToken)
+    {
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } ligne)
+        {
+            return null;
+        }
+
+        while (ligne.Count(c => c == '"') % 2 != 0)
+        {
+            if (await lecture.ReadLineAsync(cancellationToken) is not { } suite)
+            {
+                break;
+            }
+
+            ligne += "\n" + suite;
+        }
+
+        return ligne;
+    }
+
+    /// <summary>
+    /// Découpe une ligne en valeurs. Une valeur absente et un texte vide sont
+    /// distingués : la première n'est pas entre guillemets, le second l'est.
+    /// </summary>
+    private static List<(string? Valeur, bool Cite)> DecouperLigne(string ligne)
+    {
+        var valeurs = new List<(string?, bool)>();
+        var courante = new StringBuilder();
+        var entreGuillemets = false;
+        var cite = false;
+
+        for (var rang = 0; rang < ligne.Length; rang++)
+        {
+            var caractere = ligne[rang];
+
+            if (entreGuillemets)
+            {
+                if (caractere != '"')
+                {
+                    courante.Append(caractere);
+                }
+                else if (rang + 1 < ligne.Length && ligne[rang + 1] == '"')
+                {
+                    courante.Append('"');
+                    rang++;
+                }
+                else
+                {
+                    entreGuillemets = false;
+                }
+
+                continue;
+            }
+
+            switch (caractere)
+            {
+                case '"':
+                    entreGuillemets = true;
+                    cite = true;
+                    break;
+
+                case ';':
+                    valeurs.Add((cite || courante.Length > 0 ? courante.ToString() : null, cite));
+                    courante.Clear();
+                    cite = false;
+                    break;
+
+                default:
+                    courante.Append(caractere);
+                    break;
+            }
+        }
+
+        valeurs.Add((cite || courante.Length > 0 ? courante.ToString() : null, cite));
+
+        return valeurs;
+    }
+
+    /// <summary>
+    /// Tables dont la colonne « Id » est attribuée automatiquement.
+    ///
+    /// La question est posée au catalogue plutôt que table par table : les
+    /// tables de liaison n'ont pas de colonne « Id », et PostgreSQL refuse
+    /// une requête qui la nommerait, sans se contenter de répondre « rien ».
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> TablesAvecCompteurAsync(
+        DbConnection connexion, DbTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = """
+            SELECT table_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND column_name = 'Id'
+              AND (is_identity = 'YES' OR column_default LIKE 'nextval%')
+            ORDER BY table_name
+            """;
+
+        var tables = new List<string>();
+
+        await using var lecteur = await commande.ExecuteReaderAsync(cancellationToken);
+
+        while (await lecteur.ReadAsync(cancellationToken))
+        {
+            tables.Add(lecteur.GetString(0));
+        }
+
+        return tables;
+    }
+
+    /// <summary>Remet le compteur d'identifiants après la dernière ligne restaurée.</summary>
+    private static async Task RemettreLeCompteurAsync(
+        DbConnection connexion, DbTransaction transaction, string table,
+        CancellationToken cancellationToken)
+    {
+        if (!NomDeTableValide(table))
+        {
+            return;
+        }
+
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+
+        // Le troisième paramètre indique si le compteur a déjà servi : sur une
+        // table vide, le prochain identifiant doit rester 1.
+        commande.CommandText = $"""
+            SELECT setval(
+                pg_get_serial_sequence('"{table}"', 'Id'),
+                COALESCE((SELECT MAX("Id") FROM "{table}"), 1),
+                (SELECT COUNT(*) FROM "{table}") > 0)
+            """;
+
+        await commande.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     /// <summary>Tables réelles du modèle de données, dans l'ordre alphabétique.</summary>
     private IEnumerable<string> TablesDuModele()
         => _context.Model.GetEntityTypes()
@@ -293,13 +655,24 @@ public class SauvegardeService : ISauvegardeService
             Conservez cette archive en lieu sûr, de préférence sur un support
             différent de l'ordinateur de l'atelier (clé USB, disque externe).
 
-            Pour restaurer les données, reportez-vous au guide de déploiement
-            fourni avec le logiciel (docs/DEPLOIEMENT.md).
+            Pour remettre ces données en place, ouvrez CeramiPro, allez dans
+            « Administration », puis « Sauvegarde », choisissez cette archive
+            dans la liste et cliquez sur « Restaurer ».
+
+            La restauration remplace TOUTES les données actuelles par celles de
+            l'archive : sauvegardez l'état présent avant de vous en servir.
             """;
 
         await ecriture.WriteAsync(texte.AsMemory(), cancellationToken);
     }
 
+    /// <summary>
+    /// Écrit une valeur dans le fichier.
+    ///
+    /// Une case laissée vide représente une valeur absente, et deux
+    /// guillemets un texte vide : sans cette distinction, la restauration ne
+    /// saurait pas laquelle des deux remettre en place.
+    /// </summary>
     private static string Valeur(DbDataReader lecteur, int colonne)
     {
         if (lecteur.IsDBNull(colonne))
@@ -308,6 +681,11 @@ public class SauvegardeService : ISauvegardeService
         }
 
         var valeur = lecteur.GetValue(colonne);
+
+        if (valeur is string texte && texte.Length == 0)
+        {
+            return "\"\"";
+        }
 
         return Echapper(valeur switch
         {

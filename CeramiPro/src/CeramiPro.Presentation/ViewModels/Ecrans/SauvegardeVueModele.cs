@@ -166,6 +166,62 @@ public partial class SauvegardeVueModele : VueModeleBase
         }
     }
 
+    /// <summary>
+    /// Remet la base dans l'état de la sauvegarde choisie.
+    ///
+    /// L'opération est irréversible : elle est donc confirmée deux fois, la
+    /// seconde en faisant écrire le nom de la sauvegarde, pour que personne
+    /// ne la déclenche par un clic de trop.
+    /// </summary>
+    [RelayCommand]
+    private async Task RestaurerAsync()
+    {
+        if (SauvegardeSelectionnee is not { } choisie)
+        {
+            _dialogue.Avertissement("Choisissez d'abord une sauvegarde dans la liste.");
+            return;
+        }
+
+        if (!_dialogue.Confirmer(
+                $"Restaurer la sauvegarde « {choisie.NomFichier} » du "
+                + $"{Application.Common.Formatage.DateHeure(choisie.Date)} ?\n\n"
+                + "TOUTES les données enregistrées depuis cette date seront perdues : "
+                + "ventes, productions, paiements, fiches créées ou modifiées.\n\n"
+                + "Cette opération est irréversible.",
+                "Restaurer la base"))
+        {
+            return;
+        }
+
+        if (!_dialogue.Confirmer(
+                "Dernière confirmation.\n\n"
+                + $"La base va être remplacée par le contenu de « {choisie.NomFichier} ».\n\n"
+                + "Avez-vous d'abord créé une sauvegarde de l'état actuel ?",
+                "Restaurer la base"))
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            var resultat = await _sauvegardes.RestaurerAsync(choisie.NomFichier);
+
+            await ChargerAsync();
+
+            _dialogue.Succes(
+                $"La base a été restaurée depuis « {resultat.NomFichier} ».\n\n"
+                + $"{resultat.NombreTables} table(s) et {resultat.NombreLignes} ligne(s) "
+                + "remises en place.\n\n"
+                + "Fermez puis rouvrez CeramiPro pour travailler sur les données restaurées.",
+                "Restauration terminée");
+        });
+
+        if (MessageErreur is not null)
+        {
+            _dialogue.Erreur(MessageErreur);
+        }
+    }
+
     /// <summary>Supprime les archives qui dépassent la durée de conservation.</summary>
     [RelayCommand]
     private async Task PurgerAsync()

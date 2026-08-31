@@ -63,6 +63,10 @@
                 <Button Content="Purger les anciennes" Command="{Binding PurgerCommand}"
                         Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,0" />
 
+                <Button Content="Restaurer…" Command="{Binding RestaurerCommand}"
+                        Style="{StaticResource BoutonDanger}" Margin="0,0,8,0"
+                        ToolTip="Remet la base dans l'état de la sauvegarde choisie." />
+
                 <Button Content="Supprimer" Command="{Binding SupprimerCommand}"
                         Style="{StaticResource BoutonDanger}" />
             </WrapPanel>

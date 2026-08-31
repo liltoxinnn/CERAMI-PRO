@@ -18,3 +18,10 @@ public record EtatSauvegardeDto(
     int Nombre,
     DateTime? DerniereSauvegarde,
     IReadOnlyList<SauvegardeDto> Sauvegardes);
+
+/// <summary>Ce qu'une restauration a réellement remis en place.</summary>
+public record RestaurationDto(
+    string NomFichier,
+    DateTime DateSauvegarde,
+    int NombreTables,
+    int NombreLignes);
