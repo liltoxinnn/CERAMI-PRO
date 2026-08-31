@@ -1,3 +1,4 @@
+using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
 using CeramiPro.Tests.Aides;
@@ -11,19 +12,19 @@ public class CatalogueNavigationTests
     [Fact]
     public void Le_menu_suit_le_chemin_de_l_atelier()
     {
-        var menu = CatalogueNavigation.Construire();
+        var menu = CatalogueNavigation.Construire(new ServiceLangue());
 
-        menu.Select(e => e.Libelle).Should().ContainInOrder(
-            "Tableau de bord", "Stock", "Produits", "Production", "Cuisson",
-            "Décoration", "Contrôle qualité", "Clients", "Commandes personnalisées",
-            "Fournisseurs", "Ventes", "Paiements", "Factures", "Dépenses",
-            "Rapports", "Paramètres");
+        menu.Select(e => e.CleLibelle).Should().ContainInOrder(
+            "menu.tableauDeBord", "menu.stock", "menu.produits", "menu.production",
+            "menu.cuisson", "menu.decoration", "menu.qualite", "menu.clients",
+            "menu.commandes", "menu.fournisseurs", "menu.ventes", "menu.paiements",
+            "menu.factures", "menu.depenses", "menu.rapports", "menu.parametres");
     }
 
     [Fact]
     public void Chaque_entree_porte_un_libelle_francais_et_une_icone()
     {
-        foreach (var element in Aplatir(CatalogueNavigation.Construire()))
+        foreach (var element in Aplatir(CatalogueNavigation.Construire(new ServiceLangue())))
         {
             element.Libelle.Should().NotBeNullOrWhiteSpace();
             element.Icone.Should().NotBeNullOrWhiteSpace();
@@ -33,19 +34,19 @@ public class CatalogueNavigationTests
     [Fact]
     public void Les_groupes_ont_des_sous_entrees()
     {
-        var menu = CatalogueNavigation.Construire();
+        var menu = CatalogueNavigation.Construire(new ServiceLangue());
 
-        menu.First(e => e.Libelle == "Stock").Enfants.Select(e => e.Libelle)
+        menu.First(e => e.CleLibelle == "menu.stock").Enfants.Select(e => e.Libelle)
             .Should().Equal("Vue générale", "Matières premières", "Produits finis",
                 "Mouvements", "Alertes");
 
-        menu.First(e => e.Libelle == "Cuisson").Enfants.Should().HaveCount(3);
+        menu.First(e => e.CleLibelle == "menu.cuisson").Enfants.Should().HaveCount(3);
     }
 
     [Fact]
     public void Le_tableau_de_bord_est_le_seul_ecran_deja_disponible()
     {
-        var avecDestination = Aplatir(CatalogueNavigation.Construire())
+        var avecDestination = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
             .Where(e => e.Destination is not null)
             .ToList();
 
@@ -126,7 +127,7 @@ public class FenetrePrincipaleTests
             EtatBaseFactice>();
 
         return new FenetrePrincipaleVueModele(
-            new ServiceNavigation(services.BuildServiceProvider()), utilisateur);
+            new ServiceNavigation(services.BuildServiceProvider()), utilisateur, new ServiceLangue());
     }
 
     [Fact]
@@ -162,7 +163,7 @@ public class FenetrePrincipaleTests
     public void Cliquer_sur_une_entree_disponible_ouvre_son_ecran()
     {
         var fenetre = Construire(new UtilisateurFactice());
-        var tableauDeBord = fenetre.Menu.First(e => e.Libelle == "Tableau de bord");
+        var tableauDeBord = fenetre.Menu.First(e => e.CleLibelle == "menu.tableauDeBord");
 
         fenetre.NaviguerCommand.Execute(tableauDeBord);
 
@@ -173,7 +174,7 @@ public class FenetrePrincipaleTests
     public void Cliquer_sur_un_groupe_n_ouvre_aucun_ecran()
     {
         var fenetre = Construire(new UtilisateurFactice());
-        var stock = fenetre.Menu.First(e => e.Libelle == "Stock");
+        var stock = fenetre.Menu.First(e => e.CleLibelle == "menu.stock");
 
         fenetre.NaviguerCommand.Execute(stock);
 
@@ -191,7 +192,8 @@ public class DepliageMenuTests
             EtatBaseFactice>();
 
         return new FenetrePrincipaleVueModele(
-            new ServiceNavigation(services.BuildServiceProvider()), new UtilisateurFactice());
+            new ServiceNavigation(services.BuildServiceProvider()),
+            new UtilisateurFactice(), new ServiceLangue());
     }
 
     [Fact]
@@ -206,7 +208,7 @@ public class DepliageMenuTests
     public void Cliquer_sur_un_groupe_le_deplie_puis_le_replie()
     {
         var fenetre = Construire();
-        var stock = fenetre.Menu.First(e => e.Libelle == "Stock");
+        var stock = fenetre.Menu.First(e => e.CleLibelle == "menu.stock");
 
         fenetre.NaviguerCommand.Execute(stock);
         stock.EstDeplie.Should().BeTrue();
@@ -220,7 +222,7 @@ public class DepliageMenuTests
     {
         var fenetre = Construire();
 
-        fenetre.NaviguerCommand.Execute(fenetre.Menu.First(e => e.Libelle == "Production"));
+        fenetre.NaviguerCommand.Execute(fenetre.Menu.First(e => e.CleLibelle == "menu.production"));
 
         fenetre.VueCourante.Should().BeNull();
     }
@@ -235,9 +237,10 @@ public class DepliageMenuTests
 
         var fenetre = new FenetrePrincipaleVueModele(
             new ServiceNavigation(services.BuildServiceProvider()),
-            new UtilisateurFactice { UtilisateurId = null, NomUtilisateur = null, CodeRole = null });
+            new UtilisateurFactice { UtilisateurId = null, NomUtilisateur = null, CodeRole = null },
+            new ServiceLangue());
 
         fenetre.NomUtilisateur.Should().Be("Aucune session");
-        fenetre.NomRole.Should().NotBeNullOrWhiteSpace();
+        fenetre.NomRole.Should().BeEmpty();
     }
 }

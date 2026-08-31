@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Markup;
 using CeramiPro.Application.Common;
+using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Presentation.Navigation;
@@ -170,6 +171,7 @@ public partial class App : System.Windows.Application
         {
             services.AjouterInfrastructure(contexte.Configuration);
 
+            services.AddSingleton<IServiceLangue, ServiceLangue>();
             services.AddSingleton<IServiceNavigation, ServiceNavigation>();
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
 

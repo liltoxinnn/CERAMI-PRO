@@ -4,5 +4,7 @@
 
     <conv:BooleenEnVisibilite x:Key="BooleenEnVisibilite" />
     <conv:BooleenEnPastille x:Key="BooleenEnPastille" />
+    <conv:SensEnFlowDirection x:Key="SensEnFlowDirection" />
+    <conv:LangueEnNom x:Key="LangueEnNom" />
 
 </ResourceDictionary>

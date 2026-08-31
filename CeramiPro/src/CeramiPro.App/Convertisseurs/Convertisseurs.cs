@@ -30,3 +30,33 @@ public class BooleenEnPastille : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Traduit le sens de lecture métier en sens WPF. En arabe, la fenêtre
+/// entière s'inverse : le menu passe à droite, les colonnes et les champs
+/// suivent, sans qu'aucun écran ait à s'en occuper.
+/// </summary>
+public class SensEnFlowDirection : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is CeramiPro.Application.Localisation.SensEcriture.DroiteAGauche
+            ? FlowDirection.RightToLeft
+            : FlowDirection.LeftToRight;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is FlowDirection.RightToLeft
+            ? CeramiPro.Application.Localisation.SensEcriture.DroiteAGauche
+            : CeramiPro.Application.Localisation.SensEcriture.GaucheADroite;
+}
+
+/// <summary>Nom d'une langue écrit dans sa propre langue.</summary>
+public class LangueEnNom : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is CeramiPro.Application.Localisation.Langue langue
+            ? CeramiPro.Application.Localisation.LangueInfo.NomNatif(langue)
+            : string.Empty;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
