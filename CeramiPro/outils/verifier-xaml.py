@@ -12,7 +12,8 @@ Il vérifie :
   2. que chaque « x:Class » correspond à une classe partielle existante ;
   3. que chaque « {StaticResource ...} » désigne une ressource déclarée ;
   4. que chaque gestionnaire d'événement nommé existe dans le code compagnon ;
-  5. que chaque « {Binding ...Command} » vise une commande de la vue-modèle.
+  5. que chaque « {Binding ...Command} » vise une commande de la vue-modèle ;
+  6. que chaque « {Binding ... } » d'un écran vise une propriété qui existe.
 """
 
 import glob
@@ -156,9 +157,169 @@ def verifier_commandes(chemin, contenu, connues):
             signaler(chemin, 'commande « %s » introuvable dans les vues-modèles' % nom)
 
 
+# ------------------------------------ 6. Propriétés liées d'un écran
+
+def membres_du_type(nom_type, index, vus=None):
+    """Propriétés et commandes d'une vue-modèle, héritage compris.
+
+    Les fichiers sont analysés comme du texte : la couche présentation se
+    compile, mais l'assemblage n'expose pas les membres engendrés par
+    CommunityToolkit sous une forme lisible depuis ce script."""
+    vus = vus or set()
+
+    if nom_type in vus or nom_type not in index:
+        return set()
+
+    vus.add(nom_type)
+    code, base = index[nom_type]
+    membres = set()
+
+    # Propriétés écrites à la main.
+    for nom in re.findall(
+            r'public\s+(?:override\s+|virtual\s+|abstract\s+|static\s+|new\s+)*'
+            r'[\w<>?\[\]\(\),\s\.]+?\s(\w+)\s*(?:=>|\{)', code):
+        membres.add(nom)
+
+    # Propriétés engendrées : « private bool _obligatoire; » donne « Obligatoire ».
+    for nom in re.findall(r'\[ObservableProperty\][^;]*?_(\w+)\s*[;=]', code, re.S):
+        membres.add(nom[0].upper() + nom[1:])
+
+    # Commandes engendrées.
+    for methode in re.findall(
+            r'\[RelayCommand[^\]]*\]\s*(?:private|public|protected|internal)?'
+            r'[\w\s<>?]*?\s(\w+)\s*\(', code):
+        nom = methode[:-5] if methode.endswith('Async') else methode
+        membres.add(nom + 'Command')
+
+    if base:
+        membres |= membres_du_type(base, index, vus)
+
+    return membres
+
+
+def index_des_vues_modeles():
+    """Associe chaque vue-modèle à son code et au nom de sa classe de base."""
+    index = {}
+
+    for chemin in glob.glob(os.path.join(PRESENTATION, '**', '*.cs'), recursive=True):
+        if os.sep + 'obj' + os.sep in chemin:
+            continue
+
+        code = lire(chemin)
+
+        for trouve in re.finditer(
+                r'class\s+(\w+)\s*(?:<[^>]+>)?\s*(?::\s*([\w<>\.]+))?', code):
+            nom, base = trouve.group(1), trouve.group(2)
+
+            if base:
+                base = base.split('<')[0].split('.')[-1]
+
+            index[nom] = (code, base)
+
+    return index
+
+
+# Les vues partagées ne figurent pas dans le fichier des gabarits sous une
+# forme exploitable — elles servent plusieurs écrans — mais leurs liaisons
+# portent toutes sur la classe de base commune, qu'il faut vérifier : ce sont
+# les vues employées par la quasi-totalité des écrans.
+VUES_PARTAGEES = {
+    'VueListe': 'ListeVueModele',
+    'VueDocument': 'DocumentLignesVueModele',
+    'FenetreFormulaire': 'FormulaireVueModele',
+    'FenetreConnexion': 'ConnexionVueModele',
+    'FenetrePrincipale': 'FenetrePrincipaleVueModele',
+    'FenetreMotDePasse': 'ChangementMotDePasseVueModele',
+    'TableauDeBordVue': 'TableauDeBordVueModele',
+}
+
+
+def vues_modeles_des_ecrans():
+    """Associe chaque écran XAML à la vue-modèle que le fichier des vues lui attribue."""
+    gabarits = os.path.join(APP, 'Ressources', 'Vues.xaml')
+
+    if not os.path.exists(gabarits):
+        return {}
+
+    contenu = lire(gabarits)
+    association = {}
+
+    for vueModele, vue in re.findall(
+            r'\{x:Type (?:ecrans|vm):(\w+)\}"\s*>\s*<vues:(\w+)\s*/>', contenu):
+        # Les vues partagées servent plusieurs écrans : leurs liaisons ne
+        # peuvent pas être rattachées à une vue-modèle unique.
+        association.setdefault(vue, []).append(vueModele)
+
+    liees = {vue: modeles[0] for vue, modeles in association.items() if len(modeles) == 1}
+    liees.update(VUES_PARTAGEES)
+
+    return liees
+
+
+def liaisons_hors_gabarit(chemin):
+    """Chemins liés au contexte de l'écran, hors modèles de données.
+
+    Une liaison placée dans un « DataTemplate » ou dans une colonne de
+    tableau porte sur l'élément de la liste, pas sur l'écran : les inclure
+    produirait de fausses alertes."""
+    document = xml.dom.minidom.parse(chemin)
+    liaisons = set()
+
+    def parcourir(noeud):
+        if noeud.nodeType != noeud.ELEMENT_NODE:
+            return
+
+        nom = noeud.tagName
+
+        if (nom.endswith('DataTemplate')
+                or nom.endswith('ItemsPanelTemplate')
+                or nom.endswith('ControlTemplate')
+                or 'Column' in nom):
+            return
+
+        if noeud.hasAttributes():
+            for rang in range(noeud.attributes.length):
+                valeur = noeud.attributes.item(rang).value
+
+                for chemin_lie in re.findall(r'\{Binding\s+([^},\s]+)', valeur):
+                    liaisons.add(chemin_lie)
+
+        for enfant in noeud.childNodes:
+            parcourir(enfant)
+
+    parcourir(document.documentElement)
+    return liaisons
+
+
+def verifier_liaisons(chemin, ecrans, index):
+    nom_vue = os.path.splitext(os.path.basename(chemin))[0]
+
+    if nom_vue not in ecrans:
+        return
+
+    vue_modele = ecrans[nom_vue]
+    membres = membres_du_type(vue_modele, index)
+
+    if not membres:
+        return
+
+    for lie in liaisons_hors_gabarit(chemin):
+        # Une liaison composée vise une propriété d'une propriété : seule la
+        # première est vérifiable ici.
+        premier = lie.split('.')[0].split('[')[0]
+
+        if not premier or not premier[0].isupper():
+            continue
+
+        if premier not in membres:
+            signaler(chemin, 'liaison « %s » absente de %s' % (premier, vue_modele))
+
+
 def main():
     connues = ressources_declarees()
     commandes = commandes_declarees()
+    index = index_des_vues_modeles()
+    ecrans = vues_modeles_des_ecrans()
 
     fichiers = fichiers_xaml()
 
@@ -172,9 +333,10 @@ def main():
         verifier_ressources(chemin, contenu, connues)
         verifier_evenements(chemin, contenu)
         verifier_commandes(chemin, contenu, commandes)
+        verifier_liaisons(chemin, ecrans, index)
 
-    print('%d fichiers XAML, %d ressources, %d commandes'
-          % (len(fichiers), len(connues), len(commandes)))
+    print('%d fichiers XAML, %d ressources, %d commandes, %d écrans liés'
+          % (len(fichiers), len(connues), len(commandes), len(ecrans)))
 
     if erreurs:
         print('\n%d problème(s) :' % len(erreurs))
