@@ -77,6 +77,34 @@ l'atelier, réglages des alertes, sauvegardes.
 * [.NET SDK 8.0](https://dotnet.microsoft.com/download) ou supérieur
 * [PostgreSQL 14](https://www.postgresql.org/download/) ou supérieur
 
+### Installation des prérequis sous Windows
+
+Dans un terminal (`cmd` ou PowerShell) :
+
+```bat
+winget install Microsoft.DotNet.SDK.8
+winget install PostgreSQL.PostgreSQL.16
+```
+
+Fermez puis rouvrez le terminal, et vérifiez :
+
+```bat
+dotnet --version
+```
+
+L'installateur de PostgreSQL demande un mot de passe pour l'utilisateur
+`postgres` : **notez-le**, il servira à l'étape suivante. PostgreSQL démarre
+ensuite automatiquement avec Windows, en tant que service.
+
+### Installation des prérequis sous Linux (Debian / Ubuntu)
+
+```bash
+sudo apt update
+sudo apt install -y dotnet-sdk-8.0 postgresql
+sudo systemctl start postgresql
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'votre-mot-de-passe';"
+```
+
 ---
 
 ## Installation
@@ -90,7 +118,16 @@ cd CeramicWorkshop
 
 ### 2. Configurer la connexion à PostgreSQL
 
-Les paramètres sensibles ne sont pas versionnés. Copiez les fichiers d'exemple :
+Les paramètres sensibles ne sont pas versionnés. Copiez les fichiers d'exemple.
+
+Sous Windows (`cmd`) :
+
+```bat
+copy src\CeramicWorkshop.API\appsettings.Development.exemple.json src\CeramicWorkshop.API\appsettings.Development.json
+copy src\CeramicWorkshop.Web\appsettings.Development.exemple.json src\CeramicWorkshop.Web\appsettings.Development.json
+```
+
+Sous Linux ou macOS :
 
 ```bash
 cp src/CeramicWorkshop.API/appsettings.Development.exemple.json \
@@ -99,6 +136,9 @@ cp src/CeramicWorkshop.API/appsettings.Development.exemple.json \
 cp src/CeramicWorkshop.Web/appsettings.Development.exemple.json \
    src/CeramicWorkshop.Web/appsettings.Development.json
 ```
+
+Il n'y a pas de base de données à créer à la main : le logiciel crée
+`CeramicWorkshopDB` et ses tables au premier démarrage.
 
 puis renseignez le mot de passe PostgreSQL, la clé de signature des jetons
 et le mot de passe initial de l'administrateur.
