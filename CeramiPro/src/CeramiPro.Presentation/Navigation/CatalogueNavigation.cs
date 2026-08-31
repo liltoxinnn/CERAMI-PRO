@@ -1,5 +1,6 @@
 using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.ViewModels;
+using CeramiPro.Presentation.ViewModels.Ecrans;
 
 namespace CeramiPro.Presentation.Navigation;
 
@@ -25,15 +26,15 @@ public static class CatalogueNavigation
             Entree("menu.stock", "📦", enfants: new List<ElementNavigation>
             {
                 Entree("menu.stock.vueGenerale", "📊"),
-                Entree("menu.stock.matieres", "🧱"),
+                Entree("menu.stock.matieres", "🧱", typeof(MatieresVueModele)),
                 Entree("menu.stock.produitsFinis", "🏺"),
-                Entree("menu.stock.mouvements", "🔄"),
+                Entree("menu.stock.mouvements", "🔄", typeof(MouvementsVueModele)),
                 Entree("menu.stock.alertes", "⚠️")
             }),
 
             Entree("menu.produits", "🏺", enfants: new List<ElementNavigation>
             {
-                Entree("menu.produits.catalogue", "📖"),
+                Entree("menu.produits.catalogue", "📖", typeof(ProduitsVueModele)),
                 Entree("menu.produits.categories", "🗂️"),
                 Entree("menu.produits.variantes", "🎨"),
                 Entree("menu.produits.recettes", "🧪")
@@ -41,7 +42,7 @@ public static class CatalogueNavigation
 
             Entree("menu.production", "🏭", enfants: new List<ElementNavigation>
             {
-                Entree("menu.production.ordres", "📋"),
+                Entree("menu.production.ordres", "📋", typeof(ProductionVueModele)),
                 Entree("menu.production.planning", "📅"),
                 Entree("menu.production.enCours", "⚙️"),
                 Entree("menu.production.historique", "🕐")
@@ -50,25 +51,25 @@ public static class CatalogueNavigation
             Entree("menu.cuisson", "🔥", enfants: new List<ElementNavigation>
             {
                 Entree("menu.cuisson.fours", "🔥"),
-                Entree("menu.cuisson.lots", "📦"),
+                Entree("menu.cuisson.lots", "📦", typeof(CuissonsVueModele)),
                 Entree("menu.production.historique", "🕐")
             }),
 
             Entree("menu.decoration", "🎨", enfants: new List<ElementNavigation>
             {
-                Entree("menu.decoration.travaux", "🖌️"),
+                Entree("menu.decoration.travaux", "🖌️", typeof(DecorationsVueModele)),
                 Entree("menu.decoration.types", "🗂️"),
                 Entree("menu.production.historique", "🕐")
             }),
 
-            Entree("menu.qualite", "🔍"),
-            Entree("menu.clients", "👥"),
-            Entree("menu.commandes", "📋"),
-            Entree("menu.fournisseurs", "🚚"),
-            Entree("menu.ventes", "🛒"),
-            Entree("menu.paiements", "💳"),
-            Entree("menu.factures", "📄"),
-            Entree("menu.depenses", "💸"),
+            Entree("menu.qualite", "🔍", typeof(QualiteVueModele)),
+            Entree("menu.clients", "👥", typeof(ClientsVueModele)),
+            Entree("menu.commandes", "📋", typeof(CommandesVueModele)),
+            Entree("menu.fournisseurs", "🚚", typeof(FournisseursVueModele)),
+            Entree("menu.ventes", "🛒", typeof(VentesVueModele)),
+            Entree("menu.paiements", "💳", typeof(PaiementsVueModele)),
+            Entree("menu.factures", "📄", typeof(FacturesVueModele)),
+            Entree("menu.depenses", "💸", typeof(DepensesVueModele)),
             Entree("menu.rapports", "📊"),
             Entree("menu.parametres", "⚙️")
         };

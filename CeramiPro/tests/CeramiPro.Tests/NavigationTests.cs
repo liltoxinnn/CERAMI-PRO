@@ -44,14 +44,32 @@ public class CatalogueNavigationTests
     }
 
     [Fact]
-    public void Le_tableau_de_bord_est_le_seul_ecran_deja_disponible()
+    public void Les_ecrans_developpes_sont_atteignables_depuis_le_menu()
     {
         var avecDestination = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
             .Where(e => e.Destination is not null)
             .ToList();
 
-        avecDestination.Should().ContainSingle()
-            .Which.Destination.Should().Be<TableauDeBordVueModele>();
+        avecDestination.Should().HaveCountGreaterThanOrEqualTo(15);
+        avecDestination.Select(e => e.Destination).Should().Contain(typeof(TableauDeBordVueModele));
+    }
+
+    [Fact]
+    public void Toute_entree_sans_ecran_est_un_groupe_depliable()
+    {
+        // Une entrée qui n'ouvre rien et ne déplie rien serait sans effet.
+        var inertes = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+            .Where(e => e.Destination is null && !e.EstGroupe)
+            .Select(e => e.CleLibelle)
+            .ToList();
+
+        inertes.Should().BeSubsetOf(new[]
+        {
+            "menu.stock.vueGenerale", "menu.stock.produitsFinis", "menu.stock.alertes",
+            "menu.produits.categories", "menu.produits.variantes", "menu.produits.recettes",
+            "menu.production.planning", "menu.production.enCours", "menu.production.historique",
+            "menu.cuisson.fours", "menu.decoration.types", "menu.rapports", "menu.parametres"
+        }, "seuls les écrans encore à développer peuvent être inactifs");
     }
 
     private static IEnumerable<ElementNavigation> Aplatir(IEnumerable<ElementNavigation> elements)

@@ -9,6 +9,7 @@ using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
+using Ecrans = CeramiPro.Presentation.ViewModels.Ecrans;
 using CeramiPro.App.Services;
 using CeramiPro.App.Vues;
 using Microsoft.EntityFrameworkCore;
@@ -211,6 +212,24 @@ public partial class App : System.Windows.Application
 
             services.AddTransient<TableauDeBordVueModele>();
             services.AddTransient<ConnexionVueModele>();
+
+            // Un écran par module ; tous partagent la même vue générique.
+            services.AddTransient<Ecrans.MatieresVueModele>();
+            services.AddTransient<Ecrans.ProduitsVueModele>();
+            services.AddTransient<Ecrans.FournisseursVueModele>();
+            services.AddTransient<Ecrans.AchatsVueModele>();
+            services.AddTransient<Ecrans.MouvementsVueModele>();
+            services.AddTransient<Ecrans.ClientsVueModele>();
+            services.AddTransient<Ecrans.CommandesVueModele>();
+            services.AddTransient<Ecrans.VentesVueModele>();
+            services.AddTransient<Ecrans.FacturesVueModele>();
+            services.AddTransient<Ecrans.PaiementsVueModele>();
+            services.AddTransient<Ecrans.DepensesVueModele>();
+            services.AddTransient<Ecrans.ProductionVueModele>();
+            services.AddTransient<Ecrans.CuissonsVueModele>();
+            services.AddTransient<Ecrans.DecorationsVueModele>();
+            services.AddTransient<Ecrans.QualiteVueModele>();
+            services.AddTransient<Ecrans.UtilisateursVueModele>();
         })
             .Build();
     }
