@@ -99,6 +99,23 @@ public partial class App : System.Windows.Application
 
         Directory.CreateDirectory(DossierDonnees);
 
+        // Une erreur imprévue ne doit jamais fermer le logiciel sans un mot
+        // d'explication : le détail part au journal, l'utilisateur reçoit une
+        // phrase en français et peut continuer son travail.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Log.Error(args.Exception, "Erreur inattendue dans l'interface.");
+
+            MessageBox.Show(
+                "Une erreur est survenue pendant cette opération.\n\n" +
+                "Vos données enregistrées ne sont pas affectées. Si le problème\n" +
+                "se répète, le détail technique se trouve dans :\n" +
+                Path.Combine(DossierDonnees, "journaux"),
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            args.Handled = true;
+        };
+
         try
         {
             _hote = ConstruireHote();
@@ -119,6 +136,10 @@ public partial class App : System.Windows.Application
             var fenetre = _hote.Services.GetRequiredService<FenetrePrincipale>();
             fenetre.DataContext = _hote.Services.GetRequiredService<FenetrePrincipaleVueModele>();
             MainWindow = fenetre;
+
+            // À partir d'ici, fermer la fenêtre principale ferme le logiciel.
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+
             fenetre.Show();
 
             _hote.Services.GetRequiredService<IServiceNavigation>()
