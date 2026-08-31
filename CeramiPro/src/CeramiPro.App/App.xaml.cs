@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Markup;
+using CeramiPro.Application;
 using CeramiPro.Application.Common;
 using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
@@ -169,6 +170,7 @@ public partial class App : System.Windows.Application
                     "{Timestamp:dd/MM/yyyy HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
         .ConfigureServices((contexte, services) =>
         {
+            services.AjouterApplication();
             services.AjouterInfrastructure(contexte.Configuration);
 
             services.AddSingleton<IServiceLangue, ServiceLangue>();
@@ -195,6 +197,10 @@ public partial class App : System.Windows.Application
         try
         {
             await contexte.Database.MigrateAsync();
+
+            var semeur = portee.ServiceProvider.GetRequiredService<CeramiPro.Infrastructure.Data.Seed.DatabaseSeeder>();
+            await semeur.ExecuterAsync();
+
             Log.Information("Base de données « {Base} » prête.", ParametresAtelier.NomBaseDeDonnees);
             return true;
         }

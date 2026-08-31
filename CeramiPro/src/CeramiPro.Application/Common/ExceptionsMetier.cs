@@ -21,4 +21,13 @@ public class IntrouvableException : Exception
 
     public static IntrouvableException Pour(string entite, int id)
         => new($"{entite} n° {id} est introuvable.");
+
+    /// <summary>
+    /// Variante pour un identifiant facultatif : un champ non renseigné doit
+    /// donner un message compréhensible, pas une référence vide.
+    /// </summary>
+    public static IntrouvableException Pour(string entite, int? id)
+        => id is null
+            ? new IntrouvableException($"Aucun{(entite.EndsWith('e') ? "e" : string.Empty)} {entite.ToLowerInvariant()} n'a été indiqué{(entite.EndsWith('e') ? "e" : string.Empty)}.")
+            : Pour(entite, id.Value);
 }

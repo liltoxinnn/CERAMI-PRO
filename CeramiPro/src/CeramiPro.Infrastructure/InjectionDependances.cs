@@ -1,6 +1,8 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.Interfaces;
+using CeramiPro.Infrastructure.Authentication;
 using CeramiPro.Infrastructure.Data;
+using CeramiPro.Infrastructure.Data.Seed;
 using CeramiPro.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -32,8 +34,13 @@ public static class InjectionDependances
         // aussi longtemps que le programme.
         services.AddSingleton<UtilisateurCourant>();
         services.AddSingleton<IUtilisateurCourant>(f => f.GetRequiredService<UtilisateurCourant>());
+        services.AddSingleton<ISessionAtelier>(f => f.GetRequiredService<UtilisateurCourant>());
 
         services.AddScoped<IServiceEtatBaseDeDonnees, ServiceEtatBaseDeDonnees>();
+        services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
+        services.AddSingleton<ICodeGraphiqueService, CodeGraphiqueService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<DatabaseSeeder>();
 
         services.AddSingleton<IServiceDateHeure>(fournisseur => new ServiceDateHeure(
             fournisseur.GetRequiredService<ILogger<ServiceDateHeure>>(),

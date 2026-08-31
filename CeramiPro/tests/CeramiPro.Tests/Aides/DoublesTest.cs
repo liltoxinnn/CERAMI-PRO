@@ -1,7 +1,58 @@
 using CeramiPro.Application.Interfaces;
+using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Tests.Aides;
+
+/// <summary>Session simulée : on choisit l'utilisateur et ses droits.</summary>
+public class UtilisateurCourantFactice : ISessionAtelier
+{
+    public int? UtilisateurId { get; set; } = 1;
+
+    public string? NomUtilisateur { get; set; } = "admin";
+
+    public string? NomComplet { get; set; } = "Administrateur de l'atelier";
+
+    public string? CodeRole { get; set; } = "administrateur";
+
+    public string? NomRole { get; set; } = "Administrateur";
+
+    public bool EstConnecte => UtilisateurId is not null;
+
+    public HashSet<string> Droits { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool PossedeDroit(string codeDroit) => Droits.Contains(codeDroit);
+
+    public void Ouvrir(int utilisateurId, string nomUtilisateur, string nomComplet,
+        string codeRole, string nomRole, IEnumerable<string> droits)
+    {
+        UtilisateurId = utilisateurId;
+        NomUtilisateur = nomUtilisateur;
+        NomComplet = nomComplet;
+        CodeRole = codeRole;
+        NomRole = nomRole;
+
+        Droits.Clear();
+        foreach (var droit in droits)
+        {
+            Droits.Add(droit);
+        }
+    }
+
+    public void Fermer()
+    {
+        UtilisateurId = null;
+        NomUtilisateur = null;
+        NomComplet = null;
+        CodeRole = null;
+        NomRole = null;
+        Droits.Clear();
+    }
+}
+
+/// <summary>Nom court employé par les tests d'interface.</summary>
+public class UtilisateurFactice : UtilisateurCourantFactice;
 
 /// <summary>Horloge fixe : les tests ne dépendent pas de l'heure réelle.</summary>
 public class HorlogeFactice : IServiceDateHeure
@@ -18,22 +69,26 @@ public class HorlogeFactice : IServiceDateHeure
     public DateTime VersHeureAtelier(DateTime utc) => utc.AddHours(1);
 
     public DateTime VersUtc(DateTime heureAtelier) => heureAtelier.AddHours(-1);
+
+    public void Avancer(TimeSpan duree) => MaintenantUtc = MaintenantUtc.Add(duree);
 }
 
-/// <summary>Utilisateur simulé, dont on choisit les droits.</summary>
-public class UtilisateurFactice : IUtilisateurCourant
+/// <summary>Journal d'audit simulé : conserve les opérations enregistrées.</summary>
+public class AuditFactice : IAuditService
 {
-    public int? UtilisateurId { get; set; } = 1;
+    public List<(AuditAction Action, string Entite, string? Identifiant, string? Description)> Traces { get; } = new();
 
-    public string? NomUtilisateur { get; set; } = "admin";
-
-    public string? CodeRole { get; set; } = "administrateur";
-
-    public bool EstConnecte => UtilisateurId is not null;
-
-    public HashSet<string> Droits { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public bool PossedeDroit(string codeDroit) => Droits.Contains(codeDroit);
+    public Task EnregistrerAsync(
+        AuditAction action,
+        string nomEntite,
+        string? identifiantEntite = null,
+        string? description = null,
+        object? changements = null,
+        CancellationToken cancellationToken = default)
+    {
+        Traces.Add((action, nomEntite, identifiantEntite, description));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Dialogues simulés : on vérifie ce qui aurait été affiché.</summary>
@@ -63,13 +118,12 @@ public class DialogueFactice : IServiceDialogue
 }
 
 /// <summary>Base de données simulée : on choisit si elle répond ou non.</summary>
-public class EtatBaseFactice : CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees
+public class EtatBaseFactice : IServiceEtatBaseDeDonnees
 {
     public bool Disponible { get; set; } = true;
 
-    public Task<CeramiPro.Application.Interfaces.EtatBaseDeDonnees> VerifierAsync(
-        CancellationToken cancellationToken = default)
+    public Task<EtatBaseDeDonnees> VerifierAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(Disponible
-            ? CeramiPro.Application.Interfaces.EtatBaseDeDonnees.Connectee("CeramiProDB")
-            : CeramiPro.Application.Interfaces.EtatBaseDeDonnees.Injoignable());
+            ? EtatBaseDeDonnees.Connectee("CeramiProDB")
+            : EtatBaseDeDonnees.Injoignable());
 }

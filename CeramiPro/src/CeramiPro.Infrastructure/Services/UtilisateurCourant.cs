@@ -9,7 +9,7 @@ namespace CeramiPro.Infrastructure.Services;
 /// à la fois : sa session est donc conservée pour toute la durée d'exécution
 /// et renseignée à la connexion.
 /// </summary>
-public class UtilisateurCourant : IUtilisateurCourant
+public class UtilisateurCourant : ISessionAtelier
 {
     private readonly HashSet<string> _droits = new(StringComparer.OrdinalIgnoreCase);
 

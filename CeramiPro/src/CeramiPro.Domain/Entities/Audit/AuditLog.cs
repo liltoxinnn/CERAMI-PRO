@@ -24,6 +24,7 @@ public class AuditLog : BaseEntity
     public string? Changes { get; set; }
 
     public string? Description { get; set; }
-    public string? IpAddress { get; set; }
+    /// <summary>Poste de travail depuis lequel l'opération a été faite.</summary>
+    public string? Workstation { get; set; }
     public DateTime OccurredAt { get; set; }
 }
