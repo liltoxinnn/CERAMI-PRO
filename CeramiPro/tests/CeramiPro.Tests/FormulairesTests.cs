@@ -156,3 +156,73 @@ public class FormulairesTests
         vue.Champs.Should().Contain(c => c.Propriete == nameof(CompteRequete.MotDePasse));
     }
 }
+
+/// <summary>
+/// Le changement de mot de passe proposé à la connexion.
+///
+/// Il est proposé, jamais imposé : empêcher quelqu'un d'ouvrir l'atelier
+/// tant qu'il n'a pas changé son mot de passe coûterait plus cher que le
+/// risque évité.
+/// </summary>
+public class ChangementMotDePasseTests
+{
+    private static ChangementMotDePasseVueModele Construire(bool auDemarrage)
+        => new(null!, new ServiceLangue()) { ProposeAuDemarrage = auDemarrage };
+
+    [Fact]
+    public void La_proposition_du_demarrage_dit_qu_elle_peut_attendre()
+    {
+        var vue = Construire(auDemarrage: true);
+
+        vue.Introduction.Should().Contain("plus tard");
+        vue.LibelleAnnuler.Should().Be("Plus tard",
+            "« Annuler » laisserait croire qu'on renonce à quelque chose");
+    }
+
+    [Fact]
+    public void Le_changement_demande_par_l_utilisateur_garde_le_libelle_habituel()
+    {
+        var vue = Construire(auDemarrage: false);
+
+        vue.LibelleAnnuler.Should().Be("Annuler");
+        vue.Introduction.Should().NotContain("provisoire");
+    }
+
+    [Fact]
+    public async Task Les_deux_saisies_du_nouveau_mot_de_passe_doivent_correspondre()
+    {
+        var vue = Construire(auDemarrage: true);
+        vue.MotDePasseActuel = "Ancien@2026";
+        vue.NouveauMotDePasse = "Nouveau@2026";
+        vue.Confirmation = "Nouveau@2027";
+
+        await vue.ValiderCommand.ExecuteAsync(null);
+
+        vue.MessageErreur.Should().Contain("ne correspondent pas");
+        vue.Change.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Le_nouveau_mot_de_passe_doit_differer_de_l_ancien()
+    {
+        var vue = Construire(auDemarrage: true);
+        vue.MotDePasseActuel = "Pareil@2026";
+        vue.NouveauMotDePasse = "Pareil@2026";
+        vue.Confirmation = "Pareil@2026";
+
+        await vue.ValiderCommand.ExecuteAsync(null);
+
+        vue.MessageErreur.Should().Contain("différent");
+        vue.Change.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Une_saisie_incomplete_nomme_ce_qui_manque()
+    {
+        var vue = Construire(auDemarrage: true);
+
+        await vue.ValiderCommand.ExecuteAsync(null);
+
+        vue.MessageErreur.Should().Contain("actuel");
+    }
+}

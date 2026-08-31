@@ -27,10 +27,6 @@ public partial class FenetreMotDePasse : Window
             return;
         }
 
-        // Un changement imposé ne se referme pas : le compte utilise encore
-        // un mot de passe provisoire.
-        BoutonAnnuler.Visibility = vueModele.Obligatoire ? Visibility.Collapsed : Visibility.Visible;
-
         vueModele.PropertyChanged += SurChangement;
         Actuel.Focus();
     }

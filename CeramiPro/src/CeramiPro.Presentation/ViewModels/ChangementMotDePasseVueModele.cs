@@ -9,9 +9,12 @@ namespace CeramiPro.Presentation.ViewModels;
 /// <summary>
 /// Changement de mot de passe par la personne elle-même.
 ///
-/// L'écran s'impose à la première connexion d'un compte créé par un
-/// administrateur : sans cela, le mot de passe provisoire — communiqué de
-/// vive voix ou par téléphone — resterait en usage indéfiniment.
+/// L'écran est proposé à la première connexion d'un compte créé par un
+/// administrateur, dont le mot de passe provisoire a été communiqué de vive
+/// voix. Il est proposé, non imposé : refuser d'ouvrir l'atelier tant que le
+/// mot de passe n'a pas changé empêcherait de travailler, ce qui coûte plus
+/// cher que le risque évité. La proposition revient à chaque connexion tant
+/// que le mot de passe provisoire reste en usage.
 /// </summary>
 public partial class ChangementMotDePasseVueModele : VueModeleBase
 {
@@ -26,17 +29,18 @@ public partial class ChangementMotDePasseVueModele : VueModeleBase
 
     public override string Titre => "Changer le mot de passe";
 
-    public override string Introduction => Obligatoire
-        ? "Ce compte utilise encore un mot de passe provisoire. Choisissez-en un nouveau "
-          + "avant d'ouvrir l'atelier."
+    public override string Introduction => ProposeAuDemarrage
+        ? "Ce compte utilise encore le mot de passe provisoire donné par l'administrateur. "
+          + "Choisissez-en un nouveau, ou remettez cela à plus tard."
         : "Choisissez un nouveau mot de passe.";
 
     /// <summary>
-    /// Vrai quand le changement est imposé : la fenêtre ne peut alors pas
-    /// être refermée sans avoir choisi un nouveau mot de passe.
+    /// Vrai lorsque la fenêtre s'ouvre d'elle-même à la connexion, parce que
+    /// le compte emploie encore son mot de passe provisoire. Cela ne change
+    /// que ce qui est écrit : la fenêtre se referme dans tous les cas.
     /// </summary>
     [ObservableProperty]
-    private bool _obligatoire;
+    private bool _proposeAuDemarrage;
 
     [ObservableProperty]
     private string _motDePasseActuel = string.Empty;
@@ -53,7 +57,11 @@ public partial class ChangementMotDePasseVueModele : VueModeleBase
 
     public string LibelleValider => _langue["action.valider"];
 
-    public string LibelleAnnuler => _langue["action.annuler"];
+    /// <summary>
+    /// « Plus tard » dit mieux que « Annuler » ce que fait le bouton quand la
+    /// fenêtre s'est ouverte d'elle-même : on ne renonce à rien, on remet.
+    /// </summary>
+    public string LibelleAnnuler => ProposeAuDemarrage ? "Plus tard" : _langue["action.annuler"];
 
     /// <summary>Rappel des règles, affiché avant la saisie plutôt qu'après l'échec.</summary>
     public string Exigences =>

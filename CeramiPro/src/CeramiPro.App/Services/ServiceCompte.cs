@@ -33,7 +33,7 @@ public class ServiceCompte : IServiceCompte
         using var portee = _services.CreateScope();
 
         var vueModele = portee.ServiceProvider.GetRequiredService<ChangementMotDePasseVueModele>();
-        vueModele.Obligatoire = false;
+        vueModele.ProposeAuDemarrage = false;
 
         var fenetre = new FenetreMotDePasse
         {

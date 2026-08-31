@@ -206,33 +206,30 @@ public partial class App : System.Windows.Application
         }
 
         // Un compte créé par un administrateur reçoit un mot de passe
-        // provisoire, communiqué de vive voix : il ne doit pas rester en
-        // usage. L'atelier ne s'ouvre qu'une fois qu'il a été remplacé.
-        return vue.Profil is not { DoitChangerMotDePasse: true } || ChangerLeMotDePasse();
+        // provisoire, communiqué de vive voix : mieux vaut ne pas le laisser
+        // en usage. La proposition est faite à chaque connexion tant qu'il
+        // n'a pas changé, mais elle n'empêche jamais d'ouvrir l'atelier.
+        if (vue.Profil is { DoitChangerMotDePasse: true })
+        {
+            ProposerDeChangerLeMotDePasse();
+        }
+
+        return true;
     }
 
-    /// <summary>Impose le remplacement d'un mot de passe provisoire.</summary>
-    private bool ChangerLeMotDePasse()
+    /// <summary>
+    /// Propose de remplacer un mot de passe provisoire. Le refus n'a aucune
+    /// conséquence : l'atelier s'ouvre, et le changement reste accessible à
+    /// tout moment depuis le bas du menu.
+    /// </summary>
+    private void ProposerDeChangerLeMotDePasse()
     {
         using var portee = _hote!.Services.CreateScope();
 
         var vueModele = portee.ServiceProvider.GetRequiredService<ChangementMotDePasseVueModele>();
-        vueModele.Obligatoire = true;
+        vueModele.ProposeAuDemarrage = true;
 
-        var fenetre = new FenetreMotDePasse { DataContext = vueModele };
-
-        if (fenetre.ShowDialog() == true)
-        {
-            return true;
-        }
-
-        MessageBox.Show(
-            "Le mot de passe provisoire de ce compte doit être remplacé avant\n" +
-            "d'ouvrir l'atelier.\n\n" +
-            "Relancez CeramiPro pour réessayer.",
-            "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        return false;
+        new FenetreMotDePasse { DataContext = vueModele }.ShowDialog();
     }
 
     private static IHost ConstruireHote()

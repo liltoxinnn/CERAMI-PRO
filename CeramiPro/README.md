@@ -45,9 +45,11 @@ Les droits sont vérifiés dans la couche métier, et pas seulement dans les
 écrans : masquer un bouton n'empêche rien, refuser l'opération si.
 
 Les mots de passe sont hachés (PBKDF2 HMAC-SHA512, 210 000 itérations). Un
-compte créé par un administrateur reçoit un mot de passe provisoire qu'il doit
-remplacer à sa première connexion. Cinq tentatives manquées bloquent le compte
-un quart d'heure.
+compte créé par un administrateur reçoit un mot de passe provisoire, et le
+logiciel propose de le remplacer à chaque connexion tant qu'il reste en usage.
+La proposition n'empêche jamais d'ouvrir l'atelier : le changement se fait
+aussi à tout moment depuis le bas du menu. Cinq tentatives manquées bloquent
+le compte un quart d'heure.
 
 Toute opération sensible est inscrite au journal d'audit.
 
@@ -85,7 +87,7 @@ dotnet run --project src\CeramiPro.App
 La base `CeramiProDB` et ses tables sont créées au premier démarrage.
 
 Le compte de départ est `admin`, mot de passe `CeramiPro@2026` ; le logiciel
-demande d'en choisir un autre dès la première connexion.
+propose d'en choisir un autre à la première connexion, sans l'imposer.
 
 ---
 
