@@ -44,6 +44,7 @@ public class AtelierDeTest : IDisposable
         Commandes = new CommandeService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
         Paiements = new PaiementService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
         Factures = new FactureService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
+        Parametres = new ParametresService(Contexte, Audit);
         Ventes = new VenteService(
             Contexte, Inventaire, Paiements, Numerotation, UtilisateurCourant, Horloge, Audit);
         Depenses = new DepenseService(Contexte, Numerotation, UtilisateurCourant, Horloge, Audit);
@@ -79,6 +80,7 @@ public class AtelierDeTest : IDisposable
     public IPaiementService Paiements { get; }
     public IFactureService Factures { get; }
     public IVenteService Ventes { get; }
+    public IParametresService Parametres { get; }
     public IDepenseService Depenses { get; }
     public ITableauDeBordService TableauDeBord { get; }
     public IRapportService Rapports { get; }

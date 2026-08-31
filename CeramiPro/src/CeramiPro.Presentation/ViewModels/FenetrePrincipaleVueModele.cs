@@ -63,9 +63,12 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     /// clairement qu'aucune session n'est ouverte, plutôt qu'un tiret muet.
     /// </summary>
     public string NomUtilisateur
-        => _utilisateurCourant.NomUtilisateur ?? _langue["message.sessionAbsente"];
+        => _utilisateurCourant.NomComplet
+           ?? _utilisateurCourant.NomUtilisateur
+           ?? _langue["message.sessionAbsente"];
 
-    public string NomRole => _utilisateurCourant.CodeRole ?? string.Empty;
+    /// <summary>Nom lisible du rôle, jamais son code technique.</summary>
+    public string NomRole => _utilisateurCourant.NomRole ?? string.Empty;
 
     /// <summary>
     /// Un clic ouvre l'écran d'une entrée simple, ou déplie un groupe. Aucun

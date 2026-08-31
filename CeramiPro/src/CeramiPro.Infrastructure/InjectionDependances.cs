@@ -50,6 +50,7 @@ public static class InjectionDependances
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<ISauvegardeService, SauvegardeService>();
+        services.AddScoped<IDocumentService, DocumentService>();
         services.AddHostedService<SauvegardeAutomatique>();
 
         services.AddSingleton<IServiceDateHeure>(fournisseur => new ServiceDateHeure(

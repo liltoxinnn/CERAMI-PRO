@@ -12,6 +12,12 @@ public interface IUtilisateurCourant
 
     string? CodeRole { get; }
 
+    /// <summary>Nom du rôle tel qu'il est affiché : « Administrateur », « Caissier ».</summary>
+    string? NomRole { get; }
+
+    /// <summary>Nom complet de la personne, affiché dans l'en-tête.</summary>
+    string? NomComplet { get; }
+
     bool EstConnecte { get; }
 
     bool PossedeDroit(string codeDroit);

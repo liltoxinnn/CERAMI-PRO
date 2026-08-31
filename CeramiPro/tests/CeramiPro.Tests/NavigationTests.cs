@@ -160,9 +160,16 @@ public class FenetrePrincipaleTests
     [Fact]
     public void Le_nom_de_l_utilisateur_connecte_est_affiche()
     {
-        var fenetre = Construire(new UtilisateurFactice { NomUtilisateur = "karim" });
+        var fenetre = Construire(new UtilisateurFactice
+        {
+            NomUtilisateur = "karim",
+            NomComplet = "Karim Saïdi",
+            NomRole = "Responsable"
+        });
 
-        fenetre.NomUtilisateur.Should().Be("karim");
+        // L'en-tête montre le nom de la personne, pas son identifiant.
+        fenetre.NomUtilisateur.Should().Be("Karim Saïdi");
+        fenetre.NomRole.Should().Be("Responsable");
     }
 
     [Fact]
@@ -255,7 +262,11 @@ public class DepliageMenuTests
 
         var fenetre = new FenetrePrincipaleVueModele(
             new ServiceNavigation(services.BuildServiceProvider()),
-            new UtilisateurFactice { UtilisateurId = null, NomUtilisateur = null, CodeRole = null },
+            new UtilisateurFactice
+            {
+                UtilisateurId = null, NomUtilisateur = null, NomComplet = null,
+                CodeRole = null, NomRole = null
+            },
             new ServiceLangue());
 
         fenetre.NomUtilisateur.Should().Be("Aucune session");
