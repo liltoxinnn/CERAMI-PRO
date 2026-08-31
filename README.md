@@ -131,7 +131,13 @@ Au premier démarrage, le logiciel crée la base `CeramicWorkshopDB`, applique l
 migrations et enregistre les données de départ : rôles, droits, unités de mesure,
 modes de règlement, catégories et compte administrateur.
 
-La documentation de l'API est disponible sur `/swagger` en développement.
+Le serveur écoute sur <http://localhost:5130>. Sa documentation est disponible
+sur <http://localhost:5130/swagger> en développement.
+
+Pour le faire écouter aussi en HTTPS (port 7035), lancez-le avec
+`dotnet run --project src/CeramicWorkshop.API --launch-profile https`, après
+avoir installé le certificat de développement avec `dotnet dev-certs https --trust`,
+et indiquez cette adresse dans `Api:AdresseDeBase`.
 
 ### 4. Démarrer l'interface
 
@@ -141,7 +147,13 @@ Dans un second terminal :
 dotnet run --project src/CeramicWorkshop.Web
 ```
 
-Ouvrez ensuite l'adresse affichée dans la console (par défaut `https://localhost:7225`).
+Ouvrez ensuite <http://localhost:5192> dans le navigateur.
+
+> Les deux programmes doivent tourner **en même temps**, chacun dans son
+> terminal : le serveur applicatif sur le port 5130, l'interface sur le 5192.
+> Si l'interface affiche « Le serveur de l'application est injoignable »,
+> c'est que le serveur applicatif n'est pas démarré, ou qu'il écoute sur un
+> autre port que celui indiqué par `Api:AdresseDeBase`.
 
 ### 5. Première connexion
 
