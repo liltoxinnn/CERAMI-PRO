@@ -2,6 +2,7 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CommunityToolkit.Mvvm.Input;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
@@ -10,11 +11,30 @@ namespace CeramiPro.Presentation.ViewModels.Ecrans;
 public partial class FacturesVueModele : ListeVueModele<FactureDto>
 {
     private readonly IFactureService _service;
+    private readonly IDocumentService _documents;
 
-    public FacturesVueModele(IFactureService service, IServiceLangue langue, OutilsListe outils)
+    public FacturesVueModele(
+        IFactureService service,
+        IDocumentService documents,
+        IServiceLangue langue,
+        OutilsListe outils)
         : base(langue, outils)
-        => _service = service;
+    {
+        _service = service;
+        _documents = documents;
+    }
 
+
+    /// <summary>La facture s'imprime au format A4, prête à être remise au client.</summary>
+    public override IReadOnlyList<ActionListe> Actions => new ActionListe[]
+    {
+        new("Imprimer la facture", ImprimerCommand)
+    };
+
+    [RelayCommand]
+    private Task ImprimerAsync() => ImprimerAsync(
+        facture => _documents.FacturePdfAsync(facture.Id),
+        facture => $"facture-{facture.Numero}.pdf");
 
     public override string Titre => Langue["menu.factures"];
 

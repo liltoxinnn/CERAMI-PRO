@@ -64,6 +64,25 @@
                                          Converter={StaticResource BooleenEnVisibilite}}" />
                 </WrapPanel>
 
+                <!--
+                    Actions propres au module : réceptionner un achat,
+                    défourner une cuisson, annuler une vente. Elles portent
+                    sur la ligne choisie dans le tableau.
+                -->
+                <ItemsControl ItemsSource="{Binding Actions}" Margin="0,8,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Libelle}" Command="{Binding Commande}"
+                                    ToolTip="{Binding Aide}" Margin="0,0,8,4"
+                                    Style="{Binding Destructive,
+                                            Converter={StaticResource ActionEnStyle}}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
             </StackPanel>
         </Border>
 

@@ -27,6 +27,7 @@ public static class InjectionPresentation
         services.AddSingleton<FenetrePrincipaleVueModele>();
         services.AddTransient<TableauDeBordVueModele>();
         services.AddTransient<ConnexionVueModele>();
+        services.AddTransient<ChangementMotDePasseVueModele>();
 
         AjouterEcrans(services);
         AjouterFormulaires(services);

@@ -11,5 +11,6 @@
     <conv:TexteEnVisibilite x:Key="TexteEnVisibilite" />
     <conv:GraviteEnCouleur x:Key="GraviteEnCouleur" />
     <conv:BooleenEnOuiNon x:Key="BooleenEnOuiNon" />
+    <conv:ActionEnStyle x:Key="ActionEnStyle" />
 
 </ResourceDictionary>

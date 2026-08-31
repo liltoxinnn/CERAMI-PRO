@@ -2,6 +2,7 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CommunityToolkit.Mvvm.Input;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
@@ -10,11 +11,42 @@ namespace CeramiPro.Presentation.ViewModels.Ecrans;
 public partial class VentesVueModele : ListeVueModele<VenteDto>
 {
     private readonly IVenteService _service;
+    private readonly IDocumentService _documents;
 
-    public VentesVueModele(IVenteService service, IServiceLangue langue, OutilsListe outils)
+    public VentesVueModele(
+        IVenteService service,
+        IDocumentService documents,
+        IServiceLangue langue,
+        OutilsListe outils)
         : base(langue, outils)
-        => _service = service;
+    {
+        _service = service;
+        _documents = documents;
+    }
 
+
+    /// <summary>
+    /// Une vente ne se modifie pas : on la réimprime, ou on l'annule, ce qui
+    /// remet les produits en stock et laisse une trace.
+    /// </summary>
+    public override IReadOnlyList<ActionListe> Actions => new ActionListe[]
+    {
+        new("Réimprimer le reçu", ImprimerRecuCommand),
+        new("Annuler la vente", AnnulerCommand, Destructive: true,
+            Aide: "Les produits vendus retournent en stock.")
+    };
+
+    [RelayCommand]
+    private Task ImprimerRecuAsync() => ImprimerAsync(
+        vente => _documents.RecuPdfAsync(vente.Id),
+        vente => $"recu-{vente.Numero}.pdf");
+
+    [RelayCommand]
+    private Task AnnulerAsync() => AgirAsync(
+        vente => _service.AnnulerAsync(vente.Id, "Annulée depuis l'écran des ventes."),
+        confirmation: "Annuler cette vente ?\n\n"
+                      + "Les produits vendus retourneront en stock et la facture sera annulée.",
+        succes: "La vente est annulée.");
 
     public override string Titre => Langue["menu.ventes"];
 

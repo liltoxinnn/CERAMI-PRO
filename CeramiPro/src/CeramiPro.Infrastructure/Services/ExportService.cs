@@ -232,9 +232,29 @@ public class ExportService : IExportService
     private string NomFichier(string titre, string extension)
         => $"{Nettoyer(titre)}-{_horloge.Aujourdhui:yyyy-MM-dd}.{extension}";
 
-    /// <summary>Un nom d'onglet Excel ne peut pas dépasser 31 caractères.</summary>
+    /// <summary>
+    /// Nom d'onglet acceptable par Excel : au plus trente et un caractères,
+    /// et sans les signes qu'il réserve à ses propres formules. Un rapport
+    /// intitulé « Dettes clients : au 31/08/2026 » ferait autrement échouer
+    /// l'export au dernier moment.
+    /// </summary>
     private static string NomFeuille(string titre)
-        => titre.Length <= 31 ? titre : titre[..31];
+    {
+        var propre = new string(titre
+            .Select(c => CaracteresInterditsFeuille.Contains(c) ? ' ' : c)
+            .ToArray())
+            .Trim();
+
+        if (propre.Length == 0)
+        {
+            propre = "Rapport";
+        }
+
+        return propre.Length <= 31 ? propre : propre[..31].TrimEnd();
+    }
+
+    /// <summary>Signes qu'Excel refuse dans un nom d'onglet.</summary>
+    private static readonly char[] CaracteresInterditsFeuille = { ':', '\\', '/', '?', '*', '[', ']' };
 
     private static string Nettoyer(string titre)
     {

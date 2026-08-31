@@ -2,6 +2,8 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Production;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
+using CommunityToolkit.Mvvm.Input;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
@@ -15,6 +17,24 @@ public partial class DecorationsVueModele : ListeVueModele<DecorationDto>
         : base(langue, outils)
         => _service = service;
 
+
+    /// <summary>Un travail de décoration se démarre, puis se termine.</summary>
+    public override IReadOnlyList<ActionListe> Actions => new ActionListe[]
+    {
+        new("Démarrer le travail", DemarrerCommand),
+        new("Marquer comme terminé", TerminerCommand)
+    };
+
+    [RelayCommand]
+    private Task DemarrerAsync() => AgirAsync(
+        decoration => _service.ChangerStatutAsync(decoration.Id, DecorationStatus.EnCours),
+        succes: "Le travail de décoration a démarré.");
+
+    [RelayCommand]
+    private Task TerminerAsync() => AgirAsync(
+        decoration => _service.ChangerStatutAsync(decoration.Id, DecorationStatus.Terminee),
+        confirmation: "Marquer ce travail de décoration comme terminé ?",
+        succes: "Le travail est terminé.");
 
     public override string Titre => Langue["menu.decoration.travaux"];
 

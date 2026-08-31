@@ -129,3 +129,20 @@ public class BooleenEnOuiNon : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => value is "Oui";
 }
+
+/// <summary>
+/// Choisit l'allure d'un bouton d'action : une action qui détruit ou annule
+/// se distingue des autres, pour ne pas être cliquée par mégarde.
+/// </summary>
+public class ActionEnStyle : IValueConverter
+{
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var cle = value is true ? "BoutonDanger" : "BoutonSecondaire";
+
+        return System.Windows.Application.Current?.TryFindResource(cle);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

@@ -79,18 +79,30 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
             }
 
             var clients = await _clients.ListerAsync(new FiltreClientsRequete { TaillePage = 200 });
-            var modes = await _referentiels.ListerModesReglementAsync();
+            var modes = (await _referentiels.ListerModesReglementAsync())
+                .Where(m => m.Actif)
+                .ToList();
+
+            _modeParDefaut = modes.FirstOrDefault()?.Id;
 
             _champs = Construire(
                 clients.Elements.Select(c => new OptionChamp(c.Id, c.Nom)).ToList(),
-                modes.Where(m => m.Actif).Select(m => new OptionChamp(m.Id, m.Nom)).ToList());
+                modes.Select(m => new OptionChamp(m.Id, m.Nom)).ToList());
+
+            // Au comptoir, on règle presque toujours de la même façon : le
+            // premier mode est proposé, et reste modifiable.
+            Requete.ModeReglementId ??= _modeParDefaut;
 
             OnPropertyChanged(nameof(Champs));
+            OnPropertyChanged(nameof(Requete));
         });
     }
 
     /// <summary>Prix de vente de chaque produit, pour ne pas le redemander à la base.</summary>
     private readonly Dictionary<int, decimal> _prix = new();
+
+    /// <summary>Mode de règlement proposé d'emblée, repris à chaque vente.</summary>
+    private int? _modeParDefaut;
 
     /// <summary>Propose le prix du catalogue dès que le produit est choisi.</summary>
     protected override Task ArticleChoisiAsync(int? articleId)
@@ -142,6 +154,11 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
             return "Le montant reçu ne peut pas être négatif.";
         }
 
+        if (MontantPaye > 0m && Requete.ModeReglementId is null)
+        {
+            return "Choisissez le mode de règlement de cet encaissement.";
+        }
+
         if (Reste > 0m && Requete.ClientId is null)
         {
             return "Une vente réglée en partie doit être rattachée à un client, " +
@@ -154,7 +171,11 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
     protected override async Task ValiderAsync()
     {
         Requete.Remise = RemiseDocument;
-        Requete.MontantPaye = MontantPaye;
+
+        // Le client tend souvent plus que le total : ce qui est encaissé,
+        // c'est le total, et la différence lui est rendue en monnaie. Porter
+        // le billet entier au crédit de la vente créerait un avoir imaginaire.
+        Requete.MontantPaye = Math.Min(MontantPaye, Total);
         Requete.EmettreFacture = true;
         Requete.Lignes = Lignes.Select(l => new LigneVenteRequete
         {
@@ -168,6 +189,11 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
         var rendu = RenduAffiche;
 
         Reinitialiser();
+
+        // Le mode de règlement est reproposé : il change rarement d'une
+        // vente à l'autre au comptoir.
+        Requete.ModeReglementId = _modeParDefaut;
+        OnPropertyChanged(nameof(Requete));
 
         if (Dialogue.Confirmer(
                 $"Vente {vente.Numero} enregistrée.\n\n" +

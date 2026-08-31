@@ -1,0 +1,66 @@
+<Window x:Class="CeramiPro.App.Vues.FenetreMotDePasse"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CeramiPro — Mot de passe"
+        Width="460"
+        SizeToContent="Height"
+        MinHeight="360"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{StaticResource Fond}"
+        FontFamily="{StaticResource PoliceInterface}">
+
+    <!--
+        Changement de mot de passe. Les zones de saisie sont des PasswordBox :
+        le mot de passe n'apparaît donc jamais à l'écran, et n'est lu qu'au
+        moment de valider.
+    -->
+
+    <StackPanel Margin="26">
+
+        <TextBlock Text="{Binding Titre}" Style="{StaticResource TitrePage}" />
+        <TextBlock Text="{Binding Introduction}" Style="{StaticResource IntroductionPage}"
+                   Margin="0,4,0,18" />
+
+        <TextBlock Text="Mot de passe actuel" Style="{StaticResource EtiquetteChamp}" />
+        <PasswordBox x:Name="Actuel" MinHeight="38" Padding="10,8"
+                     VerticalContentAlignment="Center" FontSize="13"
+                     Background="{StaticResource Surface}"
+                     BorderBrush="{StaticResource Bordure}" BorderThickness="1" />
+
+        <TextBlock Text="Nouveau mot de passe" Style="{StaticResource EtiquetteChamp}"
+                   Margin="0,14,0,4" />
+        <PasswordBox x:Name="Nouveau" MinHeight="38" Padding="10,8"
+                     VerticalContentAlignment="Center" FontSize="13"
+                     Background="{StaticResource Surface}"
+                     BorderBrush="{StaticResource Bordure}" BorderThickness="1" />
+
+        <TextBlock Text="{Binding Exigences}" FontSize="11.5" Margin="0,4,0,0"
+                   TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}" />
+
+        <TextBlock Text="Confirmer le nouveau mot de passe" Style="{StaticResource EtiquetteChamp}"
+                   Margin="0,14,0,4" />
+        <PasswordBox x:Name="Confirmer" MinHeight="38" Padding="10,8"
+                     VerticalContentAlignment="Center" FontSize="13"
+                     Background="{StaticResource Surface}"
+                     BorderBrush="{StaticResource Bordure}" BorderThickness="1" />
+
+        <Border Background="{StaticResource DangerFond}" CornerRadius="6" Padding="12,9"
+                Margin="0,16,0,0"
+                Visibility="{Binding MessageErreur, Converter={StaticResource TexteEnVisibilite}}">
+            <TextBlock Text="{Binding MessageErreur}" TextWrapping="Wrap"
+                       Foreground="{StaticResource Danger}" FontSize="12.5" />
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button x:Name="BoutonAnnuler" Content="{Binding LibelleAnnuler}" IsCancel="True"
+                    Style="{StaticResource BoutonSecondaire}" MinWidth="110" Margin="0,0,8,0" />
+
+            <Button Content="{Binding LibelleValider}" Click="Valider" IsDefault="True"
+                    Style="{StaticResource BoutonPrincipal}" MinWidth="140"
+                    IsEnabled="{Binding ChargementEnCours,
+                                Converter={StaticResource BooleenInverse}}" />
+        </StackPanel>
+
+    </StackPanel>
+</Window>

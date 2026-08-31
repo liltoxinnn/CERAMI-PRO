@@ -190,7 +190,37 @@ public partial class App : System.Windows.Application
             }
         };
 
-        return connexion.ShowDialog() == true;
+        if (connexion.ShowDialog() != true)
+        {
+            return false;
+        }
+
+        // Un compte créé par un administrateur reçoit un mot de passe
+        // provisoire, communiqué de vive voix : il ne doit pas rester en
+        // usage. L'atelier ne s'ouvre qu'une fois qu'il a été remplacé.
+        return vue.Profil is not { DoitChangerMotDePasse: true } || ChangerLeMotDePasse();
+    }
+
+    /// <summary>Impose le remplacement d'un mot de passe provisoire.</summary>
+    private bool ChangerLeMotDePasse()
+    {
+        var vueModele = _hote!.Services.GetRequiredService<ChangementMotDePasseVueModele>();
+        vueModele.Obligatoire = true;
+
+        var fenetre = new FenetreMotDePasse { DataContext = vueModele };
+
+        if (fenetre.ShowDialog() == true)
+        {
+            return true;
+        }
+
+        MessageBox.Show(
+            "Le mot de passe provisoire de ce compte doit être remplacé avant\n" +
+            "d'ouvrir l'atelier.\n\n" +
+            "Relancez CeramiPro pour réessayer.",
+            "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        return false;
     }
 
     private static IHost ConstruireHote()

@@ -90,6 +90,12 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     /// <summary>Colonnes du tableau, déclarées par chaque écran.</summary>
     public abstract IReadOnlyList<ColonneListe> Colonnes { get; }
 
+    /// <summary>
+    /// Actions propres à l'écran — réceptionner, défourner, annuler — qui
+    /// s'appliquent à la ligne choisie. Vide sur les écrans de consultation.
+    /// </summary>
+    public virtual IReadOnlyList<ActionListe> Actions { get; } = Array.Empty<ActionListe>();
+
     /// <summary>Va chercher une page de résultats auprès du service métier.</summary>
     protected abstract Task<PagedResult<TElement>> LireAsync();
 
@@ -359,6 +365,90 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     /// </summary>
     protected int? IdSelectionne()
         => ElementSelectionne?.GetType().GetProperty("Id")?.GetValue(ElementSelectionne) as int?;
+
+    /// <summary>
+    /// Exécute une action métier sur la ligne choisie, puis recharge la
+    /// liste. Écrire ce cheminement une fois évite de répéter dans chaque
+    /// écran la vérification de la sélection, la confirmation et le message
+    /// d'erreur.
+    /// </summary>
+    protected async Task AgirAsync(
+        Func<TElement, Task> action,
+        string? confirmation = null,
+        string? succes = null)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        if (confirmation is not null && !Outils.Dialogue.Confirmer(confirmation))
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            await action(element);
+            await RafraichirAsync();
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+        else if (succes is not null)
+        {
+            Outils.Dialogue.Succes(succes);
+        }
+    }
+
+    /// <summary>
+    /// Produit un document, demande où l'enregistrer, puis l'ouvre. Les
+    /// factures, les reçus et les bons suivent tous ce même chemin.
+    /// </summary>
+    protected async Task ImprimerAsync(
+        Func<TElement, Task<byte[]>> document, Func<TElement, string> nomFichier)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            var contenu = await document(element);
+
+            if (Outils.Fichiers.DemanderOuEnregistrer(nomFichier(element), FiltrePdf)
+                is not { } chemin)
+            {
+                return;
+            }
+
+            await File.WriteAllBytesAsync(chemin, contenu);
+            Outils.Fichiers.Ouvrir(chemin);
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>Filtre de la boîte « Enregistrer sous » pour un document imprimable.</summary>
+    protected const string FiltrePdf = "Document PDF (*.pdf)|*.pdf";
 
     /// <summary>Redemande l'affichage des libellés après un changement de langue.</summary>
     protected virtual void RafraichirTextes()
