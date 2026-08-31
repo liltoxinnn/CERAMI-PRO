@@ -1,10 +1,12 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace CeramiPro.Presentation.Navigation;
 
 /// <summary>
-/// Une entrée du menu latéral. Un élément sans <see cref="Destination"/> est
-/// un simple regroupement : il déplie ses sous-entrées.
+/// Une entrée du menu latéral. Un élément sans <see cref="Destination"/> mais
+/// avec des enfants est un groupe : il se déplie au clic.
 /// </summary>
-public class ElementNavigation
+public partial class ElementNavigation : ObservableObject
 {
     public ElementNavigation(
         string libelle,
@@ -34,4 +36,11 @@ public class ElementNavigation
     public IReadOnlyList<ElementNavigation> Enfants { get; }
 
     public bool EstGroupe => Enfants.Count > 0;
+
+    /// <summary>
+    /// Un groupe est replié au départ : le menu tient à l'écran sans avoir à
+    /// faire défiler seize rubriques.
+    /// </summary>
+    [ObservableProperty]
+    private bool _estDeplie;
 }

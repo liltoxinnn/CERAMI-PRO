@@ -120,6 +120,7 @@ public class HorlogeTests
     }
 }
 
+[Collection(Aides.CollectionPostgres.Nom)]
 public class ContexteBaseDeDonneesTests
 {
     [PostgresFact]
@@ -148,5 +149,64 @@ public class ContexteBaseDeDonneesTests
         await using var contexte = new CeramiProDbContext(options);
 
         contexte.Database.ProviderName.Should().Contain("Npgsql");
+    }
+}
+
+/// <summary>
+/// Le tableau de bord doit annoncer l'état réel de la base, jamais un message
+/// d'attente qui ne change plus.
+/// </summary>
+[Collection(Aides.CollectionPostgres.Nom)]
+public class TableauDeBordTests
+{
+    [Fact]
+    public async Task Une_base_joignable_est_annoncee_comme_connectee()
+    {
+        var vue = new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
+            new Aides.EtatBaseFactice { Disponible = true });
+
+        await vue.ChargerAsync();
+
+        vue.BaseDeDonneesDisponible.Should().BeTrue();
+        vue.EtatBaseDeDonnees.Should().Contain("Connectée").And.Contain("CeramiProDB");
+    }
+
+    [Fact]
+    public async Task Une_base_injoignable_indique_quoi_verifier()
+    {
+        var vue = new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
+            new Aides.EtatBaseFactice { Disponible = false });
+
+        await vue.ChargerAsync();
+
+        vue.BaseDeDonneesDisponible.Should().BeFalse();
+        vue.EtatBaseDeDonnees.Should().Contain("PostgreSQL");
+    }
+
+    [Fact]
+    public void Le_message_de_depart_annonce_une_verification_en_cours()
+        => new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
+                new Aides.EtatBaseFactice())
+            .EtatBaseDeDonnees.Should().Contain("Vérification");
+
+    [PostgresFact]
+    public async Task Le_service_reel_detecte_une_base_joignable()
+    {
+        var options = new DbContextOptionsBuilder<CeramiProDbContext>()
+            .UseNpgsql(PostgresDisponible.ChaineConnexion)
+            .Options;
+
+        await using var contexte = new CeramiProDbContext(options);
+        await contexte.Database.EnsureCreatedAsync();
+
+        var service = new ServiceEtatBaseDeDonnees(
+            contexte, LoggerFactory.Create(b => { }).CreateLogger<ServiceEtatBaseDeDonnees>());
+
+        var etat = await service.VerifierAsync();
+
+        etat.Disponible.Should().BeTrue();
+        etat.Message.Should().Contain("Connectée");
+
+        await contexte.Database.EnsureDeletedAsync();
     }
 }

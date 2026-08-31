@@ -33,6 +33,8 @@ public static class InjectionDependances
         services.AddSingleton<UtilisateurCourant>();
         services.AddSingleton<IUtilisateurCourant>(f => f.GetRequiredService<UtilisateurCourant>());
 
+        services.AddScoped<IServiceEtatBaseDeDonnees, ServiceEtatBaseDeDonnees>();
+
         services.AddSingleton<IServiceDateHeure>(fournisseur => new ServiceDateHeure(
             fournisseur.GetRequiredService<ILogger<ServiceDateHeure>>(),
             configuration["Atelier:FuseauHoraire"] ?? ParametresAtelier.FuseauHoraire));

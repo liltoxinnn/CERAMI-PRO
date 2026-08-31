@@ -68,17 +68,23 @@
                                             </ControlTemplate>
                                         </Button.Template>
 
-                                        <StackPanel Orientation="Horizontal">
+                                        <DockPanel LastChildFill="True">
+                                            <TextBlock DockPanel.Dock="Right" Text="⌄" FontSize="13"
+                                                       Foreground="#8FA0B0" VerticalAlignment="Center"
+                                                       Visibility="{Binding EstGroupe,
+                                                                    Converter={StaticResource BooleenEnVisibilite}}" />
                                             <TextBlock Text="{Binding Icone}" FontSize="15" Width="26" />
                                             <TextBlock Text="{Binding Libelle}"
                                                        Foreground="{StaticResource TexteInverse}"
                                                        FontSize="13" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
+                                        </DockPanel>
                                     </Button>
 
                                     <!-- Sous-entrées -->
-                                    <ItemsControl ItemsSource="{Binding Enfants}" Margin="26,0,0,4">
+                                    <ItemsControl ItemsSource="{Binding Enfants}" Margin="26,0,0,4"
+                                                  Visibility="{Binding EstDeplie,
+                                                               Converter={StaticResource BooleenEnVisibilite}}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type navigation:ElementNavigation}">
                                                 <Button Command="{Binding DataContext.NaviguerCommand,

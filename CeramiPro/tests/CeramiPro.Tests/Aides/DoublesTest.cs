@@ -61,3 +61,15 @@ public class DialogueFactice : IServiceDialogue
         return ReponseConfirmation;
     }
 }
+
+/// <summary>Base de données simulée : on choisit si elle répond ou non.</summary>
+public class EtatBaseFactice : CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees
+{
+    public bool Disponible { get; set; } = true;
+
+    public Task<CeramiPro.Application.Interfaces.EtatBaseDeDonnees> VerifierAsync(
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(Disponible
+            ? CeramiPro.Application.Interfaces.EtatBaseDeDonnees.Connectee("CeramiProDB")
+            : CeramiPro.Application.Interfaces.EtatBaseDeDonnees.Injoignable());
+}

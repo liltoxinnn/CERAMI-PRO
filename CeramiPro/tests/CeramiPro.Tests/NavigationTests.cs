@@ -73,6 +73,8 @@ public class ServiceNavigationTests
     {
         var services = new ServiceCollection();
         services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
         return services.BuildServiceProvider();
     }
 
@@ -120,6 +122,8 @@ public class FenetrePrincipaleTests
     {
         var services = new ServiceCollection();
         services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
 
         return new FenetrePrincipaleVueModele(
             new ServiceNavigation(services.BuildServiceProvider()), utilisateur);
@@ -174,5 +178,66 @@ public class FenetrePrincipaleTests
         fenetre.NaviguerCommand.Execute(stock);
 
         fenetre.VueCourante.Should().BeNull();
+    }
+}
+
+public class DepliageMenuTests
+{
+    private static FenetrePrincipaleVueModele Construire()
+    {
+        var services = new ServiceCollection();
+        services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
+
+        return new FenetrePrincipaleVueModele(
+            new ServiceNavigation(services.BuildServiceProvider()), new UtilisateurFactice());
+    }
+
+    [Fact]
+    public void Les_groupes_sont_replies_au_depart()
+    {
+        var fenetre = Construire();
+
+        fenetre.Menu.Where(e => e.EstGroupe).Should().OnlyContain(e => !e.EstDeplie);
+    }
+
+    [Fact]
+    public void Cliquer_sur_un_groupe_le_deplie_puis_le_replie()
+    {
+        var fenetre = Construire();
+        var stock = fenetre.Menu.First(e => e.Libelle == "Stock");
+
+        fenetre.NaviguerCommand.Execute(stock);
+        stock.EstDeplie.Should().BeTrue();
+
+        fenetre.NaviguerCommand.Execute(stock);
+        stock.EstDeplie.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Deplier_un_groupe_n_ouvre_aucun_ecran()
+    {
+        var fenetre = Construire();
+
+        fenetre.NaviguerCommand.Execute(fenetre.Menu.First(e => e.Libelle == "Production"));
+
+        fenetre.VueCourante.Should().BeNull();
+    }
+
+    [Fact]
+    public void Aucune_session_ouverte_est_annonce_clairement()
+    {
+        var services = new ServiceCollection();
+        services.AddTransient<TableauDeBordVueModele>();
+        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
+            EtatBaseFactice>();
+
+        var fenetre = new FenetrePrincipaleVueModele(
+            new ServiceNavigation(services.BuildServiceProvider()),
+            new UtilisateurFactice { UtilisateurId = null, NomUtilisateur = null, CodeRole = null });
+
+        fenetre.NomUtilisateur.Should().Be("Aucune session");
+        fenetre.NomRole.Should().NotBeNullOrWhiteSpace();
     }
 }

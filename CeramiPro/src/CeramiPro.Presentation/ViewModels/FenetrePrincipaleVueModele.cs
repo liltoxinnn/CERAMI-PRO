@@ -36,13 +36,27 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     [ObservableProperty]
     private bool _menuReduit;
 
-    public string NomUtilisateur => _utilisateurCourant.NomUtilisateur ?? "—";
+    /// <summary>
+    /// Tant que l'authentification n'existe pas, l'encadré du bas annonce
+    /// clairement qu'aucune session n'est ouverte, plutôt qu'un tiret muet.
+    /// </summary>
+    public string NomUtilisateur => _utilisateurCourant.NomUtilisateur ?? "Aucune session";
 
-    public string NomRole => _utilisateurCourant.CodeRole ?? "—";
+    public string NomRole => _utilisateurCourant.CodeRole ?? "Connexion à l'étape 2";
 
+    /// <summary>
+    /// Un clic ouvre l'écran d'une entrée simple, ou déplie un groupe. Aucun
+    /// élément du menu n'est ainsi sans effet.
+    /// </summary>
     [RelayCommand]
     private void Naviguer(ElementNavigation element)
     {
+        if (element.EstGroupe)
+        {
+            element.EstDeplie = !element.EstDeplie;
+            return;
+        }
+
         if (element.Destination is not null)
         {
             _navigation.Naviguer(element.Destination);
