@@ -7,7 +7,8 @@
         MinHeight="620" MinWidth="1024"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Fond}"
-        FontFamily="{StaticResource PoliceInterface}">
+        FontFamily="{StaticResource PoliceInterface}"
+        FlowDirection="{Binding Sens, Converter={StaticResource SensEnFlowDirection}}">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -22,11 +23,29 @@
                 <!-- Marque -->
                 <Border DockPanel.Dock="Top" Padding="20,22,20,18">
                     <StackPanel>
-                        <TextBlock Text="🏺 CERAMIPRO"
-                                   Foreground="{StaticResource TexteInverse}"
-                                   FontSize="19" FontWeight="Bold" />
-                        <TextBlock Text="Gestion d'atelier"
+                        <TextBlock Foreground="{StaticResource TexteInverse}"
+                                   FontSize="19" FontWeight="Bold">
+                            <Run Text="🏺" /><Run Text=" " /><Run Text="{Binding NomApplication, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Text="{Binding SousTitreApplication}"
                                    Foreground="#8FA0B0" FontSize="11" Margin="0,3,0,0" />
+
+                        <ItemsControl ItemsSource="{Binding Langues}" Margin="0,12,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding Converter={StaticResource LangueEnNom}}"
+                                            Command="{Binding DataContext.ChoisirLangueCommand,
+                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}"
+                                            Foreground="#B9C4CF" Background="Transparent"
+                                            BorderThickness="0" Cursor="Hand"
+                                            FontSize="11" Padding="8,3" Margin="0,0,4,0" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </Border>
 
@@ -68,17 +87,23 @@
                                             </ControlTemplate>
                                         </Button.Template>
 
-                                        <StackPanel Orientation="Horizontal">
+                                        <DockPanel LastChildFill="True">
+                                            <TextBlock DockPanel.Dock="Right" Text="⌄" FontSize="13"
+                                                       Foreground="#8FA0B0" VerticalAlignment="Center"
+                                                       Visibility="{Binding EstGroupe,
+                                                                    Converter={StaticResource BooleenEnVisibilite}}" />
                                             <TextBlock Text="{Binding Icone}" FontSize="15" Width="26" />
                                             <TextBlock Text="{Binding Libelle}"
                                                        Foreground="{StaticResource TexteInverse}"
                                                        FontSize="13" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
+                                        </DockPanel>
                                     </Button>
 
                                     <!-- Sous-entrées -->
-                                    <ItemsControl ItemsSource="{Binding Enfants}" Margin="26,0,0,4">
+                                    <ItemsControl ItemsSource="{Binding Enfants}" Margin="26,0,0,4"
+                                                  Visibility="{Binding EstDeplie,
+                                                               Converter={StaticResource BooleenEnVisibilite}}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type navigation:ElementNavigation}">
                                                 <Button Command="{Binding DataContext.NaviguerCommand,

@@ -12,8 +12,12 @@
                            Text="Les fondations de CeramiPro sont en place : fenêtre Windows, menu de l'atelier, injection de dépendances, connexion PostgreSQL, journalisation et formats algériens." />
 
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                    <TextBlock Text="Base de données :" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding EtatBaseDeDonnees}" Margin="8,0,0,0"
+                    <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                             Fill="{Binding BaseDeDonneesDisponible,
+                                    Converter={StaticResource BooleenEnPastille}}" />
+                    <TextBlock Text="Base de données :" FontWeight="SemiBold"
+                               Margin="8,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding EtatBaseDeDonnees}" Margin="6,0,0,0"
                                VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>

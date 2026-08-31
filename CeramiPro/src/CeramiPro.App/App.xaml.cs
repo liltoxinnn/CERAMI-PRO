@@ -2,11 +2,15 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Markup;
+using CeramiPro.Application;
 using CeramiPro.Application.Common;
+using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
+using Ecrans = CeramiPro.Presentation.ViewModels.Ecrans;
+using Formulaires = CeramiPro.Presentation.ViewModels.Formulaires;
 using CeramiPro.App.Services;
 using CeramiPro.App.Vues;
 using Microsoft.EntityFrameworkCore;
@@ -106,6 +110,12 @@ public partial class App : System.Windows.Application
                 return;
             }
 
+            if (!OuvrirSession())
+            {
+                Shutdown(0);
+                return;
+            }
+
             var fenetre = _hote.Services.GetRequiredService<FenetrePrincipale>();
             fenetre.DataContext = _hote.Services.GetRequiredService<FenetrePrincipaleVueModele>();
             MainWindow = fenetre;
@@ -140,6 +150,29 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 
+    /// <summary>
+    /// Demande les identifiants avant d'ouvrir l'atelier. Fermer la fenêtre
+    /// de connexion ferme le logiciel : rien n'est accessible sans session.
+    /// </summary>
+    private bool OuvrirSession()
+    {
+        var connexion = new FenetreConnexion
+        {
+            DataContext = _hote!.Services.GetRequiredService<ConnexionVueModele>()
+        };
+
+        var vue = (ConnexionVueModele)connexion.DataContext;
+        vue.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ConnexionVueModele.ConnexionReussie) && vue.ConnexionReussie)
+            {
+                connexion.DialogResult = true;
+            }
+        };
+
+        return connexion.ShowDialog() == true;
+    }
+
     private static IHost ConstruireHote()
     {
         VerifierReglagesLocaux();
@@ -168,15 +201,40 @@ public partial class App : System.Windows.Application
                     "{Timestamp:dd/MM/yyyy HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
         .ConfigureServices((contexte, services) =>
         {
+            services.AjouterApplication();
             services.AjouterInfrastructure(contexte.Configuration);
 
+            services.AddSingleton<IServiceLangue, ServiceLangue>();
             services.AddSingleton<IServiceNavigation, ServiceNavigation>();
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
+            services.AddSingleton<IServiceFormulaire, ServiceFormulaire>();
+
+            services.AddTransient<Formulaires.ClientFormulaireVueModele>();
+            services.AddTransient<Formulaires.DepenseFormulaireVueModele>();
 
             services.AddSingleton<FenetrePrincipale>();
             services.AddSingleton<FenetrePrincipaleVueModele>();
 
             services.AddTransient<TableauDeBordVueModele>();
+            services.AddTransient<ConnexionVueModele>();
+
+            // Un écran par module ; tous partagent la même vue générique.
+            services.AddTransient<Ecrans.MatieresVueModele>();
+            services.AddTransient<Ecrans.ProduitsVueModele>();
+            services.AddTransient<Ecrans.FournisseursVueModele>();
+            services.AddTransient<Ecrans.AchatsVueModele>();
+            services.AddTransient<Ecrans.MouvementsVueModele>();
+            services.AddTransient<Ecrans.ClientsVueModele>();
+            services.AddTransient<Ecrans.CommandesVueModele>();
+            services.AddTransient<Ecrans.VentesVueModele>();
+            services.AddTransient<Ecrans.FacturesVueModele>();
+            services.AddTransient<Ecrans.PaiementsVueModele>();
+            services.AddTransient<Ecrans.DepensesVueModele>();
+            services.AddTransient<Ecrans.ProductionVueModele>();
+            services.AddTransient<Ecrans.CuissonsVueModele>();
+            services.AddTransient<Ecrans.DecorationsVueModele>();
+            services.AddTransient<Ecrans.QualiteVueModele>();
+            services.AddTransient<Ecrans.UtilisateursVueModele>();
         })
             .Build();
     }
@@ -193,6 +251,10 @@ public partial class App : System.Windows.Application
         try
         {
             await contexte.Database.MigrateAsync();
+
+            var semeur = portee.ServiceProvider.GetRequiredService<CeramiPro.Infrastructure.Data.Seed.DatabaseSeeder>();
+            await semeur.ExecuterAsync();
+
             Log.Information("Base de données « {Base} » prête.", ParametresAtelier.NomBaseDeDonnees);
             return true;
         }

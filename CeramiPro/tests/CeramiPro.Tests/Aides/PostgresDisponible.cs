@@ -47,3 +47,14 @@ public sealed class PostgresFactAttribute : FactAttribute
         }
     }
 }
+
+/// <summary>
+/// Regroupe les tests qui créent et suppriment la base. xUnit exécute les
+/// classes en parallèle : sans ce regroupement, deux tests se disputeraient
+/// la même base de données.
+/// </summary>
+[CollectionDefinition(Nom, DisableParallelization = true)]
+public class CollectionPostgres
+{
+    public const string Nom = "PostgreSQL";
+}

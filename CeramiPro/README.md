@@ -79,6 +79,33 @@ La base `CeramiProDB` et ses tables sont créées au premier démarrage.
 
 ---
 
+## Mot de passe administrateur oublié
+
+Les mots de passe sont hachés : ils ne peuvent pas être retrouvés, même en
+lisant la base. Une porte de secours existe, qui exige d'écrire dans un
+fichier de l'ordinateur de l'atelier.
+
+Ajoutez ces deux lignes dans `appsettings.Local.json` :
+
+```json
+{
+  "Administrateur": {
+    "ReinitialiserMotDePasse": "true",
+    "MotDePasseInitial": "UnNouveauMotDePasse@2026"
+  }
+}
+```
+
+Lancez le logiciel une fois : le compte `admin` retrouve ce mot de passe, et
+un compte bloqué par des tentatives répétées est débloqué.
+
+**Retirez ensuite ces deux lignes**, puis changez le mot de passe depuis le
+logiciel. Tant qu'elles restent, chaque démarrage réinitialise le compte.
+
+Sans configuration, le mot de passe du premier démarrage est `CeramiPro@2026`.
+
+---
+
 ## Deux solutions
 
 | Fichier | Contenu | Système |

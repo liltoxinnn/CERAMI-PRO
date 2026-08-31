@@ -1,0 +1,90 @@
+<UserControl x:Class="CeramiPro.App.Vues.VueListe"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{StaticResource PoliceInterface}">
+
+    <!--
+        Écran de liste unique, employé par tous les modules. Les colonnes sont
+        construites à partir de celles déclarées par la vue-modèle : ajouter un
+        écran ne demande donc aucun XAML supplémentaire.
+    -->
+
+    <DockPanel>
+
+        <!-- Barre de recherche et actions -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16" Margin="0,0,0,12">
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="{Binding LibelleAjouter}"
+                        Command="{Binding AjouterCommand}"
+                        Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0"
+                        Visibility="{Binding PeutAjouter,
+                                     Converter={StaticResource BooleenEnVisibilite}}" />
+
+                <Button DockPanel.Dock="Right" Content="{Binding LibelleActualiser}"
+                        Command="{Binding RafraichirCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
+
+                <Button DockPanel.Dock="Right" Content="{Binding LibelleRechercher}"
+                        Command="{Binding ChercherCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
+
+                <TextBox Style="{StaticResource Saisie}"
+                         Text="{Binding Recherche, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding ChercherCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+            </DockPanel>
+        </Border>
+
+        <!-- Pagination -->
+        <Border DockPanel.Dock="Bottom" Padding="4,10,4,0">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center"
+                           Foreground="{StaticResource TexteSecondaire}" FontSize="12.5">
+                    <Run Text="{Binding NombreTotal, Mode=OneWay}" /><Run Text=" " /><Run Text="ligne(s)" />
+                </TextBlock>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="◀" Command="{Binding PagePrecedenteCommand}"
+                            IsEnabled="{Binding PagePrecedenteDisponible}"
+                            Style="{StaticResource BoutonSecondaire}" Padding="14,6" />
+
+                    <TextBlock VerticalAlignment="Center" Margin="12,0"
+                               Foreground="{StaticResource TexteSecondaire}" FontSize="12.5">
+                        <Run Text="{Binding Page, Mode=OneWay}" /><Run Text=" / " /><Run
+                            Text="{Binding NombrePages, Mode=OneWay}" />
+                    </TextBlock>
+
+                    <Button Content="▶" Command="{Binding PageSuivanteCommand}"
+                            IsEnabled="{Binding PageSuivanteDisponible}"
+                            Style="{StaticResource BoutonSecondaire}" Padding="14,6" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Tableau -->
+        <Grid>
+            <DataGrid x:Name="Tableau" ItemsSource="{Binding Elements}"
+                      SelectedItem="{Binding ElementSelectionne}"
+                      Style="{StaticResource TableauDonnees}" />
+
+            <!-- Message affiché quand la recherche ne donne rien -->
+            <Border Background="{StaticResource Surface}" CornerRadius="8"
+                    BorderBrush="{StaticResource Bordure}" BorderThickness="1"
+                    Padding="30" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Visibility="{Binding AucunResultat, Converter={StaticResource BooleenEnVisibilite}}">
+                <TextBlock Text="{Binding LibelleAucunResultat}" FontSize="14"
+                           Foreground="{StaticResource TexteSecondaire}" />
+            </Border>
+
+            <!-- Indicateur de chargement -->
+            <Border Background="#88FFFFFF"
+                    Visibility="{Binding ChargementEnCours, Converter={StaticResource BooleenEnVisibilite}}">
+                <TextBlock Text="…" FontSize="26" VerticalAlignment="Center"
+                           HorizontalAlignment="Center" Foreground="{StaticResource Terre}" />
+            </Border>
+        </Grid>
+
+    </DockPanel>
+</UserControl>
