@@ -1,0 +1,65 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Palette de CeramiPro.
+
+        Les teintes évoquent l'atelier — terre cuite, argile, ardoise — sans
+        tomber dans le décoratif : le logiciel doit rester un outil de travail.
+        Les couleurs d'état ont été choisies pour rester distinguables par une
+        personne daltonienne, et contrastées sur fond clair.
+    -->
+
+    <!-- Identité -->
+    <Color x:Key="TerreCouleur">#A45A3C</Color>
+    <Color x:Key="TerreFonceeCouleur">#83452C</Color>
+    <Color x:Key="TerreClaireCouleur">#F6ECE7</Color>
+
+    <!-- Menu latéral -->
+    <Color x:Key="ArdoiseCouleur">#1F2933</Color>
+    <Color x:Key="ArdoiseClaireCouleur">#2D3A47</Color>
+    <Color x:Key="ArdoiseSurvolCouleur">#3E4C59</Color>
+
+    <!-- Fonds et textes -->
+    <Color x:Key="FondCouleur">#F4F6F8</Color>
+    <Color x:Key="SurfaceCouleur">#FFFFFF</Color>
+    <Color x:Key="BordureCouleur">#DBE1E8</Color>
+    <Color x:Key="TexteCouleur">#1F2933</Color>
+    <Color x:Key="TexteSecondaireCouleur">#52606D</Color>
+    <Color x:Key="TexteInverseCouleur">#F5F7FA</Color>
+
+    <!-- États -->
+    <Color x:Key="SuccesCouleur">#1F7A54</Color>
+    <Color x:Key="SuccesFondCouleur">#E3F5EC</Color>
+    <Color x:Key="AvertissementCouleur">#8A5B00</Color>
+    <Color x:Key="AvertissementFondCouleur">#FDF3E0</Color>
+    <Color x:Key="DangerCouleur">#B3261E</Color>
+    <Color x:Key="DangerFondCouleur">#FDECEA</Color>
+    <Color x:Key="InformationCouleur">#1C5D99</Color>
+    <Color x:Key="InformationFondCouleur">#E8F1FA</Color>
+
+    <SolidColorBrush x:Key="Terre" Color="{StaticResource TerreCouleur}" />
+    <SolidColorBrush x:Key="TerreFoncee" Color="{StaticResource TerreFonceeCouleur}" />
+    <SolidColorBrush x:Key="TerreClaire" Color="{StaticResource TerreClaireCouleur}" />
+
+    <SolidColorBrush x:Key="Ardoise" Color="{StaticResource ArdoiseCouleur}" />
+    <SolidColorBrush x:Key="ArdoiseClaire" Color="{StaticResource ArdoiseClaireCouleur}" />
+    <SolidColorBrush x:Key="ArdoiseSurvol" Color="{StaticResource ArdoiseSurvolCouleur}" />
+
+    <SolidColorBrush x:Key="Fond" Color="{StaticResource FondCouleur}" />
+    <SolidColorBrush x:Key="Surface" Color="{StaticResource SurfaceCouleur}" />
+    <SolidColorBrush x:Key="Bordure" Color="{StaticResource BordureCouleur}" />
+    <SolidColorBrush x:Key="Texte" Color="{StaticResource TexteCouleur}" />
+    <SolidColorBrush x:Key="TexteSecondaire" Color="{StaticResource TexteSecondaireCouleur}" />
+    <SolidColorBrush x:Key="TexteInverse" Color="{StaticResource TexteInverseCouleur}" />
+
+    <SolidColorBrush x:Key="Succes" Color="{StaticResource SuccesCouleur}" />
+    <SolidColorBrush x:Key="SuccesFond" Color="{StaticResource SuccesFondCouleur}" />
+    <SolidColorBrush x:Key="Avertissement" Color="{StaticResource AvertissementCouleur}" />
+    <SolidColorBrush x:Key="AvertissementFond" Color="{StaticResource AvertissementFondCouleur}" />
+    <SolidColorBrush x:Key="Danger" Color="{StaticResource DangerCouleur}" />
+    <SolidColorBrush x:Key="DangerFond" Color="{StaticResource DangerFondCouleur}" />
+    <SolidColorBrush x:Key="Information" Color="{StaticResource InformationCouleur}" />
+    <SolidColorBrush x:Key="InformationFond" Color="{StaticResource InformationFondCouleur}" />
+
+</ResourceDictionary>

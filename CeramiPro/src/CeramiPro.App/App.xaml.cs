@@ -1,0 +1,152 @@
+using System.Globalization;
+using System.IO;
+using System.Windows;
+using System.Windows.Markup;
+using CeramiPro.Application.Common;
+using CeramiPro.Infrastructure;
+using CeramiPro.Infrastructure.Data;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels;
+using CeramiPro.App.Services;
+using CeramiPro.App.Vues;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+
+namespace CeramiPro.App;
+
+/// <summary>
+/// Point d'entrée de l'application Windows.
+///
+/// Au démarrage : lecture de la configuration, mise en place de la
+/// journalisation, construction des services, vérification de la base de
+/// données, puis ouverture de la fenêtre principale.
+/// </summary>
+public partial class App : System.Windows.Application
+{
+    private IHost? _hote;
+
+    /// <summary>Dossier de travail : journaux, images, documents, sauvegardes.</summary>
+    public static string DossierDonnees { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CeramiPro");
+
+    protected override async void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // Toute l'interface parle français et affiche les nombres au format algérien.
+        CultureInfo.DefaultThreadCurrentCulture = ParametresAtelier.Culture;
+        CultureInfo.DefaultThreadCurrentUICulture = ParametresAtelier.Culture;
+        FrameworkElement.LanguageProperty.OverrideMetadata(
+            typeof(FrameworkElement),
+            new FrameworkPropertyMetadata(
+                XmlLanguage.GetLanguage(ParametresAtelier.Culture.IetfLanguageTag)));
+
+        Directory.CreateDirectory(DossierDonnees);
+
+        try
+        {
+            _hote = ConstruireHote();
+            await _hote.StartAsync();
+
+            if (!await BaseDeDonneesPreteAsync())
+            {
+                Shutdown(1);
+                return;
+            }
+
+            var fenetre = _hote.Services.GetRequiredService<FenetrePrincipale>();
+            fenetre.DataContext = _hote.Services.GetRequiredService<FenetrePrincipaleVueModele>();
+            MainWindow = fenetre;
+            fenetre.Show();
+
+            _hote.Services.GetRequiredService<IServiceNavigation>()
+                .Naviguer<TableauDeBordVueModele>();
+        }
+        catch (Exception erreur)
+        {
+            Log.Fatal(erreur, "Le démarrage de CeramiPro a échoué.");
+
+            MessageBox.Show(
+                "CeramiPro n'a pas pu démarrer.\n\n" +
+                "Le détail de l'erreur est enregistré dans :\n" +
+                Path.Combine(DossierDonnees, "journaux"),
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            Shutdown(1);
+        }
+    }
+
+    protected override async void OnExit(ExitEventArgs e)
+    {
+        if (_hote is not null)
+        {
+            await _hote.StopAsync(TimeSpan.FromSeconds(5));
+            _hote.Dispose();
+        }
+
+        Log.CloseAndFlush();
+        base.OnExit(e);
+    }
+
+    private static IHost ConstruireHote() => Host.CreateDefaultBuilder()
+        .UseContentRoot(AppContext.BaseDirectory)
+        .ConfigureAppConfiguration((contexte, configuration) => configuration
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile($"appsettings.{contexte.HostingEnvironment.EnvironmentName}.json", optional: true)
+            .AddEnvironmentVariables("CERAMIPRO_"))
+        .UseSerilog((contexte, journalisation) => journalisation
+            .ReadFrom.Configuration(contexte.Configuration)
+            .WriteTo.File(
+                Path.Combine(DossierDonnees, "journaux", "ceramipro-.log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 30,
+                outputTemplate:
+                    "{Timestamp:dd/MM/yyyy HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}"))
+        .ConfigureServices((contexte, services) =>
+        {
+            services.AjouterInfrastructure(contexte.Configuration);
+
+            services.AddSingleton<IServiceNavigation, ServiceNavigation>();
+            services.AddSingleton<IServiceDialogue, ServiceDialogue>();
+
+            services.AddSingleton<FenetrePrincipale>();
+            services.AddSingleton<FenetrePrincipaleVueModele>();
+
+            services.AddTransient<TableauDeBordVueModele>();
+        })
+        .Build();
+
+    /// <summary>
+    /// Vérifie que PostgreSQL répond avant d'ouvrir la fenêtre. Un message
+    /// clair vaut mieux qu'une application qui s'ouvre puis échoue partout.
+    /// </summary>
+    private async Task<bool> BaseDeDonneesPreteAsync()
+    {
+        using var portee = _hote!.Services.CreateScope();
+        var contexte = portee.ServiceProvider.GetRequiredService<CeramiProDbContext>();
+
+        try
+        {
+            await contexte.Database.MigrateAsync();
+            Log.Information("Base de données « {Base} » prête.", ParametresAtelier.NomBaseDeDonnees);
+            return true;
+        }
+        catch (Exception erreur)
+        {
+            Log.Error(erreur, "La base de données est injoignable.");
+
+            MessageBox.Show(
+                "Impossible de se connecter à la base de données.\n\n" +
+                "Vérifiez que le service PostgreSQL est démarré, puis que le nom\n" +
+                "de la base, l'utilisateur et le mot de passe sont corrects dans\n" +
+                "le fichier appsettings.json.",
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            return false;
+        }
+    }
+}

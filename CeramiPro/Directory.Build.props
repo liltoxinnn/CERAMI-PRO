@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    Version du framework, définie ici une seule fois pour toute la solution.
+
+    Le cahier des charges vise .NET 10. Le développement a été mené sur .NET 8,
+    seule version disponible sur la machine de compilation : pour passer à
+    .NET 10, il suffit de changer les deux lignes ci-dessous, rien d'autre.
+  -->
+  <PropertyGroup>
+    <VersionDotNet>net8.0</VersionDotNet>
+    <VersionDotNetWindows>net8.0-windows</VersionDotNetWindows>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NeutralLanguage>fr</NeutralLanguage>
+  </PropertyGroup>
+
+</Project>
