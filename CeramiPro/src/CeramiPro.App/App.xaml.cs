@@ -10,6 +10,7 @@ using CeramiPro.Infrastructure.Data;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
 using Ecrans = CeramiPro.Presentation.ViewModels.Ecrans;
+using Formulaires = CeramiPro.Presentation.ViewModels.Formulaires;
 using CeramiPro.App.Services;
 using CeramiPro.App.Vues;
 using Microsoft.EntityFrameworkCore;
@@ -206,6 +207,10 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IServiceLangue, ServiceLangue>();
             services.AddSingleton<IServiceNavigation, ServiceNavigation>();
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
+            services.AddSingleton<IServiceFormulaire, ServiceFormulaire>();
+
+            services.AddTransient<Formulaires.ClientFormulaireVueModele>();
+            services.AddTransient<Formulaires.DepenseFormulaireVueModele>();
 
             services.AddSingleton<FenetrePrincipale>();
             services.AddSingleton<FenetrePrincipaleVueModele>();

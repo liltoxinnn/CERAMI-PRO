@@ -14,13 +14,19 @@
         <!-- Barre de recherche et actions -->
         <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16" Margin="0,0,0,12">
             <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="{Binding LibelleAjouter}"
+                        Command="{Binding AjouterCommand}"
+                        Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0"
+                        Visibility="{Binding PeutAjouter,
+                                     Converter={StaticResource BooleenEnVisibilite}}" />
+
                 <Button DockPanel.Dock="Right" Content="{Binding LibelleActualiser}"
                         Command="{Binding RafraichirCommand}"
                         Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
 
                 <Button DockPanel.Dock="Right" Content="{Binding LibelleRechercher}"
                         Command="{Binding ChercherCommand}"
-                        Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0" />
+                        Style="{StaticResource BoutonSecondaire}" Margin="8,0,0,0" />
 
                 <TextBox Style="{StaticResource Saisie}"
                          Text="{Binding Recherche, UpdateSourceTrigger=PropertyChanged}">

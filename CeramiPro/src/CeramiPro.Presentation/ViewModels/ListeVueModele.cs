@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.Common;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -17,11 +18,21 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
 {
     protected readonly IServiceLangue Langue;
 
-    protected ListeVueModele(IServiceLangue langue)
+    protected ListeVueModele(IServiceLangue langue, IServiceFormulaire? formulaires = null)
     {
         Langue = langue;
+        Formulaires = formulaires;
         Langue.LangueChangee += RafraichirTextes;
     }
+
+    /// <summary>Ouvre les fenêtres de saisie ; absent sur les écrans en lecture seule.</summary>
+    protected IServiceFormulaire? Formulaires { get; }
+
+    /// <summary>
+    /// Vrai lorsque l'écran sait créer une fiche. Le bouton « Ajouter » ne
+    /// s'affiche que dans ce cas, plutôt que de rester présent sans effet.
+    /// </summary>
+    public virtual bool PeutAjouter => false;
 
     /// <summary>Éléments affichés dans le tableau.</summary>
     public ObservableCollection<TElement> Elements { get; } = new();
@@ -56,6 +67,24 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     public string LibelleModifier => Langue["action.modifier"];
     public string LibelleSupprimer => Langue["action.supprimer"];
     public string LibelleAucunResultat => Langue["etat.aucunResultat"];
+
+    /// <summary>Crée la vue-modèle du formulaire de saisie, si l'écran en a un.</summary>
+    protected virtual object? CreerFormulaire(int? id = null) => null;
+
+    /// <summary>Ouvre le formulaire de création, puis recharge la liste.</summary>
+    [RelayCommand]
+    private async Task AjouterAsync()
+    {
+        if (Formulaires is null || CreerFormulaire() is not { } formulaire)
+        {
+            return;
+        }
+
+        if (Formulaires.Afficher(formulaire))
+        {
+            await RafraichirAsync();
+        }
+    }
 
     /// <summary>Colonnes du tableau, déclarées par chaque écran.</summary>
     public abstract IReadOnlyList<ColonneListe> Colonnes { get; }

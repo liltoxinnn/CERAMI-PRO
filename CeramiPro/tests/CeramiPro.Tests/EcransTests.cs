@@ -24,7 +24,15 @@ public class EcransTests
 
     private static (VueModeleBase Vue, IReadOnlyList<ColonneListe> Colonnes) Decrire(Type type)
     {
-        var vue = (VueModeleBase)Activator.CreateInstance(type, null, new ServiceLangue())!;
+        // Les paramètres sont fournis dans l'ordre attendu : seuls la langue
+        // et la description des colonnes comptent pour ces vérifications.
+        var parametres = type.GetConstructors()[0].GetParameters()
+            .Select(p => p.ParameterType == typeof(IServiceLangue)
+                ? (object?)new ServiceLangue()
+                : null)
+            .ToArray();
+
+        var vue = (VueModeleBase)Activator.CreateInstance(type, parametres)!;
 
         var colonnes = (IReadOnlyList<ColonneListe>)type
             .GetProperty(nameof(ListeVueModele<object>.Colonnes))!
@@ -101,12 +109,58 @@ public class EcransTests
     public void Le_titre_de_chaque_ecran_suit_la_langue()
     {
         var langue = new ServiceLangue();
-        var vue = new ClientsVueModele(null!, langue);
+        var vue = new ClientsVueModele(null!, langue, null!, null!);
 
         vue.Titre.Should().Be("Clients");
 
         langue.Changer(Langue.Arabe);
 
         vue.Titre.Should().Be("الزبائن");
+    }
+}
+
+/// <summary>
+/// Les formulaires de saisie décrivent leurs champs comme les listes
+/// décrivent leurs colonnes.
+/// </summary>
+public class FormulairesTests
+{
+    [Fact]
+    public void Le_formulaire_client_declare_ses_champs()
+    {
+        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
+            .ClientFormulaireVueModele(null!, new ServiceLangue());
+
+        vue.Champs.Should().NotBeEmpty();
+        vue.Champs.Should().Contain(c => c.Propriete == "Nom" && c.Obligatoire);
+        vue.Titre.Should().Be("Nouveau client");
+        vue.EstCreation.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_champ_obligatoire_vide_est_nomme_dans_le_message()
+    {
+        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
+            .ClientFormulaireVueModele(null!, new ServiceLangue());
+
+        await vue.ValiderCommand.ExecuteAsync(null);
+
+        // Nommer le champ évite à l'utilisateur de chercher lequel manque.
+        vue.MessageErreur.Should().Contain("Nom");
+        vue.Enregistre.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Les_libelles_du_formulaire_suivent_la_langue()
+    {
+        var langue = new ServiceLangue();
+        var vue = new CeramiPro.Presentation.ViewModels.Formulaires
+            .ClientFormulaireVueModele(null!, langue);
+
+        vue.LibelleEnregistrer.Should().Be("Enregistrer");
+
+        langue.Changer(Langue.Arabe);
+
+        vue.LibelleEnregistrer.Should().Be("حفظ");
     }
 }

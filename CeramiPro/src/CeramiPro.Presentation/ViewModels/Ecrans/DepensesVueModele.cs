@@ -2,6 +2,8 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Finances;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Application.Localisation;
+using CeramiPro.Presentation.Navigation;
+using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
@@ -10,9 +12,20 @@ public partial class DepensesVueModele : ListeVueModele<DepenseDto>
 {
     private readonly IDepenseService _service;
 
-    public DepensesVueModele(IDepenseService service, IServiceLangue langue)
-        : base(langue)
-        => _service = service;
+    public DepensesVueModele(IDepenseService service, IServiceLangue langue,
+        IServiceFormulaire formulaires, IServiceProvider services)
+        : base(langue, formulaires)
+    {
+        _service = service;
+        _services = services;
+    }
+
+    private readonly IServiceProvider _services;
+
+    public override bool PeutAjouter => true;
+
+    protected override object? CreerFormulaire(int? id = null)
+        => _services.GetService(typeof(DepenseFormulaireVueModele));
 
     public override string Titre => Langue["menu.depenses"];
 
