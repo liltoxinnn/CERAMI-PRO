@@ -31,6 +31,17 @@ public class DatabaseSeeder
     /// <summary>Clé de configuration permettant d'imposer le mot de passe initial.</summary>
     public const string CleMotDePasseInitial = "Administrateur:MotDePasseInitial";
 
+    /// <summary>
+    /// Clé de dépannage : mise à « true », elle redonne au compte
+    /// administrateur le mot de passe initial au prochain démarrage.
+    ///
+    /// Un mot de passe haché ne se retrouve pas ; sans cette porte de secours,
+    /// un oubli rendrait le logiciel définitivement inutilisable. Elle exige
+    /// d'écrire dans un fichier de l'ordinateur de l'atelier — quiconque le
+    /// peut a déjà la main sur la machine et sur la base de données.
+    /// </summary>
+    public const string CleReinitialisation = "Administrateur:ReinitialiserMotDePasse";
+
     private readonly CeramiProDbContext _context;
     private readonly IPasswordHasherService _hachage;
     private readonly IConfiguration _configuration;
@@ -146,6 +157,7 @@ public class DatabaseSeeder
     {
         if (await _context.Users.AnyAsync(cancellationToken))
         {
+            await ReinitialiserAdministrateurSiDemandeAsync(cancellationToken);
             return;
         }
 
@@ -178,6 +190,46 @@ public class DatabaseSeeder
         {
             _journal.LogInformation("Compte administrateur « {Utilisateur} » créé.", NomUtilisateurAdministrateur);
         }
+    }
+
+    /// <summary>
+    /// Redonne au compte administrateur le mot de passe initial lorsque la
+    /// configuration le demande, puis exige qu'il soit changé à la connexion.
+    /// </summary>
+    private async Task ReinitialiserAdministrateurSiDemandeAsync(CancellationToken cancellationToken)
+    {
+        if (!bool.TryParse(_configuration[CleReinitialisation], out var demande) || !demande)
+        {
+            return;
+        }
+
+        var administrateur = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserName == NomUtilisateurAdministrateur, cancellationToken);
+
+        if (administrateur is null)
+        {
+            return;
+        }
+
+        var motDePasse = _configuration[CleMotDePasseInitial];
+        motDePasse = string.IsNullOrWhiteSpace(motDePasse)
+            ? MotDePasseAdministrateurParDefaut
+            : motDePasse;
+
+        administrateur.PasswordHash = _hachage.Hacher(motDePasse);
+        administrateur.MustChangePassword = true;
+        administrateur.IsActive = true;
+
+        // Un compte bloqué par des essais répétés doit redevenir utilisable.
+        administrateur.FailedLoginAttempts = 0;
+        administrateur.LockedUntil = null;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _journal.LogWarning(
+            "Le mot de passe du compte « {Utilisateur} » a été réinitialisé à la demande. " +
+            "Retirez « {Cle} » de la configuration, puis changez ce mot de passe.",
+            NomUtilisateurAdministrateur, CleReinitialisation);
     }
 
     private async Task SemerUnitesAsync(CancellationToken cancellationToken)
