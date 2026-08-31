@@ -47,8 +47,14 @@ public partial class App : System.Windows.Application
     /// </summary>
     private static void VerifierReglagesLocaux()
     {
-        var chemin = Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux);
+        foreach (var dossier in new[] { AppContext.BaseDirectory, DossierDonnees })
+        {
+            VerifierUnFichierDeReglages(Path.Combine(dossier, FichierReglagesLocaux));
+        }
+    }
 
+    private static void VerifierUnFichierDeReglages(string chemin)
+    {
         if (!File.Exists(chemin))
         {
             return;
@@ -240,6 +246,12 @@ public partial class App : System.Windows.Application
             // doit donner un message clair, pas une erreur technique.
             .AddJsonFile(FichierReglagesLocaux,
                 optional: true, reloadOnChange: false)
+            // Le même fichier, mais dans le dossier de données de
+            // l'utilisateur. C'est celui que l'installateur crée : sous
+            // « Program Files », modifier un fichier demande des droits
+            // d'administrateur que l'atelier n'a pas toujours.
+            .AddJsonFile(Path.Combine(DossierDonnees, FichierReglagesLocaux),
+                optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("CERAMIPRO_"))
         .UseSerilog((contexte, journalisation) => journalisation
             .ReadFrom.Configuration(contexte.Configuration)
@@ -296,10 +308,11 @@ public partial class App : System.Windows.Application
                 "Impossible de se connecter à la base de données.\n\n" +
                 "Vérifiez, dans l'ordre :\n\n" +
                 "1. Le service PostgreSQL est démarré.\n" +
-                $"2. Le fichier « {FichierReglagesLocaux} » existe à côté du\n" +
-                "    programme et contient le bon mot de passe.\n\n" +
-                "Emplacement attendu :\n" +
-                Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux),
+                $"2. Le fichier « {FichierReglagesLocaux} » existe et\n" +
+                "    contient le bon mot de passe.\n\n" +
+                "Il est cherché à ces deux endroits, le second l'emportant :\n\n" +
+                Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux) + "\n" +
+                Path.Combine(DossierDonnees, FichierReglagesLocaux),
                 "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
 
             return false;
