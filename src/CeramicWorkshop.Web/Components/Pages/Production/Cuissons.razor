@@ -1,0 +1,741 @@
+@page "/production/cuissons"
+@attribute [Authorize(Policy = PermissionCodes.CuissonConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Cuissons — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Fours et cuissons"
+            Introduction="Fournées, températures, durées et coût énergétique réparti entre les pièces.">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-secondaire" @onclick="OuvrirFour">+ Nouveau four</button>
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCuisson">+ Nouvelle cuisson</button>
+        }
+    </Actions>
+</EntetePage>
+
+<h2 class="carte-titre">Fours de l'atelier</h2>
+
+@if (_fours.Count == 0)
+{
+    <EtatVide Message="Aucun four enregistré. Ajoutez-en un pour pouvoir planifier des cuissons." />
+}
+else
+{
+    <div class="bandeau-statistiques">
+        @foreach (var four in _fours)
+        {
+            <div class="statistique @(four.Statut == KilnStatus.EnCuisson ? "statistique-alerte" : "")">
+                <span class="statistique-valeur">@four.Nom</span>
+                <span class="statistique-libelle">
+                    @four.StatutLibelle · capacité @MontantFormatter.FormaterQuantite(four.Capacite) pièce(s)<br />
+                    @four.TemperatureMin.ToString("0") – @four.TemperatureMax.ToString("0") °C
+                </span>
+                @if (PeutGerer)
+                {
+                    <button type="button" class="bouton bouton-discret"
+                            @onclick="() => OuvrirModificationFour(four)">Modifier</button>
+                }
+            </div>
+        }
+    </div>
+}
+
+<h2 class="carte-titre">Cuissons</h2>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un numéro de cuisson…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="statut">État</label>
+        <select id="statut" class="saisie saisie-compacte" @onchange="FiltrerStatut">
+            <option value="">Tous</option>
+            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<FiringBatchStatus>())
+            {
+                <option value="@valeur">@libelle</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des cuissons…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucune cuisson enregistrée." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Numéro</th><th>Four</th><th>Type</th><th class="nombre">Température</th>
+                <th>Début</th><th class="nombre">Durée</th><th class="nombre">Pièces</th>
+                <th class="nombre">Coût énergie</th><th>État</th><th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var cuisson in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Numéro"><code>@cuisson.Numero</code></td>
+                    <td data-libelle="Four">@cuisson.FourNom</td>
+                    <td data-libelle="Type">@cuisson.TypeLibelle</td>
+                    <td class="nombre" data-libelle="Température">@cuisson.Temperature.ToString("0") °C</td>
+                    <td data-libelle="Début">@MontantFormatter.FormaterDateHeure(cuisson.Debut.ToLocalTime())</td>
+                    <td class="nombre" data-libelle="Durée">
+                        @(cuisson.DureeHeures is null ? "—" : $"{cuisson.DureeHeures:0.##} h")</td>
+                    <td class="nombre" data-libelle="Pièces">
+                        @MontantFormatter.FormaterQuantite(cuisson.QuantiteTotale)</td>
+                    <td class="nombre" data-libelle="Coût énergie">@MontantFormatter.Formater(cuisson.CoutEnergie)</td>
+                    <td data-libelle="État">
+                        <span class="etiquette @ClasseStatut(cuisson.Statut)">@cuisson.StatutLibelle</span>
+                    </td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirDetail(cuisson)">Détail</button>
+
+                        @if (PeutGerer && cuisson.Statut == FiringBatchStatus.Planifiee)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => Demarrer(cuisson)">Démarrer</button>
+                        }
+
+                        @if (PeutGerer && cuisson.Statut == FiringBatchStatus.EnCours)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirDefournement(cuisson)">Défourner</button>
+                        }
+
+                        @if (PeutGerer && cuisson.Statut != FiringBatchStatus.Terminee
+                             && cuisson.Statut != FiringBatchStatus.Annulee)
+                        {
+                            <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                    @onclick="() => OuvrirAnnulation(cuisson)">Annuler</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="CuissonDto" Page="_page" Libelle="cuisson(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_fourVisible" Titre="@(_creationFour ? "Nouveau four" : "Modifier le four")"
+         OnFermer="() => _fourVisible = false">
+    <EditForm Model="_four" OnValidSubmit="EnregistrerFour" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="four-nom">Nom du four</label>
+                <InputText id="four-nom" class="saisie" @bind-Value="_four.Nom" />
+            </div>
+            <div class="champ">
+                <label for="four-capacite">Capacité (pièces)</label>
+                <InputNumber id="four-capacite" class="saisie" @bind-Value="_four.Capacite" />
+            </div>
+            <div class="champ">
+                <label for="four-min">Température minimale (°C)</label>
+                <InputNumber id="four-min" class="saisie" @bind-Value="_four.TemperatureMin" />
+            </div>
+            <div class="champ">
+                <label for="four-max">Température maximale (°C)</label>
+                <InputNumber id="four-max" class="saisie" @bind-Value="_four.TemperatureMax" />
+            </div>
+            <div class="champ">
+                <label for="four-emplacement">Emplacement</label>
+                <InputText id="four-emplacement" class="saisie" @bind-Value="_four.Emplacement" />
+            </div>
+            <div class="champ">
+                <label for="four-statut">État</label>
+                <InputSelect id="four-statut" class="saisie" @bind-Value="_four.Statut">
+                    @foreach (var (valeur, libelle) in EnumExtensions.Libelles<KilnStatus>())
+                    {
+                        <option value="@valeur">@libelle</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="champ">
+            <label for="four-notes">Notes</label>
+            <InputTextArea id="four-notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_four.Notes" />
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire" @onclick="() => _fourVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_cuissonVisible" Large="true" Titre="Nouvelle cuisson"
+         OnFermer="() => _cuissonVisible = false">
+    <EditForm Model="_cuisson" OnValidSubmit="EnregistrerCuisson" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="cuisson-four">Four</label>
+                <InputSelect id="cuisson-four" class="saisie" @bind-Value="_cuisson.FourId">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var four in _fours.Where(f => f.Actif))
+                    {
+                        <option value="@four.Id">@four.Nom (@four.TemperatureMin.ToString("0")–@four.TemperatureMax.ToString("0") °C)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="cuisson-type">Type de cuisson</label>
+                <InputSelect id="cuisson-type" class="saisie" @bind-Value="_cuisson.Type">
+                    @foreach (var (valeur, libelle) in EnumExtensions.Libelles<FiringType>())
+                    {
+                        <option value="@valeur">@libelle</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="cuisson-temperature">Température (°C)</label>
+                <InputNumber id="cuisson-temperature" class="saisie" @bind-Value="_cuisson.Temperature" />
+            </div>
+            <div class="champ">
+                <label for="cuisson-cout">Coût énergétique estimé</label>
+                <InputNumber id="cuisson-cout" class="saisie" @bind-Value="_cuisson.CoutEnergie" />
+            </div>
+        </div>
+
+        <h3>Pièces à enfourner</h3>
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Production</th><th>Produit</th><th>Quantité</th><th></th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _cuisson.Pieces.Count; index++)
+            {
+                var position = index;
+                var piece = _cuisson.Pieces[position];
+                <tr>
+                    <td data-libelle="Production">
+                        <select class="saisie" value="@piece.ProductionId"
+                                @onchange="args => ChoisirProduction(position, args)">
+                            <option value="">Hors production</option>
+                            @foreach (var ordre in _productions)
+                            {
+                                <option value="@ordre.Id">@ordre.Numero — @ordre.ProduitNom</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Produit">
+                        <select class="saisie" value="@piece.ProduitId"
+                                @onchange="args => piece.ProduitId = Entier(args)">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var produit in _produits)
+                            {
+                                <option value="@produit.Id">@produit.Nom</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Quantité">
+                        <input type="number" step="1" class="saisie" value="@piece.Quantite"
+                               @onchange="args => piece.Quantite = Nombre(args)" />
+                    </td>
+                    <td>
+                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                @onclick="() => _cuisson.Pieces.RemoveAt(position)">Retirer</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _cuisson.Pieces.Add(new PieceCuissonRequete())">+ Ajouter des pièces</button>
+
+        <div class="champ">
+            <label for="cuisson-observations">Observations</label>
+            <InputTextArea id="cuisson-observations" class="saisie saisie-multiligne" rows="2"
+                           @bind-Value="_cuisson.Observations" />
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _cuissonVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer la cuisson")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_defournementVisible" Large="true" Titre="@($"Défourner {_numeroEnCours}")"
+         OnFermer="() => _defournementVisible = false">
+    @if (_detail is not null)
+    {
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="champ">
+            <label for="cout-reel">Coût énergétique réel</label>
+            <input id="cout-reel" type="number" step="0.01" class="saisie" value="@_defournement.CoutEnergie"
+                   @onchange="args => _defournement.CoutEnergie = Nombre(args)" />
+            <span class="champ-aide">Réparti entre les pièces au prorata des quantités.</span>
+        </div>
+
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Produit</th><th class="nombre">Enfourné</th><th>Intactes</th><th>Cassées</th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _defournement.Pieces.Count; index++)
+            {
+                var position = index;
+                var resultat = _defournement.Pieces[position];
+                var piece = _detail.Pieces.First(p => p.Id == resultat.PieceId);
+                <tr>
+                    <td data-libelle="Produit">@piece.ProduitNom</td>
+                    <td class="nombre" data-libelle="Enfourné">
+                        @MontantFormatter.FormaterQuantite(piece.Quantite)</td>
+                    <td data-libelle="Intactes">
+                        <input type="number" step="1" class="saisie" value="@resultat.QuantiteAcceptee"
+                               @onchange="args => resultat.QuantiteAcceptee = Nombre(args)" />
+                    </td>
+                    <td data-libelle="Cassées">
+                        <input type="number" step="1" class="saisie" value="@resultat.QuantiteEndommagee"
+                               @onchange="args => resultat.QuantiteEndommagee = Nombre(args)" />
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <div class="champ">
+            <label for="observations">Observations</label>
+            <textarea id="observations" class="saisie saisie-multiligne" rows="2"
+                      @bind="_defournement.Observations"></textarea>
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _defournementVisible = false">Annuler</button>
+            <button type="button" class="bouton bouton-principal" disabled="@_enregistrement" @onclick="Defourner">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer le défournement")
+            </button>
+        </div>
+    }
+</Fenetre>
+
+<Fenetre Visible="_detailVisible" Large="true" Titre="@($"Cuisson {_numeroEnCours}")"
+         OnFermer="() => _detailVisible = false">
+    @if (_detail is not null)
+    {
+        <div class="detail-grille">
+            <div><span class="champ-aide">Four</span><br /><strong>@_detail.FourNom</strong></div>
+            <div><span class="champ-aide">Type</span><br />@_detail.TypeLibelle</div>
+            <div><span class="champ-aide">Température</span><br />@_detail.Temperature.ToString("0") °C</div>
+            <div><span class="champ-aide">Début</span><br />
+                @MontantFormatter.FormaterDateHeure(_detail.Debut.ToLocalTime())</div>
+            <div><span class="champ-aide">Fin</span><br />
+                @(_detail.Fin is null ? "—" : MontantFormatter.FormaterDateHeure(_detail.Fin.Value.ToLocalTime()))</div>
+            <div><span class="champ-aide">Durée</span><br />
+                @(_detail.DureeHeures is null ? "—" : $"{_detail.DureeHeures:0.##} h")</div>
+            <div><span class="champ-aide">Coût énergétique</span><br />
+                @MontantFormatter.Formater(_detail.CoutEnergie)</div>
+            <div><span class="champ-aide">Pièces cassées</span><br />
+                @MontantFormatter.FormaterQuantite(_detail.QuantiteEndommagee)</div>
+        </div>
+
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Produit</th><th>Production</th><th class="nombre">Enfourné</th>
+                    <th class="nombre">Intactes</th><th class="nombre">Cassées</th>
+                    <th class="nombre">Part du coût</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var piece in _detail.Pieces)
+                {
+                    <tr>
+                        <td data-libelle="Produit">@piece.ProduitNom</td>
+                        <td data-libelle="Production">@(piece.ProductionNumero ?? "—")</td>
+                        <td class="nombre" data-libelle="Enfourné">
+                            @MontantFormatter.FormaterQuantite(piece.Quantite)</td>
+                        <td class="nombre" data-libelle="Intactes">
+                            @MontantFormatter.FormaterQuantite(piece.QuantiteAcceptee)</td>
+                        <td class="nombre" data-libelle="Cassées">
+                            @MontantFormatter.FormaterQuantite(piece.QuantiteEndommagee)</td>
+                        <td class="nombre" data-libelle="Part du coût">
+                            @MontantFormatter.Formater(piece.CoutEnergieImpute)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_detail.Observations))
+        {
+            <p class="carte-texte">@_detail.Observations</p>
+        }
+    }
+</Fenetre>
+
+<Fenetre Visible="_annulationVisible" Titre="@($"Annuler la cuisson {_numeroEnCours}")"
+         OnFermer="() => _annulationVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <div class="champ">
+        <label for="motif">Motif de l'annulation</label>
+        <input id="motif" class="saisie" @bind="_motif" />
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _annulationVisible = false">Revenir</button>
+        <button type="button" class="bouton bouton-danger" disabled="@_enregistrement" @onclick="Annuler">
+            @(_enregistrement ? "Annulation…" : "Confirmer l'annulation")
+        </button>
+    </div>
+</Fenetre>
+
+@code {
+    private PagedResult<CuissonDto>? _page;
+    private CuissonDto? _detail;
+    private List<FourDto> _fours = new();
+    private List<ProduitDto> _produits = new();
+    private List<OrdreProductionDto> _productions = new();
+
+    private FiltreCuissonsRequete _filtre = new();
+    private FourRequete _four = new();
+    private CuissonRequete _cuisson = new();
+    private DefournementRequete _defournement = new();
+
+    private bool _chargement = true;
+    private bool _fourVisible, _cuissonVisible, _defournementVisible, _detailVisible, _annulationVisible;
+    private bool _creationFour, _enregistrement;
+
+    private int _idEnCours, _idFourEnCours;
+    private string _numeroEnCours = string.Empty;
+    private string _motif = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.CuissonGerer);
+
+    private static string ClasseStatut(FiringBatchStatus statut) => statut switch
+    {
+        FiringBatchStatus.Terminee => "etiquette-succes",
+        FiringBatchStatus.Annulee => "etiquette-danger",
+        FiringBatchStatus.EnCours => "etiquette-attention",
+        _ => "etiquette-neutre"
+    };
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    private static int Entier(ChangeEventArgs args)
+        => int.TryParse(args.Value?.ToString(), out var valeur) ? valeur : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ChargerFoursAsync();
+
+        var produits = await Api.ObtenirAsync<PagedResult<ProduitDto>>("api/produits?taillePage=300");
+        if (produits.Succes && produits.Valeur is not null) _produits = produits.Valeur.Elements.ToList();
+
+        var productions = await Api.ObtenirAsync<PagedResult<OrdreProductionDto>>(
+            "api/production?taillePage=100&seulementEnCours=true");
+        if (productions.Succes && productions.Valeur is not null)
+            _productions = productions.Valeur.Elements.ToList();
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerFoursAsync()
+    {
+        var fours = await Api.ObtenirAsync<List<FourDto>>("api/fours");
+        if (fours.Succes && fours.Valeur is not null) _fours = fours.Valeur;
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/cuissons?page={_filtre.Page}&taillePage={_filtre.TaillePage}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.Statut is not null) chemin += $"&statut={_filtre.Statut}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<CuissonDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerStatut(ChangeEventArgs args)
+    {
+        _filtre.Statut = Enum.TryParse<FiringBatchStatus>(args.Value?.ToString(), out var statut) ? statut : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirFour()
+    {
+        _creationFour = true;
+        _idFourEnCours = 0;
+        _four = new FourRequete { Actif = true, TemperatureMin = 800m, TemperatureMax = 1250m, Capacite = 50m };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _fourVisible = true;
+    }
+
+    private void OuvrirModificationFour(FourDto four)
+    {
+        _creationFour = false;
+        _idFourEnCours = four.Id;
+        _four = new FourRequete
+        {
+            Nom = four.Nom, Capacite = four.Capacite, TemperatureMin = four.TemperatureMin,
+            TemperatureMax = four.TemperatureMax, Emplacement = four.Emplacement,
+            Statut = four.Statut, Notes = four.Notes, Actif = four.Actif
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _fourVisible = true;
+    }
+
+    private void OuvrirCuisson()
+    {
+        _cuisson = new CuissonRequete
+        {
+            Temperature = 1050m,
+            Pieces = new List<PieceCuissonRequete> { new() }
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _cuissonVisible = true;
+    }
+
+    private void ChoisirProduction(int position, ChangeEventArgs args)
+    {
+        var piece = _cuisson.Pieces[position];
+        piece.ProductionId = int.TryParse(args.Value?.ToString(), out var id) ? id : null;
+
+        var ordre = _productions.FirstOrDefault(o => o.Id == piece.ProductionId);
+        if (ordre is not null)
+        {
+            piece.ProduitId = ordre.ProduitId;
+            if (piece.Quantite == 0) piece.Quantite = ordre.QuantitePrevue;
+        }
+    }
+
+    private async Task<CuissonDto?> ChargerDetailAsync(int id)
+    {
+        var resultat = await Api.ObtenirAsync<CuissonDto>($"api/cuissons/{id}");
+
+        if (!resultat.Succes)
+        {
+            Messages.Erreur(resultat.Message);
+            return null;
+        }
+
+        return resultat.Valeur;
+    }
+
+    private async Task OuvrirDetail(CuissonDto cuisson)
+    {
+        _detail = await ChargerDetailAsync(cuisson.Id);
+        if (_detail is null) return;
+
+        _numeroEnCours = cuisson.Numero;
+        _detailVisible = true;
+    }
+
+    private async Task OuvrirDefournement(CuissonDto cuisson)
+    {
+        _detail = await ChargerDetailAsync(cuisson.Id);
+        if (_detail is null) return;
+
+        _idEnCours = cuisson.Id;
+        _numeroEnCours = cuisson.Numero;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _defournement = new DefournementRequete
+        {
+            CoutEnergie = _detail.CoutEnergie,
+            Pieces = _detail.Pieces.Select(p => new ResultatPieceRequete
+            {
+                PieceId = p.Id, QuantiteAcceptee = p.Quantite
+            }).ToList()
+        };
+        _defournementVisible = true;
+    }
+
+    private void OuvrirAnnulation(CuissonDto cuisson)
+    {
+        _idEnCours = cuisson.Id;
+        _numeroEnCours = cuisson.Numero;
+        _motif = string.Empty;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _annulationVisible = true;
+    }
+
+    private async Task EnregistrerFour()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creationFour
+                ? await Api.PosterAsync<FourDto>("api/fours", _four)
+                : await Api.MettreAJourAsync<FourDto>($"api/fours/{_idFourEnCours}", _four);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creationFour ? "Four ajouté." : "Four modifié.");
+            _fourVisible = false;
+            await ChargerFoursAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task EnregistrerCuisson()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<CuissonDto>("api/cuissons", _cuisson);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Cuisson {resultat.Valeur!.Numero} enregistrée.");
+            _cuissonVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Demarrer(CuissonDto cuisson)
+    {
+        var resultat = await Api.PosterAsync<CuissonDto>($"api/cuissons/{cuisson.Id}/demarrage");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes($"Cuisson {cuisson.Numero} démarrée.");
+            await ChargerFoursAsync();
+            await ChargerAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task Defourner()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<CuissonDto>(
+                $"api/cuissons/{_idEnCours}/defournement", _defournement);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Cuisson {_numeroEnCours} défournée.");
+            _defournementVisible = false;
+            await ChargerFoursAsync();
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Annuler()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<CuissonDto>(
+                $"api/cuissons/{_idEnCours}/annulation", new { Motif = _motif });
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Cuisson {_numeroEnCours} annulée.");
+            _annulationVisible = false;
+            await ChargerFoursAsync();
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

@@ -11,20 +11,51 @@ contrôle qualité, produits finis, commandes clients, paiements et livraison.
 
 ## État d'avancement
 
+Les dix étapes prévues sont terminées.
+
 | Étape | Contenu | État |
 |-------|---------|------|
 | 1 | Architecture, base de données, sécurité, utilisateurs, paramètres | **Terminée** |
-| 2 | Stock : matières, unités, fournisseurs, achats, mouvements | À venir |
-| 3 | Produits : catalogue, photos, variantes, recettes | À venir |
-| 4 | Production : ordres, étapes, consommation des matières | À venir |
-| 5 | Cuisson, décoration, contrôle qualité | À venir |
-| 6 | Clients et commandes personnalisées | À venir |
-| 7 | Ventes, factures, paiements, dettes | À venir |
-| 8 | Dépenses, bénéfices, rapports, statistiques | À venir |
-| 9 | QR codes, codes-barres, scanner | À venir |
-| 10 | Tests finaux, sauvegarde, déploiement | À venir |
+| 2 | Stock : matières, unités, fournisseurs, achats, mouvements | **Terminée** |
+| 3 | Produits : catalogue, photos, variantes, recettes | **Terminée** |
+| 4 | Production : ordres, étapes, consommation des matières | **Terminée** |
+| 5 | Cuisson, décoration, contrôle qualité | **Terminée** |
+| 6 | Clients et commandes personnalisées | **Terminée** |
+| 7 | Ventes, factures, paiements, dettes | **Terminée** |
+| 8 | Dépenses, bénéfices, rapports, statistiques | **Terminée** |
+| 9 | Codes QR, codes-barres, étiquettes et lecture | **Terminée** |
+| 10 | Recherche globale, alertes, sauvegardes, sécurité, documentation | **Terminée** |
 
 Le détail figure dans [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMENT.md).
+
+---
+
+## Ce que fait le logiciel
+
+**Atelier** — tableau de bord (chiffres du jour et du mois, graphiques sur douze
+mois, classements), recherche globale, centre d'alertes, lecture des codes.
+
+**Stock** — matières premières, unités, seuils d'alerte, mouvements tracés,
+coût moyen pondéré recalculé à chaque entrée, régularisations justifiées.
+
+**Fournisseurs** — fiches, achats, réceptions, règlements et dettes.
+
+**Produits** — catalogue, photos, variantes, recettes de fabrication avec pertes
+et rendement, étiquettes à imprimer (code QR et code-barres).
+
+**Production** — ordres de fabrication, contrôle des matières avant lancement,
+suivi des dix étapes en tableau, cuissons par four avec coût d'énergie réparti,
+décoration, contrôle qualité, coût de revient réel calculé à la fin.
+
+**Clients et ventes** — fiches clients, commandes personnalisées suivies étape
+par étape, ventes au comptoir avec lecture de code-barres, factures imprimables,
+paiements partiels et suivi des dettes.
+
+**Gestion** — dépenses, douze rapports exportables vers un tableur, calculateurs
+de matières, de surface et de quantité.
+
+**Administration** — comptes, rôles et droits, listes de référence, paramètres de
+l'atelier, réglages des alertes, sauvegardes.
 
 ---
 
@@ -36,6 +67,8 @@ Le détail figure dans [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMEN
 | [docs/BASE-DE-DONNEES.md](docs/BASE-DE-DONNEES.md) | Arbre des tables, relations, diagramme ERD |
 | [docs/REGLES-METIER.md](docs/REGLES-METIER.md) | Les 20 règles métier et leur mise en œuvre |
 | [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMENT.md) | Les 10 étapes de développement |
+| [docs/GUIDE-UTILISATION.md](docs/GUIDE-UTILISATION.md) | Prise en main écran par écran |
+| [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) | Installation sur l'ordinateur de l'atelier, sauvegarde et restauration |
 
 ---
 
@@ -43,6 +76,34 @@ Le détail figure dans [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMEN
 
 * [.NET SDK 8.0](https://dotnet.microsoft.com/download) ou supérieur
 * [PostgreSQL 14](https://www.postgresql.org/download/) ou supérieur
+
+### Installation des prérequis sous Windows
+
+Dans un terminal (`cmd` ou PowerShell) :
+
+```bat
+winget install Microsoft.DotNet.SDK.8
+winget install PostgreSQL.PostgreSQL.16
+```
+
+Fermez puis rouvrez le terminal, et vérifiez :
+
+```bat
+dotnet --version
+```
+
+L'installateur de PostgreSQL demande un mot de passe pour l'utilisateur
+`postgres` : **notez-le**, il servira à l'étape suivante. PostgreSQL démarre
+ensuite automatiquement avec Windows, en tant que service.
+
+### Installation des prérequis sous Linux (Debian / Ubuntu)
+
+```bash
+sudo apt update
+sudo apt install -y dotnet-sdk-8.0 postgresql
+sudo systemctl start postgresql
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'votre-mot-de-passe';"
+```
 
 ---
 
@@ -57,7 +118,16 @@ cd CeramicWorkshop
 
 ### 2. Configurer la connexion à PostgreSQL
 
-Les paramètres sensibles ne sont pas versionnés. Copiez les fichiers d'exemple :
+Les paramètres sensibles ne sont pas versionnés. Copiez les fichiers d'exemple.
+
+Sous Windows (`cmd`) :
+
+```bat
+copy src\CeramicWorkshop.API\appsettings.Development.exemple.json src\CeramicWorkshop.API\appsettings.Development.json
+copy src\CeramicWorkshop.Web\appsettings.Development.exemple.json src\CeramicWorkshop.Web\appsettings.Development.json
+```
+
+Sous Linux ou macOS :
 
 ```bash
 cp src/CeramicWorkshop.API/appsettings.Development.exemple.json \
@@ -66,6 +136,9 @@ cp src/CeramicWorkshop.API/appsettings.Development.exemple.json \
 cp src/CeramicWorkshop.Web/appsettings.Development.exemple.json \
    src/CeramicWorkshop.Web/appsettings.Development.json
 ```
+
+Il n'y a pas de base de données à créer à la main : le logiciel crée
+`CeramicWorkshopDB` et ses tables au premier démarrage.
 
 puis renseignez le mot de passe PostgreSQL, la clé de signature des jetons
 et le mot de passe initial de l'administrateur.
@@ -98,7 +171,13 @@ Au premier démarrage, le logiciel crée la base `CeramicWorkshopDB`, applique l
 migrations et enregistre les données de départ : rôles, droits, unités de mesure,
 modes de règlement, catégories et compte administrateur.
 
-La documentation de l'API est disponible sur `/swagger` en développement.
+Le serveur écoute sur <http://localhost:5130>. Sa documentation est disponible
+sur <http://localhost:5130/swagger> en développement.
+
+Pour le faire écouter aussi en HTTPS (port 7035), lancez-le avec
+`dotnet run --project src/CeramicWorkshop.API --launch-profile https`, après
+avoir installé le certificat de développement avec `dotnet dev-certs https --trust`,
+et indiquez cette adresse dans `Api:AdresseDeBase`.
 
 ### 4. Démarrer l'interface
 
@@ -108,7 +187,13 @@ Dans un second terminal :
 dotnet run --project src/CeramicWorkshop.Web
 ```
 
-Ouvrez ensuite l'adresse affichée dans la console (par défaut `https://localhost:7225`).
+Ouvrez ensuite <http://localhost:5192> dans le navigateur.
+
+> Les deux programmes doivent tourner **en même temps**, chacun dans son
+> terminal : le serveur applicatif sur le port 5130, l'interface sur le 5192.
+> Si l'interface affiche « Le serveur de l'application est injoignable »,
+> c'est que le serveur applicatif n'est pas démarré, ou qu'il écoute sur un
+> autre port que celui indiqué par `Api:AdresseDeBase`.
 
 ### 5. Première connexion
 
@@ -134,6 +219,9 @@ dotnet test tests/IntegrationTests
 Les tests d'intégration utilisent la base `CeramicWorkshopDB_Tests`. Pour viser un
 autre serveur, définissez la variable `CERAMIPRO_TEST_DB`. Sans serveur joignable,
 ces tests sont ignorés au lieu d'échouer.
+
+Le projet compte **299 tests** : 274 tests unitaires sur les règles métier et
+25 tests d'intégration qui interrogent une vraie base PostgreSQL.
 
 ---
 
@@ -182,3 +270,10 @@ Le rôle « Administrateur » conserve toujours l'intégralité des droits.
 * Documents financiers supprimés logiquement : l'historique reste consultable.
 * Les identifiants PostgreSQL ne sont jamais exposés à l'interface : celle-ci
   ne communique qu'avec l'API.
+* Fichiers déposés contrôlés sur l'extension, le type déclaré **et** le contenu
+  réel ; le nom d'origine n'est jamais réutilisé.
+* En-têtes de sécurité sur chaque réponse (`nosniff`, `DENY`, `no-referrer`).
+* Le contrôle automatique des formulaires ne s'applique qu'aux formulaires :
+  un paramètre de recherche n'est jamais confondu avec un mot de passe.
+* La recherche globale et la lecture des codes ne parcourent que les modules
+  que l'utilisateur a le droit de consulter.

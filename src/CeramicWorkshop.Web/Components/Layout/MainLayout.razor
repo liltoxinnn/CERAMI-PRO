@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ServiceAuthentification Authentification
 @inject NavigationManager Navigation
+@inject ClientApi Api
 
 <div class="application @(_menuOuvert ? "menu-ouvert" : string.Empty)">
     <NavMenu OnNaviguer="FermerMenu" />
@@ -20,7 +21,25 @@
 
             <AuthorizeView>
                 <Authorized>
+                    <form class="entete-recherche" @onsubmit="Chercher" @onsubmit:preventDefault>
+                        <input class="saisie saisie-compacte" type="search" aria-label="Recherche globale"
+                               placeholder="Rechercher dans tout l'atelier…" value="@_recherche"
+                               @oninput="args => _recherche = args.Value?.ToString() ?? string.Empty" />
+                        <button type="submit" class="bouton bouton-discret" title="Chercher"
+                                aria-label="Lancer la recherche">🔎</button>
+                    </form>
+
                     <div class="entete-utilisateur">
+                        <a class="entete-alertes" href="alertes" title="Alertes de l'atelier">
+                            🔔
+                            @if (_alertes > 0)
+                            {
+                                <span class="entete-pastille" aria-label="@($"{_alertes} alerte(s) non lue(s)")">
+                                    @(_alertes > 99 ? "99+" : _alertes.ToString())
+                                </span>
+                            }
+                        </a>
+
                         <div class="entete-identite">
                             <span class="entete-nom">@Session.Profil?.NomComplet</span>
                             <span class="entete-role">@Session.Profil?.RoleNom</span>
@@ -47,10 +66,43 @@
 
 @code {
     private bool _menuOuvert;
+    private string _recherche = string.Empty;
+    private int _alertes;
 
     private SessionUtilisateur Session => Authentification.Session;
 
     protected override void OnInitialized() => Authentification.EtatModifie += Rafraichir;
+
+    protected override async Task OnAfterRenderAsync(bool premierRendu)
+    {
+        if (premierRendu && Session.EstConnecte)
+        {
+            await CompterAlertesAsync();
+        }
+    }
+
+    /// <summary>Nombre d'alertes non lues, affiché dans la cloche de l'en-tête.</summary>
+    private async Task CompterAlertesAsync()
+    {
+        var resume = await Api.ObtenirAsync<ResumeAlertesDto>("api/alertes/resume");
+
+        if (resume.Succes && resume.Valeur is not null)
+        {
+            _alertes = resume.Valeur.NonLues;
+            StateHasChanged();
+        }
+    }
+
+    private void Chercher()
+    {
+        if (string.IsNullOrWhiteSpace(_recherche) || _recherche.Trim().Length < 2)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo($"recherche?terme={Uri.EscapeDataString(_recherche.Trim())}");
+        _recherche = string.Empty;
+    }
 
     private void Rafraichir() => InvokeAsync(StateHasChanged);
 

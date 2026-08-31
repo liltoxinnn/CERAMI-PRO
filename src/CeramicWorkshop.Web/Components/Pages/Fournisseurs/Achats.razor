@@ -1,0 +1,650 @@
+@page "/achats"
+@attribute [Authorize(Policy = PermissionCodes.AchatsConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Achats — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Achats de matières"
+            Introduction="Commandes passées aux fournisseurs. Le stock augmente au moment de la réception.">
+    <Actions>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouvel achat</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un numéro, un fournisseur…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="statut">Statut</label>
+        <select id="statut" class="saisie saisie-compacte" @onchange="FiltrerStatut">
+            <option value="">Tous</option>
+            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<PurchaseStatus>())
+            {
+                <option value="@valeur">@libelle</option>
+            }
+        </select>
+    </div>
+
+    <div class="champ-case">
+        <input type="checkbox" id="impayes" checked="@_filtre.SeulementImpayes" @onchange="BasculerImpayes" />
+        <label for="impayes">Seulement les achats non réglés</label>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des achats…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucun achat ne correspond à ces critères." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Numéro</th><th>Date</th><th>Fournisseur</th><th>Statut</th>
+                <th class="nombre">Total</th><th class="nombre">Reste à payer</th>
+                <th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var achat in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Numéro"><code>@achat.Numero</code></td>
+                    <td data-libelle="Date">@MontantFormatter.FormaterDate(achat.Date.ToLocalTime())</td>
+                    <td data-libelle="Fournisseur">@achat.FournisseurNom</td>
+                    <td data-libelle="Statut">
+                        <span class="etiquette @ClasseStatut(achat.Statut)">@achat.StatutLibelle</span>
+                    </td>
+                    <td class="nombre" data-libelle="Total">@MontantFormatter.Formater(achat.Total)</td>
+                    <td class="nombre" data-libelle="Reste à payer">@MontantFormatter.Formater(achat.Reste)</td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirDetail(achat)">Détail</button>
+
+                        @if (PeutGerer && achat.Statut == PurchaseStatus.Brouillon)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirModification(achat)">Modifier</button>
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => Confirmer(achat)">Confirmer</button>
+                        }
+
+                        @if (PeutGerer && achat.Statut is PurchaseStatus.Confirme or PurchaseStatus.PartiellementRecu)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirReception(achat)">Réceptionner</button>
+                        }
+
+                        @if (PeutGerer && achat.Statut != PurchaseStatus.Annule)
+                        {
+                            <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                    @onclick="() => OuvrirAnnulation(achat)">Annuler</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="AchatDto" Page="_page" Libelle="achat(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true"
+         Titre="@(_creation ? "Nouvel achat" : $"Modifier l'achat {_numeroEnCours}")"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="fournisseur">Fournisseur</label>
+                <InputSelect id="fournisseur" class="saisie" @bind-Value="_formulaire.FournisseurId">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var fournisseur in _fournisseurs)
+                    {
+                        <option value="@fournisseur.Id">@fournisseur.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="reference">Référence de la facture fournisseur</label>
+                <InputText id="reference" class="saisie" @bind-Value="_formulaire.ReferenceFacture" />
+            </div>
+        </div>
+
+        <h3>Matières commandées</h3>
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Matière</th><th>Quantité</th><th>Prix unitaire</th><th>Remise</th><th>Total</th><th></th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _formulaire.Lignes.Count; index++)
+            {
+                var ligne = _formulaire.Lignes[index];
+                var position = index;
+                <tr>
+                    <td data-libelle="Matière">
+                        <select class="saisie" value="@ligne.MatiereId"
+                                @onchange="args => ChoisirMatiere(position, args)">
+                            <option value="0">— Choisir —</option>
+                            @foreach (var matiere in _matieres)
+                            {
+                                <option value="@matiere.Id">@matiere.Nom (@matiere.UniteCode)</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Quantité">
+                        <input type="number" step="0.001" class="saisie" value="@ligne.Quantite"
+                               @onchange="args => DefinirQuantite(position, args)" />
+                    </td>
+                    <td data-libelle="Prix unitaire">
+                        <input type="number" step="0.01" class="saisie" value="@ligne.PrixUnitaire"
+                               @onchange="args => DefinirPrix(position, args)" />
+                    </td>
+                    <td data-libelle="Remise">
+                        <input type="number" step="0.01" class="saisie" value="@ligne.Remise"
+                               @onchange="args => DefinirRemise(position, args)" />
+                    </td>
+                    <td class="nombre" data-libelle="Total">@MontantFormatter.Formater(TotalLigne(ligne))</td>
+                    <td>
+                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                @onclick="() => RetirerLigne(position)">Retirer</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <button type="button" class="bouton bouton-secondaire" @onclick="AjouterLigne">+ Ajouter une matière</button>
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="remise">Remise globale</label>
+                <InputNumber id="remise" class="saisie" @bind-Value="_formulaire.Remise" />
+            </div>
+            <div class="champ">
+                <label for="livraison">Frais de livraison</label>
+                <InputNumber id="livraison" class="saisie" @bind-Value="_formulaire.FraisLivraison" />
+            </div>
+        </div>
+
+        <div class="totaux">
+            <div class="totaux-ligne"><span>Sous-total</span><span>@MontantFormatter.Formater(SousTotal)</span></div>
+            <div class="totaux-ligne"><span>Remise</span><span>− @MontantFormatter.Formater(_formulaire.Remise)</span></div>
+            <div class="totaux-ligne"><span>Livraison</span><span>@MontantFormatter.Formater(_formulaire.FraisLivraison)</span></div>
+            <div class="totaux-ligne total"><span>Total</span><span>@MontantFormatter.Formater(TotalAchat)</span></div>
+        </div>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_detailVisible" Large="true" Titre="@($"Achat {_numeroEnCours}")"
+         OnFermer="() => _detailVisible = false">
+    @if (_detail is not null)
+    {
+        <div class="detail-grille">
+            <div><span class="champ-aide">Fournisseur</span><br /><strong>@_detail.FournisseurNom</strong></div>
+            <div><span class="champ-aide">Date</span><br />@MontantFormatter.FormaterDate(_detail.Date.ToLocalTime())</div>
+            <div><span class="champ-aide">Statut</span><br />@_detail.StatutLibelle</div>
+            <div><span class="champ-aide">Saisi par</span><br />@(_detail.Utilisateur ?? "—")</div>
+        </div>
+
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Matière</th><th class="nombre">Commandé</th><th class="nombre">Reçu</th>
+                <th class="nombre">Prix unitaire</th><th class="nombre">Total</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var ligne in _detail.Lignes)
+            {
+                <tr>
+                    <td data-libelle="Matière">@ligne.MatiereNom</td>
+                    <td class="nombre" data-libelle="Commandé">@MontantFormatter.FormaterQuantite(ligne.Quantite, ligne.UniteCode)</td>
+                    <td class="nombre" data-libelle="Reçu">@MontantFormatter.FormaterQuantite(ligne.QuantiteRecue, ligne.UniteCode)</td>
+                    <td class="nombre" data-libelle="Prix unitaire">@MontantFormatter.Formater(ligne.PrixUnitaire)</td>
+                    <td class="nombre" data-libelle="Total">@MontantFormatter.Formater(ligne.Total)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <div class="totaux">
+            <div class="totaux-ligne"><span>Sous-total</span><span>@MontantFormatter.Formater(_detail.SousTotal)</span></div>
+            <div class="totaux-ligne"><span>Remise</span><span>− @MontantFormatter.Formater(_detail.Remise)</span></div>
+            <div class="totaux-ligne"><span>Livraison</span><span>@MontantFormatter.Formater(_detail.FraisLivraison)</span></div>
+            <div class="totaux-ligne total"><span>Total</span><span>@MontantFormatter.Formater(_detail.Total)</span></div>
+            <div class="totaux-ligne"><span>Déjà réglé</span><span>@MontantFormatter.Formater(_detail.Paye)</span></div>
+            <div class="totaux-ligne"><span>Reste à payer</span><span>@MontantFormatter.Formater(_detail.Reste)</span></div>
+        </div>
+    }
+</Fenetre>
+
+<Fenetre Visible="_receptionVisible" Large="true" Titre="@($"Réception de l'achat {_numeroEnCours}")"
+         OnFermer="() => _receptionVisible = false">
+    @if (_detail is not null)
+    {
+        <EditForm Model="_reception" OnValidSubmit="EnregistrerReception" class="formulaire">
+            <ResumeErreurs Message="@_erreur" Details="_details" />
+
+            <p class="carte-texte">
+                Indiquez les quantités réellement reçues. Elles entrent immédiatement en stock
+                et un lot est créé pour conserver le coût réel.
+            </p>
+
+            <table class="lignes-document">
+                <thead>
+                <tr><th>Matière</th><th class="nombre">Commandé</th><th class="nombre">Déjà reçu</th>
+                    <th>Quantité reçue</th><th>Emplacement</th></tr>
+                </thead>
+                <tbody>
+                @for (var index = 0; index < _reception.Lignes.Count; index++)
+                {
+                    var position = index;
+                    var ligneAchat = _detail.Lignes.First(l => l.Id == _reception.Lignes[position].LigneAchatId);
+                    <tr>
+                        <td data-libelle="Matière">@ligneAchat.MatiereNom</td>
+                        <td class="nombre" data-libelle="Commandé">
+                            @MontantFormatter.FormaterQuantite(ligneAchat.Quantite, ligneAchat.UniteCode)
+                        </td>
+                        <td class="nombre" data-libelle="Déjà reçu">
+                            @MontantFormatter.FormaterQuantite(ligneAchat.QuantiteRecue, ligneAchat.UniteCode)
+                        </td>
+                        <td data-libelle="Quantité reçue">
+                            <input type="number" step="0.001" class="saisie"
+                                   value="@_reception.Lignes[position].QuantiteRecue"
+                                   @onchange="args => DefinirQuantiteRecue(position, args)" />
+                        </td>
+                        <td data-libelle="Emplacement">
+                            <input type="text" class="saisie" value="@_reception.Lignes[position].Emplacement"
+                                   @onchange="args => DefinirEmplacement(position, args)" />
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+
+            <div class="fenetre-actions">
+                <button type="button" class="bouton bouton-secondaire"
+                        @onclick="() => _receptionVisible = false">Annuler</button>
+                <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                    @(_enregistrement ? "Enregistrement…" : "Enregistrer la réception")
+                </button>
+            </div>
+        </EditForm>
+    }
+</Fenetre>
+
+<Fenetre Visible="_annulationVisible" Titre="@($"Annuler l'achat {_numeroEnCours}")"
+         OnFermer="() => _annulationVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <p class="carte-texte">
+        Les quantités déjà reçues seront retirées du stock par des mouvements d'annulation.
+        L'achat reste consultable dans l'historique.
+    </p>
+
+    <div class="champ">
+        <label for="motif">Motif de l'annulation</label>
+        <input id="motif" class="saisie" @bind="_motif" />
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _annulationVisible = false">Revenir</button>
+        <button type="button" class="bouton bouton-danger" disabled="@_enregistrement" @onclick="Annuler">
+            @(_enregistrement ? "Annulation…" : "Confirmer l'annulation")
+        </button>
+    </div>
+</Fenetre>
+
+@code {
+    private PagedResult<AchatDto>? _page;
+    private AchatDto? _detail;
+    private List<FournisseurDto> _fournisseurs = new();
+    private List<MatiereDto> _matieres = new();
+
+    private FiltreAchatsRequete _filtre = new();
+    private AchatRequete _formulaire = new();
+    private ReceptionAchatRequete _reception = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _detailVisible, _receptionVisible, _annulationVisible;
+    private bool _creation, _enregistrement;
+
+    private int _idEnCours;
+    private string _numeroEnCours = string.Empty;
+    private string _motif = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.AchatsGerer);
+
+    private decimal SousTotal => _formulaire.Lignes.Sum(TotalLigne);
+    private decimal TotalAchat => SousTotal - _formulaire.Remise + _formulaire.FraisLivraison;
+
+    private static decimal TotalLigne(LigneAchatRequete ligne)
+        => Math.Round(ligne.Quantite * ligne.PrixUnitaire - ligne.Remise, 2);
+
+    private static string ClasseStatut(PurchaseStatus statut) => statut switch
+    {
+        PurchaseStatus.Recu => "etiquette-succes",
+        PurchaseStatus.Annule => "etiquette-danger",
+        PurchaseStatus.Brouillon => "etiquette-neutre",
+        _ => "etiquette-attention"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var fournisseurs = await Api.ObtenirAsync<PagedResult<FournisseurDto>>("api/fournisseurs?taillePage=200");
+        if (fournisseurs.Succes && fournisseurs.Valeur is not null)
+            _fournisseurs = fournisseurs.Valeur.Elements.ToList();
+
+        var matieres = await Api.ObtenirAsync<PagedResult<MatiereDto>>("api/matieres?taillePage=300");
+        if (matieres.Succes && matieres.Valeur is not null) _matieres = matieres.Valeur.Elements.ToList();
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/achats?page={_filtre.Page}&taillePage={_filtre.TaillePage}" +
+                     $"&seulementImpayes={_filtre.SeulementImpayes}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.Statut is not null) chemin += $"&statut={_filtre.Statut}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<AchatDto>>(chemin);
+
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerStatut(ChangeEventArgs args)
+    {
+        _filtre.Statut = Enum.TryParse<PurchaseStatus>(args.Value?.ToString(), out var statut) ? statut : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerImpayes(ChangeEventArgs args)
+    {
+        _filtre.SeulementImpayes = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _creation = true;
+        _idEnCours = 0;
+        _numeroEnCours = string.Empty;
+        _formulaire = new AchatRequete { Lignes = new List<LigneAchatRequete> { new() } };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirModification(AchatDto achat)
+    {
+        var detail = await Api.ObtenirAsync<AchatDto>($"api/achats/{achat.Id}");
+        if (!detail.Succes || detail.Valeur is null)
+        {
+            Messages.Erreur(detail.Message);
+            return;
+        }
+
+        _creation = false;
+        _idEnCours = achat.Id;
+        _numeroEnCours = achat.Numero;
+        _formulaire = new AchatRequete
+        {
+            FournisseurId = detail.Valeur.FournisseurId,
+            Date = detail.Valeur.Date,
+            Remise = detail.Valeur.Remise,
+            FraisLivraison = detail.Valeur.FraisLivraison,
+            ReferenceFacture = detail.Valeur.ReferenceFacture,
+            Notes = detail.Valeur.Notes,
+            Lignes = detail.Valeur.Lignes.Select(l => new LigneAchatRequete
+            {
+                MatiereId = l.MatiereId,
+                UniteId = l.UniteId,
+                Quantite = l.Quantite,
+                PrixUnitaire = l.PrixUnitaire,
+                Remise = l.Remise,
+                Notes = l.Notes
+            }).ToList()
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task OuvrirDetail(AchatDto achat)
+    {
+        var detail = await Api.ObtenirAsync<AchatDto>($"api/achats/{achat.Id}");
+        if (!detail.Succes) { Messages.Erreur(detail.Message); return; }
+
+        _detail = detail.Valeur;
+        _numeroEnCours = achat.Numero;
+        _detailVisible = true;
+    }
+
+    private async Task OuvrirReception(AchatDto achat)
+    {
+        var detail = await Api.ObtenirAsync<AchatDto>($"api/achats/{achat.Id}");
+        if (!detail.Succes || detail.Valeur is null) { Messages.Erreur(detail.Message); return; }
+
+        _detail = detail.Valeur;
+        _idEnCours = achat.Id;
+        _numeroEnCours = achat.Numero;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _reception = new ReceptionAchatRequete
+        {
+            Lignes = _detail.Lignes.Select(l => new LigneReceptionRequete
+            {
+                LigneAchatId = l.Id,
+                QuantiteRecue = l.Quantite - l.QuantiteRecue
+            }).ToList()
+        };
+        _receptionVisible = true;
+    }
+
+    private void OuvrirAnnulation(AchatDto achat)
+    {
+        _idEnCours = achat.Id;
+        _numeroEnCours = achat.Numero;
+        _motif = string.Empty;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _annulationVisible = true;
+    }
+
+    private void AjouterLigne() => _formulaire.Lignes.Add(new LigneAchatRequete());
+
+    private void RetirerLigne(int position)
+    {
+        if (position >= 0 && position < _formulaire.Lignes.Count)
+        {
+            _formulaire.Lignes.RemoveAt(position);
+        }
+    }
+
+    private void ChoisirMatiere(int position, ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var id)) return;
+
+        var ligne = _formulaire.Lignes[position];
+        ligne.MatiereId = id;
+
+        var matiere = _matieres.FirstOrDefault(m => m.Id == id);
+        if (matiere is not null)
+        {
+            ligne.UniteId = matiere.UniteId;
+            if (ligne.PrixUnitaire == 0) ligne.PrixUnitaire = matiere.PrixDernierAchat;
+        }
+    }
+
+    private void DefinirQuantite(int position, ChangeEventArgs args)
+        => _formulaire.Lignes[position].Quantite = Nombre(args);
+
+    private void DefinirPrix(int position, ChangeEventArgs args)
+        => _formulaire.Lignes[position].PrixUnitaire = Nombre(args);
+
+    private void DefinirRemise(int position, ChangeEventArgs args)
+        => _formulaire.Lignes[position].Remise = Nombre(args);
+
+    private void DefinirQuantiteRecue(int position, ChangeEventArgs args)
+        => _reception.Lignes[position].QuantiteRecue = Nombre(args);
+
+    private void DefinirEmplacement(int position, ChangeEventArgs args)
+        => _reception.Lignes[position].Emplacement = args.Value?.ToString();
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = _creation
+                ? await Api.PosterAsync<AchatDto>("api/achats", _formulaire)
+                : await Api.MettreAJourAsync<AchatDto>($"api/achats/{_idEnCours}", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes(_creation ? "Achat enregistré." : "Achat modifié.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Confirmer(AchatDto achat)
+    {
+        var resultat = await Api.PosterAsync<AchatDto>($"api/achats/{achat.Id}/confirmation");
+
+        if (resultat.Succes)
+        {
+            Messages.Succes($"Achat {achat.Numero} confirmé.");
+            await ChargerAsync();
+        }
+        else
+        {
+            Messages.Erreur(resultat.Message);
+        }
+    }
+
+    private async Task EnregistrerReception()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<AchatDto>($"api/achats/{_idEnCours}/reception", _reception);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes("Réception enregistrée : le stock a été mis à jour.");
+            _receptionVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Annuler()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<AchatDto>($"api/achats/{_idEnCours}/annulation",
+                new { Motif = _motif });
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Achat {_numeroEnCours} annulé.");
+            _annulationVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

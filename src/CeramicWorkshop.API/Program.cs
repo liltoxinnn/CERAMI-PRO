@@ -163,6 +163,20 @@ if (builder.Configuration.GetValue("BaseDeDonnees:MigrerAuDemarrage", true))
 
         journal.LogInformation("Base de données « CeramicWorkshopDB » prête.");
     }
+    catch (Npgsql.NpgsqlException ex)
+    {
+        // Cas de loin le plus courant au premier démarrage : le serveur
+        // PostgreSQL n'est pas lancé, ou les identifiants sont incorrects.
+        // Un message clair évite d'avoir à déchiffrer une trace technique.
+        journal.LogError(
+            "Le serveur PostgreSQL est injoignable.\n" +
+            "  · Vérifiez qu'il est démarré (sous Linux : sudo systemctl start postgresql).\n" +
+            "  · Vérifiez le nom de la base, l'utilisateur et le mot de passe dans\n" +
+            "    « ConnectionStrings:CeramicWorkshopDB ».\n" +
+            "  Détail technique : {Detail}", ex.Message);
+
+        return 1;
+    }
     catch (Exception ex)
     {
         journal.LogError(ex, "Impossible de préparer la base de données au démarrage.");
@@ -170,6 +184,7 @@ if (builder.Configuration.GetValue("BaseDeDonnees:MigrerAuDemarrage", true))
     }
 }
 
+app.UseMiddleware<EntetesSecuriteMiddleware>();
 app.UseMiddleware<GestionExceptionsMiddleware>();
 
 app.UseRequestLocalization(new RequestLocalizationOptions
@@ -194,12 +209,18 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// Photos des produits et justificatifs déposés par l'atelier.
+app.UseStaticFiles();
+
 app.UseCors(PolitiqueCors);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 await app.RunAsync();
+
+return 0;
 
 /// <summary>Rend la classe de démarrage visible pour les tests d'intégration.</summary>
 public partial class Program;

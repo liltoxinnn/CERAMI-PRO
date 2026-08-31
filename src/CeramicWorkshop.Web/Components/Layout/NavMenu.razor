@@ -36,7 +36,7 @@
     </ul>
 
     <p class="menu-note">
-        Les autres modules (stock, production, ventes…) s'ajouteront ici au fil des prochaines étapes.
+        Un doute sur un écran ? La recherche en haut de page retrouve n'importe quelle fiche.
     </p>
 </nav>
 
@@ -51,13 +51,62 @@
     {
         new("Atelier", new List<ElementMenu>
         {
-            new("Tableau de bord", "", "🏠")
+            new("Tableau de bord", "", "🏠"),
+            new("Scanner un code", "scanner", "📷"),
+            new("Alertes", "alertes", "🔔"),
+            new("Recherche", "recherche", "🔎")
+        }),
+        new("Stock", new List<ElementMenu>
+        {
+            new("Matières premières", "stock/matieres", "🧱", PermissionCodes.MatieresConsulter),
+            new("Mouvements de stock", "stock/mouvements", "🔄", PermissionCodes.MouvementsConsulter)
+        }),
+        new("Production", new List<ElementMenu>
+        {
+            new("Ordres de production", "production", "🏭", PermissionCodes.ProductionConsulter),
+            new("Tableau de production", "production/tableau", "📋", PermissionCodes.ProductionConsulter),
+            new("Cuissons", "production/cuissons", "🔥", PermissionCodes.CuissonConsulter),
+            new("Décoration", "production/decoration", "🎨", PermissionCodes.DecorationConsulter),
+            new("Contrôle qualité", "production/qualite", "🔍", PermissionCodes.QualiteConsulter)
+        }),
+        new("Produits", new List<ElementMenu>
+        {
+            new("Catalogue", "produits", "🏺", PermissionCodes.ProduitsConsulter),
+            new("Recettes", "recettes", "🧪", PermissionCodes.RecettesConsulter),
+            new("Étiquettes", "etiquettes", "🏷️", PermissionCodes.ProduitsConsulter)
+        }),
+        new("Clients", new List<ElementMenu>
+        {
+            new("Clients", "clients", "👥", PermissionCodes.ClientsConsulter),
+            new("Commandes personnalisées", "commandes", "🎨", PermissionCodes.CommandesConsulter),
+            new("Dettes clients", "clients/dettes", "⚠️", PermissionCodes.ClientsConsulter)
+        }),
+        new("Ventes", new List<ElementMenu>
+        {
+            new("Nouvelle vente", "ventes/nouvelle", "🛒", PermissionCodes.VentesCreer),
+            new("Historique des ventes", "ventes", "📑", PermissionCodes.VentesConsulter),
+            new("Factures", "factures", "📄", PermissionCodes.FacturesConsulter),
+            new("Paiements", "paiements", "💳", PermissionCodes.PaiementsConsulter)
+        }),
+        new("Fournisseurs", new List<ElementMenu>
+        {
+            new("Fournisseurs", "fournisseurs", "🚚", PermissionCodes.FournisseursConsulter),
+            new("Achats", "achats", "📦", PermissionCodes.AchatsConsulter)
+        }),
+        new("Gestion", new List<ElementMenu>
+        {
+            new("Dépenses", "depenses", "💸", PermissionCodes.DepensesConsulter),
+            new("Rapports", "rapports", "📊", PermissionCodes.RapportsConsulter),
+            new("Calculateurs", "calculateurs", "🧮")
         }),
         new("Administration", new List<ElementMenu>
         {
             new("Utilisateurs", "utilisateurs", "👤", PermissionCodes.UtilisateursConsulter),
             new("Rôles et droits", "roles", "🔐", PermissionCodes.UtilisateursConsulter),
-            new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter)
+            new("Listes de référence", "parametres/listes", "🗂️", PermissionCodes.MatieresConsulter),
+            new("Paramètres", "parametres", "⚙️", PermissionCodes.ParametresConsulter),
+            new("Réglages des alertes", "alertes/reglages", "🔕", PermissionCodes.ParametresConsulter),
+            new("Sauvegardes", "sauvegardes", "💾", PermissionCodes.SauvegardeGerer)
         })
     };
 

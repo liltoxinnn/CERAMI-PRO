@@ -5,113 +5,112 @@
 
 <PageTitle>Tableau de bord — CERAMIPRO</PageTitle>
 
-<h1>Tableau de bord</h1>
-<p class="page-introduction">
-    Bienvenue @Session.Profil?.NomComplet. Vous êtes connecté en tant que
-    <strong>@Session.Profil?.RoleNom</strong>.
-</p>
+<EntetePage Titre="Tableau de bord"
+            Introduction="@($"Bonjour {Session.Profil?.NomComplet}. Voici l'activité de l'atelier.")" />
 
-<section class="grille-cartes">
-    <article class="carte">
-        <h2 class="carte-titre">Votre compte</h2>
-        <dl class="liste-definitions">
-            <dt>Nom d'utilisateur</dt>
-            <dd>@Session.Profil?.NomUtilisateur</dd>
-            <dt>Rôle</dt>
-            <dd>@Session.Profil?.RoleNom</dd>
-            <dt>Droits accordés</dt>
-            <dd>@(Session.Profil?.Droits.Count ?? 0)</dd>
-        </dl>
-        <a class="bouton bouton-secondaire" href="mon-compte">Changer mon mot de passe</a>
-    </article>
+@if (_chargement)
+{
+    <Chargement Message="Chargement du tableau de bord…" />
+}
+else if (_tableau is null)
+{
+    <EtatVide Message="Les indicateurs ne sont pas disponibles pour le moment." />
+}
+else
+{
+    <h2 class="carte-titre">Activité du jour</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@Montant(_tableau.Aujourdhui.ChiffreAffaires)" Libelle="chiffre d'affaires" />
+        <Statistique Valeur="@Montant(_tableau.Aujourdhui.Benefice)" Libelle="bénéfice" />
+        <Statistique Valeur="@_tableau.Aujourdhui.NombreVentes.ToString()" Libelle="ventes" />
+        <Statistique Valeur="@Montant(_tableau.Aujourdhui.PaiementsRecus)" Libelle="paiements reçus" />
+    </div>
 
-    <article class="carte">
-        <h2 class="carte-titre">État du logiciel</h2>
+    <h2 class="carte-titre">Mois en cours</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@Montant(_tableau.Mois.ChiffreAffaires)" Libelle="chiffre d'affaires" />
+        <Statistique Valeur="@Montant(_tableau.Mois.Benefice)" Libelle="marge sur ventes" />
+        <Statistique Valeur="@Montant(_tableau.Mois.Depenses)" Libelle="dépenses" />
+        <Statistique Valeur="@Montant(_tableau.Mois.Resultat)" Libelle="résultat"
+                     Alerte="@(_tableau.Mois.Resultat < 0)" />
+    </div>
 
-        @if (_etat is null)
-        {
-            <Chargement Message="Vérification du serveur…" />
-        }
-        else
-        {
-            <dl class="liste-definitions">
-                <dt>Serveur applicatif</dt>
-                <dd><span class="etiquette etiquette-succes">@_etat.Serveur</span></dd>
-                <dt>Base de données</dt>
-                <dd>
-                    <span class="etiquette @(_etat.BaseDeDonnees == "Connectée" ? "etiquette-succes" : "etiquette-danger")">
-                        @_etat.BaseDeDonnees
-                    </span>
-                </dd>
-                <dt>Mises à jour en attente</dt>
-                <dd>@_etat.MigrationsEnAttente</dd>
-                <dt>Version</dt>
-                <dd>@_etat.Version</dd>
-            </dl>
-        }
+    <div class="grille-graphiques">
+        <GraphiqueBarres Titre="Ventes des 30 derniers jours" Points="_tableau.VentesParJour"
+                         LibellePeriode="Jour" LibelleValeur="Chiffre d'affaires" />
+        <GraphiqueBarres Titre="Ventes des 12 derniers mois" Points="_tableau.VentesParMois"
+                         LibellePeriode="Mois" LibelleValeur="Chiffre d'affaires" />
+        <GraphiqueBarres Titre="Bénéfices des 12 derniers mois" Points="_tableau.BeneficesParMois"
+                         LibellePeriode="Mois" LibelleValeur="Bénéfice" />
+        <GraphiqueBarres Titre="Production des 12 derniers mois" Points="_tableau.ProductionParMois"
+                         Monetaire="false" LibellePeriode="Mois" LibelleValeur="Pièces terminées" />
+    </div>
 
-        @if (_erreurEtat is not null)
-        {
-            <ResumeErreurs Message="@_erreurEtat" />
-        }
-    </article>
+    <h2 class="carte-titre">Production</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_tableau.Production.EnCours.ToString()" Libelle="productions en cours" />
+        <Statistique Valeur="@_tableau.Production.EnSechage.ToString()" Libelle="pièces en séchage" />
+        <Statistique Valeur="@_tableau.Production.EnAttenteCuisson.ToString()" Libelle="en cuisson" />
+        <Statistique Valeur="@_tableau.Production.EnDecoration.ToString()" Libelle="en décoration" />
+        <Statistique Valeur="@_tableau.Production.EnControleQualite.ToString()" Libelle="en contrôle qualité" />
+        <Statistique Valeur="@_tableau.Production.Terminees.ToString()" Libelle="productions terminées" />
+        <Statistique Valeur="@_tableau.Production.EnRetard.ToString()" Libelle="productions en retard"
+                     Alerte="@(_tableau.Production.EnRetard > 0)" />
+    </div>
 
-    <article class="carte carte-pleine-largeur">
-        <h2 class="carte-titre">Modules disponibles</h2>
-        <p class="carte-texte">
-            Cette première version met en place la base du logiciel : sécurité, comptes,
-            paramètres de l'atelier et structure complète de la base de données.
-            Les modules métier s'ajouteront ensuite, étape par étape.
-        </p>
+    <h2 class="carte-titre">Commandes</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_tableau.Commandes.EnAttente.ToString()" Libelle="commandes en attente" />
+        <Statistique Valeur="@_tableau.Commandes.EnCours.ToString()" Libelle="commandes en cours" />
+        <Statistique Valeur="@_tableau.Commandes.ProchesEcheance.ToString()" Libelle="échéance proche"
+                     Alerte="@(_tableau.Commandes.ProchesEcheance > 0)" />
+        <Statistique Valeur="@_tableau.Commandes.EnRetard.ToString()" Libelle="commandes en retard"
+                     Alerte="@(_tableau.Commandes.EnRetard > 0)" />
+        <Statistique Valeur="@_tableau.Commandes.PretesALivrer.ToString()" Libelle="prêtes à livrer" />
+    </div>
 
-        <ul class="liste-etapes">
-            <li class="etape etape-terminee">
-                <span class="etape-marque" aria-hidden="true">✔</span>
-                <span><strong>Étape 1 — Fondations.</strong> Connexion sécurisée, utilisateurs, rôles et droits,
-                    paramètres de l'atelier, base de données PostgreSQL.</span>
-            </li>
-            <li class="etape">
-                <span class="etape-marque" aria-hidden="true">2</span>
-                <span><strong>Stock.</strong> Matières premières, unités, fournisseurs, achats et mouvements de stock.</span>
-            </li>
-            <li class="etape">
-                <span class="etape-marque" aria-hidden="true">3</span>
-                <span><strong>Produits.</strong> Catalogue, photos, variantes et recettes de fabrication.</span>
-            </li>
-            <li class="etape">
-                <span class="etape-marque" aria-hidden="true">4</span>
-                <span><strong>Production.</strong> Ordres de production, étapes de fabrication et consommation des matières.</span>
-            </li>
-        </ul>
-    </article>
-</section>
+    <h2 class="carte-titre">Stock</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_tableau.Stock.MatieresFaibles.ToString()" Libelle="matières à réapprovisionner"
+                     Alerte="@(_tableau.Stock.MatieresFaibles > 0)" />
+        <Statistique Valeur="@_tableau.Stock.ProduitsFaibles.ToString()" Libelle="produits finis en alerte"
+                     Alerte="@(_tableau.Stock.ProduitsFaibles > 0)" />
+        <Statistique Valeur="@Montant(_tableau.Stock.ValeurMatieres)" Libelle="valeur des matières" />
+        <Statistique Valeur="@Montant(_tableau.Stock.ValeurProduits)" Libelle="valeur des produits finis" />
+        <Statistique Valeur="@Montant(_tableau.Stock.ValeurTotale)" Libelle="valeur totale du stock" />
+    </div>
+
+    <h2 class="carte-titre">Finances</h2>
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@Montant(_tableau.Finances.ArgentRecu)" Libelle="argent reçu (total)" />
+        <Statistique Valeur="@Montant(_tableau.Finances.CreancesClients)" Libelle="créances clients"
+                     Alerte="@(_tableau.Finances.CreancesClients > 0)" />
+        <Statistique Valeur="@Montant(_tableau.Finances.DettesFournisseurs)" Libelle="dettes fournisseurs"
+                     Alerte="@(_tableau.Finances.DettesFournisseurs > 0)" />
+        <Statistique Valeur="@Montant(_tableau.Finances.DepensesMois)" Libelle="dépenses du mois" />
+    </div>
+
+    <div class="grille-graphiques">
+        <GraphiqueClassement Titre="Produits les plus vendus" Lignes="_tableau.ProduitsLesPlusVendus" />
+        <GraphiqueClassement Titre="Produits les plus rentables" Lignes="_tableau.ProduitsLesPlusRentables" />
+        <GraphiqueClassement Titre="Matières les plus consommées" Lignes="_tableau.MatieresLesPlusConsommees" />
+    </div>
+}
 
 @code {
-    private EtatServeur? _etat;
-    private string? _erreurEtat;
+    private TableauDeBordDto? _tableau;
+    private bool _chargement = true;
 
     private SessionUtilisateur Session => Authentification.Session;
 
+    private static string Montant(decimal valeur) => MontantFormatter.Formater(valeur);
+
     protected override async Task OnInitializedAsync()
     {
-        var resultat = await Api.ObtenirAsync<EtatServeur>("api/sante");
+        var resultat = await Api.ObtenirAsync<TableauDeBordDto>("api/tableau-de-bord");
 
-        if (resultat.Succes)
-        {
-            _etat = resultat.Valeur;
-        }
-        else
-        {
-            _erreurEtat = resultat.Message;
-        }
+        if (resultat.Succes) _tableau = resultat.Valeur;
+
+        _chargement = false;
     }
-
-    /// <summary>État renvoyé par le serveur applicatif.</summary>
-    private sealed record EtatServeur(
-        string Application,
-        string Version,
-        string Serveur,
-        string BaseDeDonnees,
-        int MigrationsEnAttente,
-        DateTime Horodatage);
 }

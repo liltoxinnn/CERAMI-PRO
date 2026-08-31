@@ -1,0 +1,194 @@
+@page "/factures/{Id:int}/impression"
+@layout LayoutImpression
+@attribute [Authorize(Policy = PermissionCodes.FacturesConsulter)]
+@inject ClientApi Api
+@inject IJSRuntime Js
+
+<PageTitle>Facture — CERAMIPRO</PageTitle>
+
+@if (_chargement)
+{
+    <Chargement Message="Préparation de la facture…" />
+}
+else if (_facture is null || _atelier is null)
+{
+    <EtatVide Message="Cette facture est introuvable." />
+}
+else
+{
+    <div class="barre-impression">
+        <button type="button" class="bouton bouton-principal" @onclick="Imprimer">Imprimer / Enregistrer en PDF</button>
+        <a class="bouton bouton-secondaire" href="factures">Retour aux factures</a>
+    </div>
+
+    <article class="document">
+        <header class="document-entete">
+            <div>
+                @if (!string.IsNullOrWhiteSpace(_atelier.CheminLogo))
+                {
+                    <img class="document-logo" src="@_atelier.CheminLogo" alt="@_atelier.NomAtelier" />
+                }
+                <h1 class="document-atelier">@_atelier.NomAtelier</h1>
+                @if (!string.IsNullOrWhiteSpace(_atelier.RaisonSociale))
+                {
+                    <p>@_atelier.RaisonSociale</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_atelier.Adresse))
+                {
+                    <p>@_atelier.Adresse@(string.IsNullOrWhiteSpace(_atelier.Ville) ? "" : $", {_atelier.Ville}")</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_atelier.Telephone))
+                {
+                    <p>Téléphone : @_atelier.Telephone</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_atelier.Email))
+                {
+                    <p>Email : @_atelier.Email</p>
+                }
+            </div>
+
+            <div class="document-identite">
+                <h2>FACTURE</h2>
+                <p class="document-numero">@_facture.Numero</p>
+                <p>Date : @MontantFormatter.FormaterDate(_facture.DateEmission.ToLocalTime())</p>
+                @if (_facture.DateEcheance is not null)
+                {
+                    <p>Échéance : @MontantFormatter.FormaterDate(_facture.DateEcheance.Value.ToLocalTime())</p>
+                }
+                <p class="document-etat">@_facture.StatutLibelle</p>
+            </div>
+        </header>
+
+        <section class="document-client">
+            <h3>Client</h3>
+            <p class="document-client-nom">@_facture.ClientNom</p>
+            @if (!string.IsNullOrWhiteSpace(_facture.VenteNumero))
+            {
+                <p>Vente : @_facture.VenteNumero</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_facture.CommandeNumero))
+            {
+                <p>Commande : @_facture.CommandeNumero</p>
+            }
+        </section>
+
+        <table class="document-lignes">
+            <thead>
+            <tr>
+                <th>Désignation</th>
+                <th class="nombre">Quantité</th>
+                <th class="nombre">Prix unitaire</th>
+                <th class="nombre">Remise</th>
+                <th class="nombre">Total</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var ligne in _facture.Lignes)
+            {
+                <tr>
+                    <td>@ligne.Description</td>
+                    <td class="nombre">@MontantFormatter.FormaterQuantite(ligne.Quantite)</td>
+                    <td class="nombre">@Montant(ligne.PrixUnitaire)</td>
+                    <td class="nombre">@Montant(ligne.Remise)</td>
+                    <td class="nombre">@Montant(ligne.Total)</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <div class="document-totaux">
+            <div><span>Sous-total</span><span>@Montant(_facture.SousTotal)</span></div>
+            <div><span>Remise</span><span>− @Montant(_facture.Remise)</span></div>
+            @if (_facture.Tva > 0)
+            {
+                <div><span>TVA (@_facture.TauxTva.ToString("0.##") %)</span><span>@Montant(_facture.Tva)</span></div>
+            }
+            <div class="document-total"><span>Total</span><span>@Montant(_facture.Total)</span></div>
+            <div><span>Montant payé</span><span>@Montant(_facture.Paye)</span></div>
+            <div class="document-reste"><span>Reste à payer</span><span>@Montant(_facture.Reste)</span></div>
+        </div>
+
+        @if (_paiements.Count > 0)
+        {
+            <section class="document-reglements">
+                <h3>Règlements enregistrés</h3>
+                <table class="document-lignes">
+                    <thead>
+                    <tr><th>Date</th><th>Numéro</th><th>Mode</th><th class="nombre">Montant</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var paiement in _paiements)
+                    {
+                        <tr>
+                            <td>@MontantFormatter.FormaterDate(paiement.Date.ToLocalTime())</td>
+                            <td>@paiement.Numero</td>
+                            <td>@paiement.ModeReglement</td>
+                            <td class="nombre">@Montant(paiement.Montant)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </section>
+        }
+
+        <footer class="document-pied">
+            @if (!string.IsNullOrWhiteSpace(_atelier.PiedDePageFacture))
+            {
+                <p>@_atelier.PiedDePageFacture</p>
+            }
+            <p class="document-mentions">
+                @if (!string.IsNullOrWhiteSpace(_atelier.NumeroIdentificationFiscale))
+                {
+                    <text>NIF : @_atelier.NumeroIdentificationFiscale </text>
+                }
+                @if (!string.IsNullOrWhiteSpace(_atelier.RegistreCommerce))
+                {
+                    <text>· RC : @_atelier.RegistreCommerce </text>
+                }
+                @if (!string.IsNullOrWhiteSpace(_atelier.ArticleImposition))
+                {
+                    <text>· AI : @_atelier.ArticleImposition</text>
+                }
+            </p>
+        </footer>
+    </article>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private FactureDto? _facture;
+    private ParametresAtelierDto? _atelier;
+    private List<PaiementDto> _paiements = new();
+    private bool _chargement = true;
+
+    private string Montant(decimal valeur)
+        => MontantFormatter.Formater(valeur, _atelier?.SymboleDevise ?? "DA", _atelier?.DecimalesDevise ?? 2);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var facture = await Api.ObtenirAsync<FactureDto>($"api/factures/{Id}");
+        if (facture.Succes) _facture = facture.Valeur;
+
+        var parametres = await Api.ObtenirAsync<ParametresAtelierDto>("api/parametres");
+        if (parametres.Succes) _atelier = parametres.Valeur;
+
+        if (_facture is not null)
+        {
+            var paiements = await Api.ObtenirAsync<PagedResult<PaiementDto>>(
+                $"api/paiements?taillePage=50&clientId={_facture.ClientId}");
+
+            if (paiements.Succes && paiements.Valeur is not null)
+            {
+                _paiements = paiements.Valeur.Elements
+                    .Where(p => p.FactureId == Id || p.VenteId == _facture.VenteId
+                                                  || p.CommandeId == _facture.CommandeId)
+                    .ToList();
+            }
+        }
+
+        _chargement = false;
+    }
+
+    private async Task Imprimer() => await Js.InvokeVoidAsync("window.print");
+}

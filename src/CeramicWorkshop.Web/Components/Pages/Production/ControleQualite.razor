@@ -1,0 +1,431 @@
+@page "/production/qualite"
+@attribute [Authorize(Policy = PermissionCodes.QualiteConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Contrôle qualité — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Contrôle qualité"
+            Introduction="Huit points vérifiés avant qu'une pièce rejoigne le stock des produits finis.">
+    <Actions>
+        @if (PeutControler)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouveau contrôle</button>
+        }
+    </Actions>
+</EntetePage>
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher une référence ou une production…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="resultat">Résultat</label>
+        <select id="resultat" class="saisie saisie-compacte" @onchange="FiltrerResultat">
+            <option value="">Tous</option>
+            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<QualityResult>())
+            {
+                <option value="@valeur">@libelle</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des contrôles…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucun contrôle qualité enregistré." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Référence</th><th>Date</th><th>Production</th><th class="nombre">Contrôlées</th>
+                <th class="nombre">Acceptées</th><th class="nombre">Refusées</th><th class="nombre">À retoucher</th>
+                <th>Résultat</th><th>Contrôleur</th><th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var controle in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Référence"><code>@controle.Reference</code></td>
+                    <td data-libelle="Date">@MontantFormatter.FormaterDate(controle.Date.ToLocalTime())</td>
+                    <td data-libelle="Production">@(controle.ProductionNumero ?? "—")</td>
+                    <td class="nombre" data-libelle="Contrôlées">
+                        @MontantFormatter.FormaterQuantite(controle.QuantiteControlee)</td>
+                    <td class="nombre" data-libelle="Acceptées">
+                        @MontantFormatter.FormaterQuantite(controle.QuantiteAcceptee)</td>
+                    <td class="nombre" data-libelle="Refusées">
+                        @MontantFormatter.FormaterQuantite(controle.QuantiteRefusee)</td>
+                    <td class="nombre" data-libelle="À retoucher">
+                        @MontantFormatter.FormaterQuantite(controle.QuantiteARetoucher)</td>
+                    <td data-libelle="Résultat">
+                        <span class="etiquette @ClasseResultat(controle.Resultat)">@controle.ResultatLibelle</span>
+                    </td>
+                    <td data-libelle="Contrôleur">@(controle.Controleur ?? "—")</td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirDetail(controle)">Détail</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="ControleQualiteDto" Page="_page" Libelle="contrôle(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true" Titre="Nouveau contrôle qualité"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="production">Production contrôlée</label>
+                <InputSelect id="production" class="saisie" @bind-Value="_formulaire.ProductionId">
+                    <option value="">— Choisir —</option>
+                    @foreach (var ordre in _productions)
+                    {
+                        <option value="@ordre.Id">@ordre.Numero — @ordre.ProduitNom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="controlees">Pièces contrôlées</label>
+                <InputNumber id="controlees" class="saisie" @bind-Value="_formulaire.QuantiteControlee" />
+            </div>
+            <div class="champ">
+                <label for="acceptees">Pièces conformes</label>
+                <InputNumber id="acceptees" class="saisie" @bind-Value="_formulaire.QuantiteAcceptee" />
+            </div>
+            <div class="champ">
+                <label for="refusees">Pièces refusées</label>
+                <InputNumber id="refusees" class="saisie" @bind-Value="_formulaire.QuantiteRefusee" />
+            </div>
+            <div class="champ">
+                <label for="retouche">Pièces à retoucher</label>
+                <InputNumber id="retouche" class="saisie" @bind-Value="_formulaire.QuantiteARetoucher" />
+            </div>
+        </div>
+
+        <h3>Points contrôlés</h3>
+        <div class="grille-droits">
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.FissuresConformes" /><span>Fissures</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.FormeConforme" /><span>Forme</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.CouleurConforme" /><span>Couleur</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.EmailConforme" /><span>Émail</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.DecorationConforme" /><span>Décoration</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.DimensionsConformes" /><span>Dimensions</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.SurfaceConforme" /><span>Surface</span>
+            </label>
+            <label class="champ-case">
+                <InputCheckbox @bind-Value="_formulaire.CuissonConforme" /><span>Cuisson</span>
+            </label>
+        </div>
+        <p class="champ-aide">Décochez un point pour signaler qu'il n'est pas conforme.</p>
+
+        <h3>Défauts relevés</h3>
+        <table class="lignes-document">
+            <thead>
+            <tr><th>Point</th><th>Gravité</th><th>Solution</th><th>Pièces</th><th>Description</th><th></th></tr>
+            </thead>
+            <tbody>
+            @for (var index = 0; index < _formulaire.Defauts.Count; index++)
+            {
+                var position = index;
+                var defaut = _formulaire.Defauts[position];
+                <tr>
+                    <td data-libelle="Point">
+                        <select class="saisie" value="@defaut.PointControle"
+                                @onchange="args => ChoisirPoint(position, args)">
+                            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<QualityCheckPoint>())
+                            {
+                                <option value="@valeur">@libelle</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Gravité">
+                        <select class="saisie" value="@defaut.Gravite"
+                                @onchange="args => ChoisirGravite(position, args)">
+                            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<IssueSeverity>())
+                            {
+                                <option value="@valeur">@libelle</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Solution">
+                        <select class="saisie" value="@defaut.Solution"
+                                @onchange="args => ChoisirSolution(position, args)">
+                            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<IssueResolution>())
+                            {
+                                <option value="@valeur">@libelle</option>
+                            }
+                        </select>
+                    </td>
+                    <td data-libelle="Pièces">
+                        <input type="number" step="1" class="saisie" value="@defaut.Quantite"
+                               @onchange="args => defaut.Quantite = Nombre(args)" />
+                    </td>
+                    <td data-libelle="Description">
+                        <input type="text" class="saisie" value="@defaut.Description"
+                               @onchange="args => defaut.Description = args.Value?.ToString() ?? string.Empty" />
+                    </td>
+                    <td>
+                        <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                @onclick="() => _formulaire.Defauts.RemoveAt(position)">Retirer</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _formulaire.Defauts.Add(new DefautQualiteRequete())">+ Ajouter un défaut</button>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Enregistrer le contrôle")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_detailVisible" Large="true" Titre="@($"Contrôle {_referenceEnCours}")"
+         OnFermer="() => _detailVisible = false">
+    @if (_detail is not null)
+    {
+        <div class="detail-grille">
+            <div><span class="champ-aide">Résultat</span><br /><strong>@_detail.ResultatLibelle</strong></div>
+            <div><span class="champ-aide">Production</span><br />@(_detail.ProductionNumero ?? "—")</div>
+            <div><span class="champ-aide">Contrôleur</span><br />@(_detail.Controleur ?? "—")</div>
+            <div><span class="champ-aide">Date</span><br />
+                @MontantFormatter.FormaterDateHeure(_detail.Date.ToLocalTime())</div>
+        </div>
+
+        <h3>Points contrôlés</h3>
+        <ul class="liste-points">
+            <li>@Point("Fissures", _detail.FissuresConformes)</li>
+            <li>@Point("Forme", _detail.FormeConforme)</li>
+            <li>@Point("Couleur", _detail.CouleurConforme)</li>
+            <li>@Point("Émail", _detail.EmailConforme)</li>
+            <li>@Point("Décoration", _detail.DecorationConforme)</li>
+            <li>@Point("Dimensions", _detail.DimensionsConformes)</li>
+            <li>@Point("Surface", _detail.SurfaceConforme)</li>
+            <li>@Point("Cuisson", _detail.CuissonConforme)</li>
+        </ul>
+
+        @if (_detail.Defauts.Count > 0)
+        {
+            <h3>Défauts relevés</h3>
+            <div class="tableau-defilant">
+                <table class="tableau">
+                    <thead>
+                    <tr><th>Point</th><th>Gravité</th><th>Solution</th><th class="nombre">Pièces</th>
+                        <th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var defaut in _detail.Defauts)
+                    {
+                        <tr>
+                            <td data-libelle="Point">@defaut.PointControleLibelle</td>
+                            <td data-libelle="Gravité">@defaut.GraviteLibelle</td>
+                            <td data-libelle="Solution">@defaut.SolutionLibelle</td>
+                            <td class="nombre" data-libelle="Pièces">
+                                @MontantFormatter.FormaterQuantite(defaut.Quantite)</td>
+                            <td data-libelle="Description">@defaut.Description</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_detail.Notes))
+        {
+            <p class="carte-texte">@_detail.Notes</p>
+        }
+    }
+</Fenetre>
+
+@code {
+    private PagedResult<ControleQualiteDto>? _page;
+    private ControleQualiteDto? _detail;
+    private List<OrdreProductionDto> _productions = new();
+
+    private FiltreControlesRequete _filtre = new();
+    private ControleQualiteRequete _formulaire = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _detailVisible, _enregistrement;
+    private string _referenceEnCours = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutControler => Authentification.Session.PossedeDroit(PermissionCodes.QualiteControler);
+
+    private static string ClasseResultat(QualityResult resultat) => resultat switch
+    {
+        QualityResult.Conforme => "etiquette-succes",
+        QualityResult.NonConforme => "etiquette-danger",
+        _ => "etiquette-attention"
+    };
+
+    private static string Point(string nom, bool conforme) => conforme ? $"{nom} : conforme" : $"{nom} : NON CONFORME";
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var productions = await Api.ObtenirAsync<PagedResult<OrdreProductionDto>>(
+            "api/production?taillePage=100&seulementEnCours=true");
+        if (productions.Succes && productions.Valeur is not null)
+            _productions = productions.Valeur.Elements.ToList();
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/qualite?page={_filtre.Page}&taillePage={_filtre.TaillePage}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.Resultat is not null) chemin += $"&resultat={_filtre.Resultat}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<ControleQualiteDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerResultat(ChangeEventArgs args)
+    {
+        _filtre.Resultat = Enum.TryParse<QualityResult>(args.Value?.ToString(), out var resultat) ? resultat : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _formulaire = new ControleQualiteRequete();
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private void ChoisirPoint(int position, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<QualityCheckPoint>(args.Value?.ToString(), out var point))
+        {
+            _formulaire.Defauts[position].PointControle = point;
+        }
+    }
+
+    private void ChoisirGravite(int position, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<IssueSeverity>(args.Value?.ToString(), out var gravite))
+        {
+            _formulaire.Defauts[position].Gravite = gravite;
+        }
+    }
+
+    private void ChoisirSolution(int position, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<IssueResolution>(args.Value?.ToString(), out var solution))
+        {
+            _formulaire.Defauts[position].Solution = solution;
+        }
+    }
+
+    private async Task OuvrirDetail(ControleQualiteDto controle)
+    {
+        var resultat = await Api.ObtenirAsync<ControleQualiteDto>($"api/qualite/{controle.Id}");
+
+        if (!resultat.Succes)
+        {
+            Messages.Erreur(resultat.Message);
+            return;
+        }
+
+        _detail = resultat.Valeur;
+        _referenceEnCours = controle.Reference;
+        _detailVisible = true;
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<ControleQualiteDto>("api/qualite", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Contrôle {resultat.Valeur!.Reference} enregistré : {resultat.Valeur.ResultatLibelle}.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

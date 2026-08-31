@@ -1,0 +1,278 @@
+@page "/calculateurs"
+@attribute [Authorize]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+
+<PageTitle>Calculateurs — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Calculateurs"
+            Introduction="Trois outils pour préparer une production : matières, surface et quantités." />
+
+<div class="onglets">
+    <button type="button" class="onglet @(_onglet == "matiere" ? "actif" : "")"
+            @onclick='() => _onglet = "matiere"'>Calculateur de matière</button>
+    <button type="button" class="onglet @(_onglet == "surface" ? "actif" : "")"
+            @onclick='() => _onglet = "surface"'>Calculateur de surface</button>
+    <button type="button" class="onglet @(_onglet == "quantite" ? "actif" : "")"
+            @onclick='() => _onglet = "quantite"'>Calculateur de quantité</button>
+</div>
+
+@if (_onglet == "matiere")
+{
+    <div class="carte">
+        <h2 class="carte-titre">Matières nécessaires pour une production</h2>
+        <p class="carte-texte">
+            Choisissez une recette et le nombre de pièces à fabriquer : le logiciel calcule les
+            quantités nécessaires et les compare au stock disponible.
+        </p>
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="recette">Recette</label>
+                <select id="recette" class="saisie" @onchange="ChoisirRecette">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var recette in _recettes)
+                    {
+                        <option value="@recette.Id">@recette.ProduitNom — @recette.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="champ">
+                <label for="pieces">Nombre de pièces</label>
+                <input id="pieces" type="number" step="1" min="1" class="saisie" value="@_quantiteRecette"
+                       @onchange="args => _quantiteRecette = Nombre(args)" />
+            </div>
+        </div>
+
+        <button type="button" class="bouton bouton-principal" @onclick="CalculerMatieres"
+                disabled="@(_recetteId == 0)">
+            Calculer les matières
+        </button>
+
+        @if (_besoins is not null)
+        {
+            @if (!_besoins.MatieresSuffisantes)
+            {
+                <div class="encart-erreur" role="alert">
+                    <p class="encart-erreur-titre">Matières insuffisantes pour cette production</p>
+                    <ul class="encart-erreur-liste">
+                        @foreach (var manque in _besoins.Besoins.Where(b => !b.Suffisant))
+                        {
+                            <li>
+                                @manque.MatiereNom : il manque
+                                @MontantFormatter.FormaterQuantite(manque.Manquant, manque.UniteCode)
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="tableau-defilant">
+                <table class="tableau">
+                    <thead>
+                    <tr><th>Matière</th><th class="nombre">Nécessaire</th><th class="nombre">Disponible</th>
+                        <th class="nombre">Manquant</th><th class="nombre">Coût</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var besoin in _besoins.Besoins)
+                    {
+                        <tr>
+                            <td data-libelle="Matière">@besoin.MatiereNom</td>
+                            <td class="nombre" data-libelle="Nécessaire">
+                                @MontantFormatter.FormaterQuantite(besoin.QuantiteNecessaire, besoin.UniteCode)</td>
+                            <td class="nombre" data-libelle="Disponible">
+                                @MontantFormatter.FormaterQuantite(besoin.QuantiteDisponible, besoin.UniteCode)</td>
+                            <td class="nombre" data-libelle="Manquant">
+                                @MontantFormatter.FormaterQuantite(besoin.Manquant, besoin.UniteCode)</td>
+                            <td class="nombre" data-libelle="Coût">@MontantFormatter.Formater(besoin.Cout)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="totaux">
+                <div class="totaux-ligne"><span>Coût des matières</span>
+                    <span>@MontantFormatter.Formater(_besoins.CoutMatieres)</span></div>
+                <div class="totaux-ligne total"><span>Coût total estimé</span>
+                    <span>@MontantFormatter.Formater(_besoins.CoutTotal)</span></div>
+                <div class="totaux-ligne"><span>Coût par pièce</span>
+                    <span>@MontantFormatter.Formater(_besoins.CoutUnitaire)</span></div>
+            </div>
+        }
+    </div>
+}
+else if (_onglet == "surface")
+{
+    <div class="carte">
+        <h2 class="carte-titre">Surface à couvrir</h2>
+        <p class="carte-texte">
+            Longueur × largeur, multiplié par le nombre de pièces, avec un pourcentage de perte
+            pour la casse et les chutes.
+        </p>
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="longueur">Longueur (m)</label>
+                <input id="longueur" type="number" step="0.01" class="saisie" value="@_surfaceRequete.Longueur"
+                       @onchange="args => _surfaceRequete.Longueur = Nombre(args)" />
+            </div>
+            <div class="champ">
+                <label for="largeur">Largeur (m)</label>
+                <input id="largeur" type="number" step="0.01" class="saisie" value="@_surfaceRequete.Largeur"
+                       @onchange="args => _surfaceRequete.Largeur = Nombre(args)" />
+            </div>
+            <div class="champ">
+                <label for="nombre-pieces">Nombre de pièces</label>
+                <input id="nombre-pieces" type="number" step="1" min="1" class="saisie"
+                       value="@_surfaceRequete.NombrePieces"
+                       @onchange="args => _surfaceRequete.NombrePieces = (int)Nombre(args)" />
+            </div>
+            <div class="champ">
+                <label for="perte">Perte (%)</label>
+                <input id="perte" type="number" step="0.1" class="saisie"
+                       value="@_surfaceRequete.PourcentagePerte"
+                       @onchange="args => _surfaceRequete.PourcentagePerte = Nombre(args)" />
+            </div>
+        </div>
+
+        <button type="button" class="bouton bouton-principal" @onclick="CalculerSurface">
+            Calculer la surface
+        </button>
+
+        @if (_surface is not null)
+        {
+            <div class="totaux">
+                <div class="totaux-ligne"><span>Surface d'une pièce</span>
+                    <span>@MontantFormatter.FormaterQuantite(_surface.SurfaceUnitaire, "m²")</span></div>
+                <div class="totaux-ligne"><span>Surface totale</span>
+                    <span>@MontantFormatter.FormaterQuantite(_surface.SurfaceTotale, "m²")</span></div>
+                <div class="totaux-ligne"><span>Perte (@_surfaceRequete.PourcentagePerte.ToString("0.##") %)</span>
+                    <span>@MontantFormatter.FormaterQuantite(_surface.Perte, "m²")</span></div>
+                <div class="totaux-ligne total"><span>Surface à prévoir</span>
+                    <span>@MontantFormatter.FormaterQuantite(_surface.SurfaceAvecPerte, "m²")</span></div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="carte">
+        <h2 class="carte-titre">Quantité nécessaire</h2>
+        <p class="carte-texte">
+            Combien d'unités (emballages, plaques, sacs) faut-il pour couvrir un besoin donné ?
+        </p>
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="par-unite">Quantité contenue dans une unité</label>
+                <input id="par-unite" type="number" step="0.001" class="saisie"
+                       value="@_quantiteRequete.QuantiteParUnite"
+                       @onchange="args => _quantiteRequete.QuantiteParUnite = Nombre(args)" />
+            </div>
+            <div class="champ">
+                <label for="souhaitee">Quantité souhaitée</label>
+                <input id="souhaitee" type="number" step="0.001" class="saisie"
+                       value="@_quantiteRequete.QuantiteSouhaitee"
+                       @onchange="args => _quantiteRequete.QuantiteSouhaitee = Nombre(args)" />
+            </div>
+            <div class="champ">
+                <label for="perte-quantite">Perte (%)</label>
+                <input id="perte-quantite" type="number" step="0.1" class="saisie"
+                       value="@_quantiteRequete.PourcentagePerte"
+                       @onchange="args => _quantiteRequete.PourcentagePerte = Nombre(args)" />
+            </div>
+        </div>
+
+        <button type="button" class="bouton bouton-principal" @onclick="CalculerQuantite">
+            Calculer la quantité
+        </button>
+
+        @if (_quantite is not null)
+        {
+            <div class="totaux">
+                <div class="totaux-ligne"><span>Quantité nécessaire</span>
+                    <span>@MontantFormatter.FormaterQuantite(_quantite.QuantiteNecessaire)</span></div>
+                <div class="totaux-ligne"><span>Avec la perte</span>
+                    <span>@MontantFormatter.FormaterQuantite(_quantite.QuantiteAvecPerte)</span></div>
+                <div class="totaux-ligne total"><span>Unités à prévoir</span>
+                    <span>@_quantite.UnitesNecessaires</span></div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private string _onglet = "matiere";
+
+    private List<RecetteDto> _recettes = new();
+    private BesoinsRecetteDto? _besoins;
+    private int _recetteId;
+    private decimal _quantiteRecette = 20m;
+
+    private readonly CalculSurfaceRequete _surfaceRequete = new()
+    {
+        Longueur = 10m, Largeur = 7.4m, NombrePieces = 1, PourcentagePerte = 10m
+    };
+
+    private readonly CalculQuantiteRequete _quantiteRequete = new()
+    {
+        QuantiteParUnite = 1m, QuantiteSouhaitee = 100m, PourcentagePerte = 5m
+    };
+
+    private CalculSurfaceDto? _surface;
+    private CalculQuantiteDto? _quantite;
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var recettes = await Api.ObtenirAsync<List<RecetteDto>>("api/recettes");
+        if (recettes.Succes && recettes.Valeur is not null) _recettes = recettes.Valeur;
+    }
+
+    private void ChoisirRecette(ChangeEventArgs args)
+    {
+        _recetteId = int.TryParse(args.Value?.ToString(), out var id) ? id : 0;
+        _besoins = null;
+    }
+
+    private async Task CalculerMatieres()
+    {
+        if (_recetteId == 0 || _quantiteRecette <= 0)
+        {
+            Messages.Avertissement("Choisissez une recette et indiquez le nombre de pièces.");
+            return;
+        }
+
+        var quantite = _quantiteRecette.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var resultat = await Api.ObtenirAsync<BesoinsRecetteDto>(
+            $"api/recettes/{_recetteId}/besoins?quantite={quantite}");
+
+        if (resultat.Succes) _besoins = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+    }
+
+    private async Task CalculerSurface()
+    {
+        var resultat = await Api.PosterAsync<CalculSurfaceDto>(
+            "api/calculateurs/surface", _surfaceRequete);
+
+        if (resultat.Succes) _surface = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+    }
+
+    private async Task CalculerQuantite()
+    {
+        var resultat = await Api.PosterAsync<CalculQuantiteDto>(
+            "api/calculateurs/quantite", _quantiteRequete);
+
+        if (resultat.Succes) _quantite = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+    }
+}

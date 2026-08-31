@@ -1,0 +1,113 @@
+@* Série unique dans le temps : une barre par période, sans légende (le titre nomme la série). *@
+
+<figure class="graphique">
+    <figcaption class="graphique-entete">
+        <span class="graphique-titre">@Titre</span>
+        <button type="button" class="bouton bouton-discret" @onclick="() => _tableau = !_tableau">
+            @(_tableau ? "Voir le graphique" : "Voir les chiffres")
+        </button>
+    </figcaption>
+
+    @if (Points.Count == 0)
+    {
+        <p class="graphique-vide">Aucune donnée sur cette période.</p>
+    }
+    else if (_tableau)
+    {
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead><tr><th>@LibellePeriode</th><th class="nombre">@LibelleValeur</th></tr></thead>
+                <tbody>
+                @foreach (var point in Points)
+                {
+                    <tr>
+                        <td data-libelle="@LibellePeriode">@point.Etiquette</td>
+                        <td class="nombre" data-libelle="@LibelleValeur">@Formater(point.Valeur)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <svg class="graphique-svg" viewBox="0 0 @Largeur @Hauteur" role="img"
+             aria-label="@($"{Titre} — {Points.Count} période(s)")" preserveAspectRatio="none">
+
+            @* Repères horizontaux discrets : trois niveaux suffisent à situer les valeurs. *@
+            @for (var niveau = 1; niveau <= 3; niveau++)
+            {
+                var y = HauteurTrace - HauteurTrace * niveau / 3f;
+                <line class="graphique-grille" x1="0" y1="@y.ToString(Culture)"
+                      x2="@Largeur" y2="@y.ToString(Culture)" />
+            }
+
+            <line class="graphique-axe" x1="0" y1="@HauteurTrace.ToString(Culture)"
+                  x2="@Largeur" y2="@HauteurTrace.ToString(Culture)" />
+
+            @for (var index = 0; index < Points.Count; index++)
+            {
+                var point = Points[index];
+                var largeurBarre = Math.Max(2f, LargeurEmplacement - EcartBarres);
+                var x = index * LargeurEmplacement;
+                var hauteurBarre = Maximum <= 0 ? 0f : (float)(point.Valeur / Maximum) * (HauteurTrace - 4f);
+                var y = HauteurTrace - hauteurBarre;
+
+                <g class="graphique-barre">
+                    <rect x="@x.ToString(Culture)" y="@y.ToString(Culture)"
+                          width="@largeurBarre.ToString(Culture)" height="@hauteurBarre.ToString(Culture)"
+                          rx="2" ry="2">
+                        <title>@point.Etiquette : @Formater(point.Valeur)</title>
+                    </rect>
+                </g>
+            }
+        </svg>
+
+        <div class="graphique-etiquettes">
+            @for (var index = 0; index < Points.Count; index++)
+            {
+                @* Une étiquette sur N pour éviter le chevauchement sur les longues séries. *@
+                <span class="graphique-etiquette">@(index % Pas == 0 ? Points[index].Etiquette : "")</span>
+            }
+        </div>
+
+        <p class="graphique-resume">
+            Maximum : <strong>@Formater(Points.Max(p => p.Valeur))</strong> ·
+            Total : <strong>@Formater(Points.Sum(p => p.Valeur))</strong>
+        </p>
+    }
+</figure>
+
+@code {
+    private const float Largeur = 600f;
+    private const float Hauteur = 160f;
+    private const float HauteurTrace = 150f;
+    private const float EcartBarres = 2f;
+
+    private static readonly System.Globalization.CultureInfo Culture =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    private bool _tableau;
+
+    [Parameter, EditorRequired] public string Titre { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public IReadOnlyList<PointGraphiqueDto> Points { get; set; }
+        = Array.Empty<PointGraphiqueDto>();
+
+    /// <summary>Affiche les valeurs comme des montants plutôt que des quantités.</summary>
+    [Parameter] public bool Monetaire { get; set; } = true;
+
+    [Parameter] public string LibellePeriode { get; set; } = "Période";
+
+    [Parameter] public string LibelleValeur { get; set; } = "Valeur";
+
+    private decimal Maximum => Points.Count == 0 ? 0m : Math.Max(1m, Points.Max(p => p.Valeur));
+
+    private float LargeurEmplacement => Points.Count == 0 ? Largeur : Largeur / Points.Count;
+
+    /// <summary>Nombre de barres entre deux étiquettes affichées.</summary>
+    private int Pas => Points.Count <= 12 ? 1 : Math.Max(1, Points.Count / 8);
+
+    private string Formater(decimal valeur)
+        => Monetaire ? MontantFormatter.Formater(valeur) : MontantFormatter.FormaterQuantite(valeur);
+}

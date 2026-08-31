@@ -1,0 +1,235 @@
+@page "/production/tableau"
+@attribute [Authorize(Policy = PermissionCodes.ProductionConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Tableau de production — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Tableau de production"
+            Introduction="Toutes les séries en cours, étape par étape, du façonnage au contrôle qualité.">
+    <Actions>
+        <a class="bouton bouton-secondaire" href="production">Liste des productions</a>
+        <button type="button" class="bouton bouton-secondaire" @onclick="ChargerAsync">Actualiser</button>
+    </Actions>
+</EntetePage>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement du tableau…" />
+}
+else if (_colonnes.All(c => c.Ordres.Count == 0))
+{
+    <EtatVide Message="Aucune production en cours. Créez un ordre de production pour démarrer une série.">
+        <a class="bouton bouton-principal" href="production">Aller aux ordres de production</a>
+    </EtatVide>
+}
+else
+{
+    <div class="tableau-etapes">
+        @foreach (var colonne in _colonnes)
+        {
+            <section class="colonne-etape">
+                <header class="colonne-etape-entete">
+                    <span class="colonne-etape-titre">@colonne.EtapeLibelle</span>
+                    <span class="colonne-etape-compte">@colonne.Ordres.Count</span>
+                </header>
+
+                @if (colonne.Ordres.Count == 0)
+                {
+                    <p class="colonne-etape-vide">—</p>
+                }
+                else
+                {
+                    @foreach (var ordre in colonne.Ordres)
+                    {
+                        <article class="carte-production @(ordre.EnRetard ? "en-retard" : "")">
+                            <div class="carte-production-titre">@ordre.ProduitNom</div>
+                            <div class="carte-production-numero"><code>@ordre.Numero</code></div>
+                            <div class="carte-production-details">
+                                @MontantFormatter.FormaterQuantite(ordre.QuantitePrevue) pièce(s)
+                                @if (ordre.QuantiteEndommagee > 0)
+                                {
+                                    <span class="etiquette etiquette-danger">
+                                        @MontantFormatter.FormaterQuantite(ordre.QuantiteEndommagee) cassée(s)
+                                    </span>
+                                }
+                            </div>
+
+                            @if (ordre.DateFinPrevue is not null)
+                            {
+                                <div class="carte-production-echeance">
+                                    Échéance : @MontantFormatter.FormaterDate(ordre.DateFinPrevue.Value.ToLocalTime())
+                                    @if (ordre.EnRetard)
+                                    {
+                                        <span class="etiquette etiquette-danger">En retard</span>
+                                    }
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(ordre.EmployeNom))
+                            {
+                                <div class="carte-production-employe">@ordre.EmployeNom</div>
+                            }
+
+                            @if (PeutAvancer && ordre.Statut != ProductionStatus.Planifie)
+                            {
+                                <button type="button" class="bouton bouton-discret"
+                                        @onclick="() => Avancer(ordre)">Étape suivante →</button>
+                            }
+                            else if (PeutGerer && ordre.Statut == ProductionStatus.Planifie)
+                            {
+                                <a class="bouton bouton-discret" href="production">Lancer…</a>
+                            }
+                        </article>
+                    }
+                }
+            </section>
+        }
+    </div>
+}
+
+<Fenetre Visible="_etapeVisible" Titre="@($"Faire avancer {_numeroEnCours}")"
+         OnFermer="() => _etapeVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <p class="carte-texte">
+        La production passe de « @_etapeActuelle » à l'étape suivante.
+        Indiquez les pièces conformes et celles qui ont été cassées.
+    </p>
+
+    <div class="champ">
+        <label for="nouvelle-etape">Nouvelle étape</label>
+        <select id="nouvelle-etape" class="saisie" @onchange="ChoisirEtape">
+            @foreach (var etape in _etapesPossibles)
+            {
+                <option value="@etape" selected="@(etape == _etape.NouvelleEtape)">@etape.Libelle()</option>
+            }
+        </select>
+    </div>
+
+    <div class="grille-formulaire">
+        <div class="champ">
+            <label for="acceptees">Pièces conformes</label>
+            <input id="acceptees" type="number" step="1" class="saisie" value="@_etape.QuantiteAcceptee"
+                   @onchange="args => _etape.QuantiteAcceptee = Nombre(args)" />
+        </div>
+        <div class="champ">
+            <label for="endommagees">Pièces endommagées</label>
+            <input id="endommagees" type="number" step="1" class="saisie" value="@_etape.QuantiteEndommagee"
+                   @onchange="args => _etape.QuantiteEndommagee = Nombre(args)" />
+        </div>
+    </div>
+
+    <div class="champ">
+        <label for="notes">Notes</label>
+        <textarea id="notes" class="saisie saisie-multiligne" rows="2" @bind="_etape.Notes"></textarea>
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire" @onclick="() => _etapeVisible = false">Annuler</button>
+        <button type="button" class="bouton bouton-principal" disabled="@_enregistrement" @onclick="ChangerEtape">
+            @(_enregistrement ? "Enregistrement…" : "Enregistrer")
+        </button>
+    </div>
+</Fenetre>
+
+@code {
+    private List<ColonneProductionDto> _colonnes = new();
+    private List<ProductionStatus> _etapesPossibles = new();
+    private ChangementEtapeRequete _etape = new();
+
+    private bool _chargement = true;
+    private bool _etapeVisible, _enregistrement;
+    private int _idEnCours;
+    private string _numeroEnCours = string.Empty;
+    private string _etapeActuelle = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.ProductionGerer);
+    private bool PeutAvancer => Authentification.Session.PossedeDroit(PermissionCodes.ProductionChangerEtape);
+
+    private static readonly ProductionStatus[] Sequence =
+    {
+        ProductionStatus.Planifie, ProductionStatus.Preparation, ProductionStatus.Faconnage,
+        ProductionStatus.Sechage, ProductionStatus.PremiereCuisson, ProductionStatus.Decoration,
+        ProductionStatus.CuissonFinale, ProductionStatus.ControleQualite, ProductionStatus.Termine
+    };
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    protected override async Task OnInitializedAsync() => await ChargerAsync();
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var resultat = await Api.ObtenirAsync<List<ColonneProductionDto>>("api/production/tableau");
+
+        if (resultat.Succes && resultat.Valeur is not null) _colonnes = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+
+    private void Avancer(OrdreProductionDto ordre)
+    {
+        _idEnCours = ordre.Id;
+        _numeroEnCours = ordre.Numero;
+        _etapeActuelle = ordre.StatutLibelle;
+
+        var position = Array.IndexOf(Sequence, ordre.Statut);
+        _etapesPossibles = Sequence.Skip(position + 1).ToList();
+
+        _etape = new ChangementEtapeRequete
+        {
+            NouvelleEtape = _etapesPossibles.FirstOrDefault(),
+            QuantiteAcceptee = ordre.QuantitePrevue - ordre.QuantiteEndommagee
+        };
+
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _etapeVisible = true;
+    }
+
+    private void ChoisirEtape(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<ProductionStatus>(args.Value?.ToString(), out var etape))
+        {
+            _etape.NouvelleEtape = etape;
+        }
+    }
+
+    private async Task ChangerEtape()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<OrdreProductionDto>($"api/production/{_idEnCours}/etape", _etape);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Production {_numeroEnCours} : {resultat.Valeur!.StatutLibelle}.");
+            _etapeVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

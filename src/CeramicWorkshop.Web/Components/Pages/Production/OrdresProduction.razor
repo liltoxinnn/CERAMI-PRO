@@ -1,0 +1,733 @@
+@page "/production"
+@attribute [Authorize(Policy = PermissionCodes.ProductionConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+@inject ServiceAuthentification Authentification
+
+<PageTitle>Ordres de production — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Ordres de production"
+            Introduction="Chaque série de pièces, du façonnage au produit fini.">
+    <Actions>
+        <a class="bouton bouton-secondaire" href="production/tableau">Tableau de production</a>
+        @if (PeutGerer)
+        {
+            <button type="button" class="bouton bouton-principal" @onclick="OuvrirCreation">+ Nouvelle production</button>
+        }
+    </Actions>
+</EntetePage>
+
+@if (_synthese is not null)
+{
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_synthese.EnCours.ToString()" Libelle="productions en cours" />
+        <Statistique Valeur="@_synthese.EnSechage.ToString()" Libelle="pièces en séchage" />
+        <Statistique Valeur="@_synthese.EnAttenteCuisson.ToString()" Libelle="en cuisson" />
+        <Statistique Valeur="@_synthese.EnControleQualite.ToString()" Libelle="en contrôle qualité" />
+        <Statistique Valeur="@_synthese.EnRetard.ToString()" Libelle="en retard"
+                     Alerte="@(_synthese.EnRetard > 0)" />
+    </div>
+}
+
+<div class="filtres">
+    <ChampRecherche Valeur="@_filtre.Recherche" Placeholder="Rechercher un numéro ou un produit…"
+                    OnRechercher="Rechercher" />
+
+    <div class="champ">
+        <label for="statut">Étape</label>
+        <select id="statut" class="saisie saisie-compacte" @onchange="FiltrerStatut">
+            <option value="">Toutes</option>
+            @foreach (var (valeur, libelle) in EnumExtensions.Libelles<ProductionStatus>())
+            {
+                <option value="@valeur">@libelle</option>
+            }
+        </select>
+    </div>
+
+    <div class="champ-case">
+        <input type="checkbox" id="en-cours" checked="@_filtre.SeulementEnCours" @onchange="BasculerEnCours" />
+        <label for="en-cours">Seulement les productions en cours</label>
+    </div>
+
+    <div class="champ-case">
+        <input type="checkbox" id="retard" checked="@_filtre.SeulementEnRetard" @onchange="BasculerRetard" />
+        <label for="retard">Seulement les retards</label>
+    </div>
+</div>
+
+@if (_chargement)
+{
+    <Chargement Message="Chargement des productions…" />
+}
+else if (_page is null || _page.Elements.Count == 0)
+{
+    <EtatVide Message="Aucune production ne correspond à ces critères." />
+}
+else
+{
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Numéro</th><th>Produit</th><th>Étape</th><th>Priorité</th>
+                <th class="nombre">Prévu</th><th class="nombre">Terminé</th><th class="nombre">Endommagé</th>
+                <th>Échéance</th><th class="colonne-actions">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var ordre in _page.Elements)
+            {
+                <tr>
+                    <td data-libelle="Numéro"><code>@ordre.Numero</code></td>
+                    <td data-libelle="Produit">@ordre.ProduitNom</td>
+                    <td data-libelle="Étape">
+                        <span class="etiquette @ClasseEtape(ordre.Statut)">@ordre.StatutLibelle</span>
+                    </td>
+                    <td data-libelle="Priorité">@ordre.PrioriteLibelle</td>
+                    <td class="nombre" data-libelle="Prévu">@MontantFormatter.FormaterQuantite(ordre.QuantitePrevue)</td>
+                    <td class="nombre" data-libelle="Terminé">@MontantFormatter.FormaterQuantite(ordre.QuantiteTerminee)</td>
+                    <td class="nombre" data-libelle="Endommagé">@MontantFormatter.FormaterQuantite(ordre.QuantiteEndommagee)</td>
+                    <td data-libelle="Échéance">
+                        @if (ordre.DateFinPrevue is null)
+                        {
+                            <text>—</text>
+                        }
+                        else if (ordre.EnRetard)
+                        {
+                            <span class="etiquette etiquette-danger">
+                                @MontantFormatter.FormaterDate(ordre.DateFinPrevue.Value.ToLocalTime())
+                            </span>
+                        }
+                        else
+                        {
+                            @MontantFormatter.FormaterDate(ordre.DateFinPrevue.Value.ToLocalTime())
+                        }
+                    </td>
+                    <td class="colonne-actions" data-libelle="Actions">
+                        <button type="button" class="bouton bouton-discret"
+                                @onclick="() => OuvrirDetail(ordre)">Détail</button>
+
+                        @if (PeutGerer && ordre.Statut == ProductionStatus.Planifie)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirLancement(ordre)">Lancer</button>
+                        }
+
+                        @if (PeutAvancer && ordre.Statut != ProductionStatus.Planifie
+                             && ordre.Statut != ProductionStatus.Termine && ordre.Statut != ProductionStatus.Annule)
+                        {
+                            <button type="button" class="bouton bouton-discret"
+                                    @onclick="() => OuvrirEtape(ordre)">Étape suivante</button>
+                        }
+
+                        @if (PeutGerer && ordre.Statut != ProductionStatus.Termine
+                             && ordre.Statut != ProductionStatus.Annule)
+                        {
+                            <button type="button" class="bouton bouton-discret bouton-discret-danger"
+                                    @onclick="() => OuvrirAnnulation(ordre)">Annuler</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination TElement="OrdreProductionDto" Page="_page" Libelle="production(s)" OnChangerPage="ChangerPage" />
+}
+
+<Fenetre Visible="_formulaireVisible" Large="true" Titre="Nouvelle production"
+         OnFermer="() => _formulaireVisible = false">
+    <EditForm Model="_formulaire" OnValidSubmit="Enregistrer" class="formulaire">
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <div class="grille-formulaire">
+            <div class="champ">
+                <label for="produit">Produit à fabriquer</label>
+                <InputSelect id="produit" class="saisie" @bind-Value="_formulaire.ProduitId">
+                    <option value="0">— Choisir —</option>
+                    @foreach (var produit in _produits)
+                    {
+                        <option value="@produit.Id">@produit.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="quantite">Nombre de pièces</label>
+                <InputNumber id="quantite" class="saisie" @bind-Value="_formulaire.QuantitePrevue" />
+            </div>
+            <div class="champ">
+                <label for="priorite">Priorité</label>
+                <InputSelect id="priorite" class="saisie" @bind-Value="_formulaire.Priorite">
+                    @foreach (var (valeur, libelle) in EnumExtensions.Libelles<Priority>())
+                    {
+                        <option value="@valeur">@libelle</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="employe">Employé responsable</label>
+                <InputSelect id="employe" class="saisie" @bind-Value="_formulaire.EmployeId">
+                    <option value="">Non assigné</option>
+                    @foreach (var employe in _employes)
+                    {
+                        <option value="@employe.Id">@employe.NomComplet</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="champ">
+                <label for="debut">Début prévu</label>
+                <InputDate id="debut" class="saisie" @bind-Value="_formulaire.DateDebutPrevue" />
+            </div>
+            <div class="champ">
+                <label for="fin">Fin prévue</label>
+                <InputDate id="fin" class="saisie" @bind-Value="_formulaire.DateFinPrevue" />
+            </div>
+            <div class="champ">
+                <label for="main-oeuvre">Main-d'œuvre (total)</label>
+                <InputNumber id="main-oeuvre" class="saisie" @bind-Value="_formulaire.CoutMainOeuvre" />
+            </div>
+            <div class="champ">
+                <label for="emballage">Emballage (total)</label>
+                <InputNumber id="emballage" class="saisie" @bind-Value="_formulaire.CoutEmballage" />
+            </div>
+        </div>
+
+        <div class="champ">
+            <label for="notes">Notes</label>
+            <InputTextArea id="notes" class="saisie saisie-multiligne" rows="2" @bind-Value="_formulaire.Notes" />
+        </div>
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _formulaireVisible = false">Annuler</button>
+            <button type="submit" class="bouton bouton-principal" disabled="@_enregistrement">
+                @(_enregistrement ? "Enregistrement…" : "Créer la production")
+            </button>
+        </div>
+    </EditForm>
+</Fenetre>
+
+<Fenetre Visible="_lancementVisible" Large="true" Titre="@($"Lancer la production {_numeroEnCours}")"
+         OnFermer="() => _lancementVisible = false">
+    @if (_detail is not null)
+    {
+        <ResumeErreurs Message="@_erreur" Details="_details" />
+
+        <p class="carte-texte">
+            Les matières ci-dessous vont sortir du stock. Vérifiez les quantités avant de lancer.
+        </p>
+
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Matière</th><th class="nombre">Nécessaire</th><th class="nombre">Coût estimé</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var matiere in _detail.Matieres)
+                {
+                    <tr>
+                        <td data-libelle="Matière">@matiere.MatiereNom</td>
+                        <td class="nombre" data-libelle="Nécessaire">
+                            @MontantFormatter.FormaterQuantite(matiere.QuantitePrevue, matiere.UniteCode)</td>
+                        <td class="nombre" data-libelle="Coût estimé">@MontantFormatter.Formater(matiere.Cout)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (PeutDeroger)
+        {
+            <div class="champ-case">
+                <input type="checkbox" id="forcer" checked="@_lancement.ForcerMalgreStockInsuffisant"
+                       @onchange="args => _lancement.ForcerMalgreStockInsuffisant = args.Value is true" />
+                <label for="forcer">Lancer malgré un stock insuffisant (dérogation)</label>
+            </div>
+
+            @if (_lancement.ForcerMalgreStockInsuffisant)
+            {
+                <div class="champ">
+                    <label for="motif-derogation">Motif de la dérogation</label>
+                    <input id="motif-derogation" class="saisie" @bind="_lancement.MotifDerogation" />
+                </div>
+            }
+        }
+
+        <div class="fenetre-actions">
+            <button type="button" class="bouton bouton-secondaire"
+                    @onclick="() => _lancementVisible = false">Annuler</button>
+            <button type="button" class="bouton bouton-principal" disabled="@_enregistrement" @onclick="Lancer">
+                @(_enregistrement ? "Lancement…" : "Lancer et consommer les matières")
+            </button>
+        </div>
+    }
+</Fenetre>
+
+<Fenetre Visible="_etapeVisible" Titre="@($"Faire avancer {_numeroEnCours}")"
+         OnFermer="() => _etapeVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <div class="champ">
+        <label for="nouvelle-etape">Nouvelle étape</label>
+        <select id="nouvelle-etape" class="saisie" @onchange="args => ChoisirEtape(args)">
+            @foreach (var etape in _etapesPossibles)
+            {
+                <option value="@etape" selected="@(etape == _etape.NouvelleEtape)">@etape.Libelle()</option>
+            }
+        </select>
+    </div>
+
+    <div class="grille-formulaire">
+        <div class="champ">
+            <label for="acceptees">Pièces conformes</label>
+            <input id="acceptees" type="number" step="1" class="saisie" value="@_etape.QuantiteAcceptee"
+                   @onchange="args => _etape.QuantiteAcceptee = Nombre(args)" />
+        </div>
+        <div class="champ">
+            <label for="endommagees">Pièces endommagées</label>
+            <input id="endommagees" type="number" step="1" class="saisie" value="@_etape.QuantiteEndommagee"
+                   @onchange="args => _etape.QuantiteEndommagee = Nombre(args)" />
+        </div>
+    </div>
+
+    <div class="champ">
+        <label for="notes-etape">Notes</label>
+        <textarea id="notes-etape" class="saisie saisie-multiligne" rows="2" @bind="_etape.Notes"></textarea>
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire" @onclick="() => _etapeVisible = false">Annuler</button>
+        <button type="button" class="bouton bouton-principal" disabled="@_enregistrement" @onclick="ChangerEtape">
+            @(_enregistrement ? "Enregistrement…" : "Enregistrer l'étape")
+        </button>
+    </div>
+</Fenetre>
+
+<Fenetre Visible="_detailVisible" Large="true" Titre="@($"Production {_numeroEnCours}")"
+         OnFermer="() => _detailVisible = false">
+    @if (_detail is not null)
+    {
+        <div class="detail-grille">
+            <div><span class="champ-aide">Produit</span><br /><strong>@_detail.ProduitNom</strong></div>
+            <div><span class="champ-aide">Étape</span><br />@_detail.StatutLibelle</div>
+            <div><span class="champ-aide">Quantité prévue</span><br />
+                @MontantFormatter.FormaterQuantite(_detail.QuantitePrevue)</div>
+            <div><span class="champ-aide">Terminées</span><br />
+                @MontantFormatter.FormaterQuantite(_detail.QuantiteTerminee)</div>
+            <div><span class="champ-aide">Endommagées</span><br />
+                @MontantFormatter.FormaterQuantite(_detail.QuantiteEndommagee)</div>
+            <div><span class="champ-aide">Employé</span><br />@(_detail.EmployeNom ?? "Non assigné")</div>
+        </div>
+
+        <h3>Coût de revient</h3>
+        <div class="totaux">
+            <div class="totaux-ligne"><span>Matières</span>
+                <span>@MontantFormatter.Formater(_detail.CoutMatieresReel)</span></div>
+            <div class="totaux-ligne"><span>Main-d'œuvre</span>
+                <span>@MontantFormatter.Formater(_detail.CoutMainOeuvre)</span></div>
+            <div class="totaux-ligne"><span>Cuisson</span>
+                <span>@MontantFormatter.Formater(_detail.CoutCuisson)</span></div>
+            <div class="totaux-ligne"><span>Décoration</span>
+                <span>@MontantFormatter.Formater(_detail.CoutDecoration)</span></div>
+            <div class="totaux-ligne"><span>Emballage</span>
+                <span>@MontantFormatter.Formater(_detail.CoutEmballage)</span></div>
+            <div class="totaux-ligne total"><span>Coût total</span>
+                <span>@MontantFormatter.Formater(_detail.CoutTotal)</span></div>
+            <div class="totaux-ligne"><span>Coût par pièce</span>
+                <span>@MontantFormatter.Formater(_detail.CoutUnitaire)</span></div>
+        </div>
+
+        <h3>Matières</h3>
+        <div class="tableau-defilant">
+            <table class="tableau">
+                <thead>
+                <tr><th>Matière</th><th class="nombre">Prévu</th><th class="nombre">Consommé</th>
+                    <th class="nombre">Coût</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var matiere in _detail.Matieres)
+                {
+                    <tr>
+                        <td data-libelle="Matière">@matiere.MatiereNom</td>
+                        <td class="nombre" data-libelle="Prévu">
+                            @MontantFormatter.FormaterQuantite(matiere.QuantitePrevue, matiere.UniteCode)</td>
+                        <td class="nombre" data-libelle="Consommé">
+                            @MontantFormatter.FormaterQuantite(matiere.QuantiteConsommee, matiere.UniteCode)</td>
+                        <td class="nombre" data-libelle="Coût">@MontantFormatter.Formater(matiere.Cout)</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Historique des étapes</h3>
+        @if (_detail.Etapes.Count == 0)
+        {
+            <EtatVide Message="La production n'a pas encore démarré." />
+        }
+        else
+        {
+            <ol class="chronologie">
+                @foreach (var etape in _detail.Etapes)
+                {
+                    <li>
+                        <strong>@etape.EtapeLibelle</strong>
+                        <span class="champ-aide">
+                            @MontantFormatter.FormaterDateHeure(etape.Debut.ToLocalTime())
+                            @if (etape.Fin is not null)
+                            {
+                                <text> → @MontantFormatter.FormaterDateHeure(etape.Fin.Value.ToLocalTime())</text>
+                            }
+                            @if (etape.Employe is not null)
+                            {
+                                <text> · @etape.Employe</text>
+                            }
+                        </span>
+                        @if (etape.QuantiteEndommagee > 0)
+                        {
+                            <span class="etiquette etiquette-danger">
+                                @MontantFormatter.FormaterQuantite(etape.QuantiteEndommagee) endommagée(s)
+                            </span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(etape.Notes))
+                        {
+                            <p class="carte-texte">@etape.Notes</p>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    }
+</Fenetre>
+
+<Fenetre Visible="_annulationVisible" Titre="@($"Annuler la production {_numeroEnCours}")"
+         OnFermer="() => _annulationVisible = false">
+    <ResumeErreurs Message="@_erreur" Details="_details" />
+
+    <p class="carte-texte">
+        Les matières déjà consommées seront remises en stock. La production reste consultable dans l'historique.
+    </p>
+
+    <div class="champ">
+        <label for="motif">Motif de l'annulation</label>
+        <input id="motif" class="saisie" @bind="_motif" />
+    </div>
+
+    <div class="fenetre-actions">
+        <button type="button" class="bouton bouton-secondaire"
+                @onclick="() => _annulationVisible = false">Revenir</button>
+        <button type="button" class="bouton bouton-danger" disabled="@_enregistrement" @onclick="Annuler">
+            @(_enregistrement ? "Annulation…" : "Confirmer l'annulation")
+        </button>
+    </div>
+</Fenetre>
+
+@code {
+    private PagedResult<OrdreProductionDto>? _page;
+    private SyntheseProductionDto? _synthese;
+    private OrdreProductionDto? _detail;
+    private List<ProduitDto> _produits = new();
+    private List<UtilisateurDto> _employes = new();
+    private List<ProductionStatus> _etapesPossibles = new();
+
+    private FiltreProductionsRequete _filtre = new();
+    private OrdreProductionRequete _formulaire = new();
+    private LancementProductionRequete _lancement = new();
+    private ChangementEtapeRequete _etape = new();
+
+    private bool _chargement = true;
+    private bool _formulaireVisible, _lancementVisible, _etapeVisible, _detailVisible, _annulationVisible;
+    private bool _enregistrement;
+
+    private int _idEnCours;
+    private string _numeroEnCours = string.Empty;
+    private string _motif = string.Empty;
+    private string? _erreur;
+    private IReadOnlyList<string> _details = Array.Empty<string>();
+
+    private bool PeutGerer => Authentification.Session.PossedeDroit(PermissionCodes.ProductionGerer);
+    private bool PeutAvancer => Authentification.Session.PossedeDroit(PermissionCodes.ProductionChangerEtape);
+    private bool PeutDeroger => Authentification.Session.PossedeDroit(PermissionCodes.ProductionDeroger);
+
+    private static readonly ProductionStatus[] Sequence =
+    {
+        ProductionStatus.Planifie, ProductionStatus.Preparation, ProductionStatus.Faconnage,
+        ProductionStatus.Sechage, ProductionStatus.PremiereCuisson, ProductionStatus.Decoration,
+        ProductionStatus.CuissonFinale, ProductionStatus.ControleQualite, ProductionStatus.Termine
+    };
+
+    private static string ClasseEtape(ProductionStatus statut) => statut switch
+    {
+        ProductionStatus.Termine => "etiquette-succes",
+        ProductionStatus.Annule => "etiquette-danger",
+        ProductionStatus.Planifie => "etiquette-neutre",
+        _ => "etiquette-attention"
+    };
+
+    private static decimal Nombre(ChangeEventArgs args)
+        => decimal.TryParse(args.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var valeur)
+            ? valeur
+            : 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var produits = await Api.ObtenirAsync<PagedResult<ProduitDto>>("api/produits?taillePage=300");
+        if (produits.Succes && produits.Valeur is not null) _produits = produits.Valeur.Elements.ToList();
+
+        var employes = await Api.ObtenirAsync<PagedResult<UtilisateurDto>>("api/utilisateurs?taillePage=100");
+        if (employes.Succes && employes.Valeur is not null)
+            _employes = employes.Valeur.Elements.Where(u => u.Actif).ToList();
+
+        await ChargerAsync();
+    }
+
+    private async Task ChargerAsync()
+    {
+        _chargement = true;
+
+        var chemin = $"api/production?page={_filtre.Page}&taillePage={_filtre.TaillePage}" +
+                     $"&seulementEnCours={_filtre.SeulementEnCours}&seulementEnRetard={_filtre.SeulementEnRetard}";
+
+        if (!string.IsNullOrWhiteSpace(_filtre.Recherche))
+            chemin += $"&recherche={Uri.EscapeDataString(_filtre.Recherche)}";
+        if (_filtre.Statut is not null) chemin += $"&statut={_filtre.Statut}";
+
+        var resultat = await Api.ObtenirAsync<PagedResult<OrdreProductionDto>>(chemin);
+        if (resultat.Succes) _page = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        var synthese = await Api.ObtenirAsync<SyntheseProductionDto>("api/production/synthese");
+        if (synthese.Succes) _synthese = synthese.Valeur;
+
+        _chargement = false;
+    }
+
+    private async Task Rechercher(string texte)
+    {
+        _filtre.Recherche = texte;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task FiltrerStatut(ChangeEventArgs args)
+    {
+        _filtre.Statut = Enum.TryParse<ProductionStatus>(args.Value?.ToString(), out var statut) ? statut : null;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerEnCours(ChangeEventArgs args)
+    {
+        _filtre.SeulementEnCours = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task BasculerRetard(ChangeEventArgs args)
+    {
+        _filtre.SeulementEnRetard = args.Value is true;
+        _filtre.Page = 1;
+        await ChargerAsync();
+    }
+
+    private async Task ChangerPage(int page)
+    {
+        _filtre.Page = page;
+        await ChargerAsync();
+    }
+
+    private void OuvrirCreation()
+    {
+        _formulaire = new OrdreProductionRequete
+        {
+            Priorite = Priority.Normale,
+            DateDebutPrevue = DateTime.Today,
+            DateFinPrevue = DateTime.Today.AddDays(7)
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _formulaireVisible = true;
+    }
+
+    private async Task<OrdreProductionDto?> ChargerDetailAsync(int id)
+    {
+        var resultat = await Api.ObtenirAsync<OrdreProductionDto>($"api/production/{id}");
+
+        if (!resultat.Succes)
+        {
+            Messages.Erreur(resultat.Message);
+            return null;
+        }
+
+        return resultat.Valeur;
+    }
+
+    private async Task OuvrirDetail(OrdreProductionDto ordre)
+    {
+        _detail = await ChargerDetailAsync(ordre.Id);
+        if (_detail is null) return;
+
+        _numeroEnCours = ordre.Numero;
+        _detailVisible = true;
+    }
+
+    private async Task OuvrirLancement(OrdreProductionDto ordre)
+    {
+        _detail = await ChargerDetailAsync(ordre.Id);
+        if (_detail is null) return;
+
+        _idEnCours = ordre.Id;
+        _numeroEnCours = ordre.Numero;
+        _lancement = new LancementProductionRequete();
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _lancementVisible = true;
+    }
+
+    private void OuvrirEtape(OrdreProductionDto ordre)
+    {
+        _idEnCours = ordre.Id;
+        _numeroEnCours = ordre.Numero;
+        var position = Array.IndexOf(Sequence, ordre.Statut);
+        _etapesPossibles = Sequence.Skip(position + 1).ToList();
+        _etape = new ChangementEtapeRequete
+        {
+            NouvelleEtape = _etapesPossibles.FirstOrDefault(),
+            QuantiteAcceptee = ordre.QuantitePrevue - ordre.QuantiteEndommagee
+        };
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _etapeVisible = true;
+    }
+
+    private void OuvrirAnnulation(OrdreProductionDto ordre)
+    {
+        _idEnCours = ordre.Id;
+        _numeroEnCours = ordre.Numero;
+        _motif = string.Empty;
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _annulationVisible = true;
+    }
+
+    private void ChoisirEtape(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<ProductionStatus>(args.Value?.ToString(), out var etape))
+        {
+            _etape.NouvelleEtape = etape;
+        }
+    }
+
+    private async Task Enregistrer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<OrdreProductionDto>("api/production", _formulaire);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Production {resultat.Valeur!.Numero} créée.");
+            _formulaireVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Lancer()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<OrdreProductionDto>(
+                $"api/production/{_idEnCours}/lancement", _lancement);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Production {_numeroEnCours} lancée : matières consommées.");
+            _lancementVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task ChangerEtape()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<OrdreProductionDto>($"api/production/{_idEnCours}/etape", _etape);
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Production {_numeroEnCours} : {resultat.Valeur!.StatutLibelle}.");
+            _etapeVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+
+    private async Task Annuler()
+    {
+        _erreur = null;
+        _details = Array.Empty<string>();
+        _enregistrement = true;
+
+        try
+        {
+            var resultat = await Api.PosterAsync<OrdreProductionDto>(
+                $"api/production/{_idEnCours}/annulation", new { Motif = _motif });
+
+            if (!resultat.Succes)
+            {
+                _erreur = resultat.Message;
+                _details = resultat.Details;
+                return;
+            }
+
+            Messages.Succes($"Production {_numeroEnCours} annulée.");
+            _annulationVisible = false;
+            await ChargerAsync();
+        }
+        finally
+        {
+            _enregistrement = false;
+        }
+    }
+}

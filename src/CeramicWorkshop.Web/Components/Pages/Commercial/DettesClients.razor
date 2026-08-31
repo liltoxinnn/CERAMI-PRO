@@ -1,0 +1,75 @@
+@page "/clients/dettes"
+@attribute [Authorize(Policy = PermissionCodes.ClientsConsulter)]
+@inject ClientApi Api
+@inject ServiceMessages Messages
+
+<PageTitle>Dettes clients — CERAMIPRO</PageTitle>
+
+<EntetePage Titre="Dettes clients"
+            Introduction="Montants restant à encaisser, du plus important au plus faible.">
+    <Actions>
+        <a class="bouton bouton-secondaire" href="clients">Liste des clients</a>
+    </Actions>
+</EntetePage>
+
+@if (_chargement)
+{
+    <Chargement Message="Calcul des soldes…" />
+}
+else if (_dettes.Count == 0)
+{
+    <EtatVide Message="Aucun client ne vous doit d'argent. Tout est réglé." />
+}
+else
+{
+    <div class="bandeau-statistiques">
+        <Statistique Valeur="@_dettes.Count.ToString()" Libelle="clients concernés" Alerte="true" />
+        <Statistique Valeur="@MontantFormatter.Formater(_dettes.Sum(d => d.Reste))"
+                     Libelle="total restant à encaisser" Alerte="true" />
+    </div>
+
+    <div class="tableau-defilant">
+        <table class="tableau">
+            <thead>
+            <tr>
+                <th>Client</th><th>Téléphone</th><th class="nombre">Total dû</th>
+                <th class="nombre">Déjà payé</th><th class="nombre">Reste</th><th>Prochaine échéance</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var dette in _dettes)
+            {
+                <tr>
+                    <td data-libelle="Client">@dette.ClientNom</td>
+                    <td data-libelle="Téléphone">@(dette.Telephone ?? "—")</td>
+                    <td class="nombre" data-libelle="Total dû">@MontantFormatter.Formater(dette.TotalDu)</td>
+                    <td class="nombre" data-libelle="Déjà payé">@MontantFormatter.Formater(dette.TotalPaye)</td>
+                    <td class="nombre" data-libelle="Reste">
+                        <span class="etiquette etiquette-danger">@MontantFormatter.Formater(dette.Reste)</span>
+                    </td>
+                    <td data-libelle="Prochaine échéance">
+                        @(dette.PlusAncienneEcheance is null
+                            ? "—"
+                            : MontantFormatter.FormaterDate(dette.PlusAncienneEcheance.Value.ToLocalTime()))
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<DetteClientDto> _dettes = new();
+    private bool _chargement = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultat = await Api.ObtenirAsync<List<DetteClientDto>>("api/clients/dettes");
+
+        if (resultat.Succes && resultat.Valeur is not null) _dettes = resultat.Valeur;
+        else Messages.Erreur(resultat.Message);
+
+        _chargement = false;
+    }
+}

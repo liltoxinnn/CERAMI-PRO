@@ -27,6 +27,8 @@ builder.Services.AddHttpClient("api", client =>
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 
+builder.Services.AddSingleton(new AdresseServeur(adresseApi.TrimEnd('/')));
+
 builder.Services.AddScoped<SessionUtilisateur>();
 builder.Services.AddScoped<StockageSession>();
 builder.Services.AddScoped<ServiceMessages>();

@@ -152,6 +152,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     }
 
     /// <summary>
+    /// Oublie les modifications en attente : ce qui n'a pas pu être enregistré
+    /// ne doit pas être rejoué lors du prochain enregistrement.
+    /// </summary>
+    public void AnnulerModificationsEnAttente() => ChangeTracker.Clear();
+
+    /// <summary>
     /// Remplit les dates et l'utilisateur responsable, et transforme les suppressions
     /// des documents financiers en suppression logique.
     /// </summary>

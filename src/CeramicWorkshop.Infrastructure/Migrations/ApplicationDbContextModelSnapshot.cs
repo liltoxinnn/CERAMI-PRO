@@ -1960,6 +1960,10 @@ namespace CeramicWorkshop.Infrastructure.Migrations
 
                     b.HasIndex("IsRead", "CreatedAt");
 
+                    b.HasIndex("Type", "EntityName", "EntityId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Notifications_Type_Entite");
+
                     b.ToTable("Notifications", (string)null);
                 });
 
