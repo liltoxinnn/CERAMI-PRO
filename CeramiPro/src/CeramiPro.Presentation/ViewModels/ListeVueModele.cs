@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
+using CeramiPro.Application.Interfaces;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,30 +9,40 @@ namespace CeramiPro.Presentation.ViewModels;
 
 /// <summary>
 /// Base commune à tous les écrans qui présentent une liste : recherche,
-/// pagination, rechargement et sélection.
+/// pagination, rechargement, sélection, saisie, suppression et export.
 ///
 /// Écrire ce comportement une seule fois évite dix-huit variantes
 /// légèrement différentes, et rend la même ergonomie partout.
 /// </summary>
 public abstract partial class ListeVueModele<TElement> : VueModeleBase
 {
-    protected readonly IServiceLangue Langue;
+    protected ListeVueModele(OutilsListe? outils = null) => Outils = outils;
 
-    protected ListeVueModele(IServiceLangue langue, IServiceFormulaire? formulaires = null)
-    {
-        Langue = langue;
-        Formulaires = formulaires;
-        Langue.LangueChangee += RafraichirTextes;
-    }
-
-    /// <summary>Ouvre les fenêtres de saisie ; absent sur les écrans en lecture seule.</summary>
-    protected IServiceFormulaire? Formulaires { get; }
+    /// <summary>Services communs aux listes ; absents sur les écrans en lecture seule.</summary>
+    protected OutilsListe? Outils { get; }
 
     /// <summary>
-    /// Vrai lorsque l'écran sait créer une fiche. Le bouton « Ajouter » ne
-    /// s'affiche que dans ce cas, plutôt que de rester présent sans effet.
+    /// Vue-modèle du formulaire de saisie de cet écran. Un écran qui en
+    /// déclare une gagne automatiquement les boutons « Ajouter » et
+    /// « Modifier » ; les autres restent en consultation.
     /// </summary>
-    public virtual bool PeutAjouter => false;
+    protected virtual Type? TypeFormulaire => null;
+
+    /// <summary>Vrai lorsque l'écran sait créer une fiche.</summary>
+    public virtual bool PeutAjouter => TypeFormulaire is not null && Outils is not null;
+
+    /// <summary>Vrai lorsque l'écran sait rouvrir une fiche existante.</summary>
+    public virtual bool PeutModifier => PeutAjouter;
+
+    /// <summary>
+    /// Vrai lorsque l'écran sait supprimer une fiche. La suppression reste
+    /// refusée par le service métier si la fiche est utilisée ailleurs : ce
+    /// drapeau ne fait qu'afficher le bouton.
+    /// </summary>
+    public virtual bool PeutSupprimer => false;
+
+    /// <summary>L'export est proposé dès qu'un écran a des colonnes et des outils.</summary>
+    public bool PeutExporter => Outils is not null;
 
     /// <summary>Éléments affichés dans le tableau.</summary>
     public ObservableCollection<TElement> Elements { get; } = new();
@@ -61,38 +71,49 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     /// <summary>Vrai quand la recherche n'a rien donné, pour afficher un message.</summary>
     public bool AucunResultat => !ChargementEnCours && Elements.Count == 0;
 
-    public string LibelleRechercher => Langue["action.rechercher"];
-    public string LibelleActualiser => Langue["action.actualiser"];
-    public string LibelleAjouter => Langue["action.ajouter"];
-    public string LibelleModifier => Langue["action.modifier"];
-    public string LibelleSupprimer => Langue["action.supprimer"];
-    public string LibelleAucunResultat => Langue["etat.aucunResultat"];
-
-    /// <summary>Crée la vue-modèle du formulaire de saisie, si l'écran en a un.</summary>
-    protected virtual object? CreerFormulaire(int? id = null) => null;
-
-    /// <summary>Ouvre le formulaire de création, puis recharge la liste.</summary>
-    [RelayCommand]
-    private async Task AjouterAsync()
-    {
-        if (Formulaires is null || CreerFormulaire() is not { } formulaire)
-        {
-            return;
-        }
-
-        if (Formulaires.Afficher(formulaire))
-        {
-            await RafraichirAsync();
-        }
-    }
+    public string LibelleRechercher => "Rechercher";
+    public string LibelleActualiser => "Actualiser";
+    public string LibelleAjouter => "Ajouter";
+    public string LibelleModifier => "Modifier";
+    public string LibelleSupprimer => "Supprimer";
+    public string LibelleExporter => "Exporter";
+    public string LibelleAucunResultat => "Aucun résultat";
 
     /// <summary>Colonnes du tableau, déclarées par chaque écran.</summary>
     public abstract IReadOnlyList<ColonneListe> Colonnes { get; }
 
+    /// <summary>
+    /// Actions propres à l'écran — imprimer un reçu, annuler, enregistrer une
+    /// entrée de stock — qui s'appliquent à la ligne choisie. Vide sur les
+    /// écrans de consultation.
+    /// </summary>
+    public virtual IReadOnlyList<ActionListe> Actions { get; } = Array.Empty<ActionListe>();
+
+    /// <summary>
+    /// Filtres affichés au-dessus du tableau — « seulement le stock faible »,
+    /// « étape de la commande ». Un changement relance la recherche depuis
+    /// la première page.
+    /// </summary>
+    public virtual IReadOnlyList<FiltreListe> Filtres { get; } = Array.Empty<FiltreListe>();
+
+    public bool AFiltres => Filtres.Count > 0;
+
+    /// <summary>À passer aux filtres : relance la recherche depuis la première page.</summary>
+    protected Task FiltreChangeAsync()
+    {
+        Page = 1;
+        return RafraichirAsync();
+    }
+
     /// <summary>Va chercher une page de résultats auprès du service métier.</summary>
     protected abstract Task<PagedResult<TElement>> LireAsync();
 
+    /// <summary>Supprime la fiche choisie ; à redéfinir par les écrans concernés.</summary>
+    protected virtual Task SupprimerElementAsync(int id) => Task.CompletedTask;
+
     public override Task ChargerAsync() => RafraichirAsync();
+
+    // ------------------------------------------------------------- Lecture
 
     [RelayCommand]
     protected async Task RafraichirAsync()
@@ -143,16 +164,368 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
         await RafraichirAsync();
     }
 
-    /// <summary>Redemande l'affichage des libellés après un changement de langue.</summary>
-    protected virtual void RafraichirTextes()
+    // -------------------------------------------------------------- Saisie
+
+    /// <summary>Ouvre le formulaire de création, puis recharge la liste.</summary>
+    [RelayCommand]
+    private Task AjouterAsync() => OuvrirFormulaireAsync(null);
+
+    /// <summary>Rouvre la fiche sélectionnée pour la modifier.</summary>
+    [RelayCommand]
+    private async Task ModifierAsync()
     {
-        OnPropertyChanged(nameof(Titre));
-        OnPropertyChanged(nameof(Introduction));
-        OnPropertyChanged(nameof(LibelleRechercher));
-        OnPropertyChanged(nameof(LibelleActualiser));
-        OnPropertyChanged(nameof(LibelleAjouter));
-        OnPropertyChanged(nameof(LibelleModifier));
-        OnPropertyChanged(nameof(LibelleSupprimer));
-        OnPropertyChanged(nameof(LibelleAucunResultat));
+        if (!PeutModifier)
+        {
+            return;
+        }
+
+        if (IdSelectionne() is not { } id)
+        {
+            Outils?.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        await OuvrirFormulaireAsync(id);
     }
+
+    private async Task OuvrirFormulaireAsync(int? id)
+    {
+        if (Outils is null || TypeFormulaire is null)
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            var enregistre = await Outils.OuvrirFormulaireAsync(TypeFormulaire,
+                id is { } identifiant ? formulaire => formulaire.PreparerModificationAsync(identifiant) : null);
+
+            if (enregistre)
+            {
+                await RafraichirAsync();
+            }
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>
+    /// Ouvre un autre formulaire que celui de l'écran — encaisser un acompte
+    /// sur la commande choisie, par exemple — puis recharge la liste.
+    /// </summary>
+    protected async Task OuvrirFormulaireAsync<TFormulaire>(Func<TFormulaire, Task> preparer)
+        where TFormulaire : class, IFormulaire
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            if (await Outils.OuvrirFormulaireAsync(preparer))
+            {
+                await RafraichirAsync();
+            }
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>
+    /// Ouvre une fenêtre de consultation — fiche client, photos — pour la
+    /// ligne choisie, puis recharge la liste : ce qui a été fait dans la
+    /// fenêtre se voit aussitôt dans le tableau.
+    /// </summary>
+    protected async Task OuvrirFenetreAsync(Func<TElement, VueModeleBase> fenetre)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        Outils.Fenetres.Afficher(fenetre(element));
+        await RafraichirAsync();
+    }
+
+    /// <summary>Supprime la fiche sélectionnée, après confirmation.</summary>
+    [RelayCommand]
+    private async Task SupprimerAsync()
+    {
+        if (!PeutSupprimer || Outils is null)
+        {
+            return;
+        }
+
+        if (IdSelectionne() is not { } id)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        if (!Outils.Dialogue.Confirmer("Voulez-vous vraiment supprimer cet élément ?"))
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            await SupprimerElementAsync(id);
+            await RafraichirAsync();
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    // -------------------------------------------------------------- Export
+
+    [RelayCommand]
+    private Task ExporterExcelAsync() => ExporterAsync(
+        FormatExport.Excel, "Classeur Excel (*.xlsx)|*.xlsx");
+
+    [RelayCommand]
+    private Task ExporterPdfAsync() => ExporterAsync(
+        FormatExport.Pdf, "Document PDF (*.pdf)|*.pdf");
+
+    /// <summary>
+    /// Exporte la liste entière, et non la seule page affichée : c'est ce
+    /// que l'on attend d'un export, et cela évite d'avoir à parcourir les
+    /// pages une par une.
+    /// </summary>
+    private async Task ExporterAsync(FormatExport format, string filtre)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            var tout = await LireToutAsync();
+
+            if (tout.Count == 0)
+            {
+                Outils.Dialogue.Information("Il n'y a rien à exporter pour cette recherche.");
+                return;
+            }
+
+            var lignes = tout.Select(element => (IReadOnlyList<string>)Colonnes
+                .Select(colonne => Texte(element, colonne))
+                .ToList()).ToList();
+
+            var (nomFichier, contenu) = await Outils.Exports.TableauAsync(
+                Titre, Colonnes.Select(c => c.EnTete).ToList(), lignes, format);
+
+            if (Outils.Fichiers.DemanderOuEnregistrer(nomFichier, filtre) is not { } chemin)
+            {
+                return;
+            }
+
+            await File.WriteAllBytesAsync(chemin, contenu);
+
+            if (Outils.Dialogue.Confirmer(
+                    $"Le fichier a été enregistré :\n{chemin}\n\nVoulez-vous l'ouvrir maintenant ?",
+                    "Export terminé"))
+            {
+                Outils.Fichiers.Ouvrir(chemin);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Relit la liste entière, page par page : les services plafonnent la
+    /// taille d'une page, on la parcourt donc jusqu'au bout.
+    ///
+    /// La pagination de l'écran est rétablie ensuite, y compris si l'export
+    /// échoue : l'utilisateur doit retrouver l'affichage qu'il avait.
+    /// </summary>
+    private async Task<IReadOnlyList<TElement>> LireToutAsync()
+    {
+        var taille = TaillePage;
+        var page = Page;
+
+        var tout = new List<TElement>();
+
+        try
+        {
+            TaillePage = TaillePageExport;
+            Page = 1;
+
+            while (tout.Count < LimiteExport)
+            {
+                var resultat = await LireAsync();
+
+                if (resultat.Elements.Count == 0)
+                {
+                    break;
+                }
+
+                tout.AddRange(resultat.Elements);
+
+                if (tout.Count >= resultat.Total)
+                {
+                    break;
+                }
+
+                Page++;
+            }
+        }
+        finally
+        {
+            TaillePage = taille;
+            Page = page;
+        }
+
+        return tout;
+    }
+
+    /// <summary>Taille des pages lues pendant un export.</summary>
+    private const int TaillePageExport = 200;
+
+    /// <summary>
+    /// Au-delà, un export devient illisible et pèse trop lourd ; l'atelier a
+    /// alors intérêt à filtrer sa recherche.
+    /// </summary>
+    public const int LimiteExport = 5000;
+
+    /// <summary>Valeur d'une colonne, mise en forme exactement comme à l'écran.</summary>
+    private static string Texte(TElement element, ColonneListe colonne)
+        => colonne.Formater(element?.GetType().GetProperty(colonne.Propriete)?.GetValue(element));
+
+    // ------------------------------------------------------------ Communs
+
+    /// <summary>
+    /// Identifiant de la ligne choisie. Toutes les fiches de l'atelier
+    /// portent une propriété « Id » : la lire ici évite de redéfinir la même
+    /// méthode dans chacun des dix-huit écrans.
+    /// </summary>
+    protected int? IdSelectionne()
+        => ElementSelectionne?.GetType().GetProperty("Id")?.GetValue(ElementSelectionne) as int?;
+
+    /// <summary>
+    /// Exécute une action métier sur la ligne choisie, puis recharge la
+    /// liste. Écrire ce cheminement une fois évite de répéter dans chaque
+    /// écran la vérification de la sélection, la confirmation et le message
+    /// d'erreur.
+    /// </summary>
+    protected async Task AgirAsync(
+        Func<TElement, Task> action,
+        string? confirmation = null,
+        string? succes = null)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        if (confirmation is not null && !Outils.Dialogue.Confirmer(confirmation))
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            await action(element);
+            await RafraichirAsync();
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+        else if (succes is not null)
+        {
+            Outils.Dialogue.Succes(succes);
+        }
+    }
+
+    /// <summary>
+    /// Comme <see cref="AgirAsync"/>, pour une action qui doit être motivée —
+    /// une annulation, typiquement. Le motif est demandé avant d'agir et
+    /// conservé dans l'historique par le service ; renoncer à le saisir
+    /// abandonne l'action.
+    /// </summary>
+    protected async Task AgirAvecMotifAsync(
+        Func<TElement, string, Task> action, string question, string? succes = null)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is null)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        if (Outils.Dialogue.Demander(question, "Motif") is not { } motif)
+        {
+            return;
+        }
+
+        await AgirAsync(element => action(element, motif), succes: succes);
+    }
+
+    /// <summary>
+    /// Produit un document, demande où l'enregistrer, puis l'ouvre. Tous les
+    /// reçus suivent ce même chemin.
+    /// </summary>
+    protected async Task ImprimerAsync(
+        Func<TElement, Task<byte[]>> document, Func<TElement, string> nomFichier)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            var contenu = await document(element);
+
+            if (Outils.Fichiers.DemanderOuEnregistrer(nomFichier(element), FiltrePdf)
+                is not { } chemin)
+            {
+                return;
+            }
+
+            await File.WriteAllBytesAsync(chemin, contenu);
+            Outils.Fichiers.Ouvrir(chemin);
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>Filtre de la boîte « Enregistrer sous » pour un document imprimable.</summary>
+    protected const string FiltrePdf = "Document PDF (*.pdf)|*.pdf";
 }

@@ -1,77 +1,53 @@
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.ViewModels;
 using CeramiPro.Presentation.ViewModels.Ecrans;
 
 namespace CeramiPro.Presentation.Navigation;
 
 /// <summary>
-/// Menu latéral de l'application, dans l'ordre voulu par l'atelier : on suit
-/// le chemin de la matière première jusqu'à la facture.
+/// Menu latéral : les sept sections de l'atelier, et rien d'autre.
 ///
-/// Les destinations non encore développées valent <c>null</c> : l'entrée
-/// déplie son groupe ou reste inactive plutôt que d'ouvrir un écran vide.
+/// Chaque entrée ouvre un écran réel. Une section n'a de sous-entrées que
+/// lorsqu'elle regroupe des écrans qui servent vraiment à des moments
+/// différents — enregistrer une vente et relire l'historique, par exemple.
 /// </summary>
 public static class CatalogueNavigation
 {
-    public static IReadOnlyList<ElementNavigation> Construire(IServiceLangue langue)
+    public static IReadOnlyList<ElementNavigation> Construire()
     {
-        ElementNavigation Entree(string cle, string icone, Type? destination = null,
-            string? droit = null, IReadOnlyList<ElementNavigation>? enfants = null)
-            => new(langue, cle, icone, destination, droit, enfants);
+        static ElementNavigation Ecran<T>(string libelle, string icone, bool administrateur = false)
+            => new(libelle, icone, typeof(T), administrateur);
 
-        return new List<ElementNavigation>
+        static ElementNavigation Section(string libelle, string icone, params ElementNavigation[] ecrans)
+            => new(libelle, icone, enfants: ecrans);
+
+        return new[]
         {
-            Entree("menu.tableauDeBord", "🏠", typeof(TableauDeBordVueModele)),
+            Ecran<TableauDeBordVueModele>("Tableau de bord", "🏠"),
 
-            Entree("menu.stock", "📦", enfants: new List<ElementNavigation>
-            {
-                Entree("menu.stock.vueGenerale", "📊"),
-                Entree("menu.stock.matieres", "🧱", typeof(MatieresVueModele)),
-                Entree("menu.stock.produitsFinis", "🏺"),
-                Entree("menu.stock.mouvements", "🔄", typeof(MouvementsVueModele)),
-                Entree("menu.stock.alertes", "⚠️")
-            }),
+            Section("Produits", "🏺",
+                Ecran<ProduitsVueModele>("Catalogue", "📖"),
+                Ecran<ProduitsStockVueModele>("Stock", "📦"),
+                Ecran<MouvementsVueModele>("Historique du stock", "🔄"),
+                Ecran<CategoriesProduitsVueModele>("Catégories", "🗂️")),
 
-            Entree("menu.produits", "🏺", enfants: new List<ElementNavigation>
-            {
-                Entree("menu.produits.catalogue", "📖", typeof(ProduitsVueModele)),
-                Entree("menu.produits.categories", "🗂️"),
-                Entree("menu.produits.variantes", "🎨"),
-                Entree("menu.produits.recettes", "🧪")
-            }),
+            Ecran<CommandesVueModele>("Commandes", "📋"),
 
-            Entree("menu.production", "🏭", enfants: new List<ElementNavigation>
-            {
-                Entree("menu.production.ordres", "📋", typeof(ProductionVueModele)),
-                Entree("menu.production.planning", "📅"),
-                Entree("menu.production.enCours", "⚙️"),
-                Entree("menu.production.historique", "🕐")
-            }),
+            Ecran<ClientsVueModele>("Clients", "👥"),
 
-            Entree("menu.cuisson", "🔥", enfants: new List<ElementNavigation>
-            {
-                Entree("menu.cuisson.fours", "🔥"),
-                Entree("menu.cuisson.lots", "📦", typeof(CuissonsVueModele)),
-                Entree("menu.production.historique", "🕐")
-            }),
+            Section("Ventes", "🛒",
+                Ecran<CaisseVueModele>("Nouvelle vente", "🧾"),
+                Ecran<VentesVueModele>("Historique des ventes", "📜"),
+                Ecran<PaiementsVueModele>("Paiements", "💳")),
 
-            Entree("menu.decoration", "🎨", enfants: new List<ElementNavigation>
-            {
-                Entree("menu.decoration.travaux", "🖌️", typeof(DecorationsVueModele)),
-                Entree("menu.decoration.types", "🗂️"),
-                Entree("menu.production.historique", "🕐")
-            }),
+            Section("Rapports", "📊",
+                Ecran<RapportsVueModele>("Rapports", "📈"),
+                Ecran<DepensesVueModele>("Dépenses", "💸")),
 
-            Entree("menu.qualite", "🔍", typeof(QualiteVueModele)),
-            Entree("menu.clients", "👥", typeof(ClientsVueModele)),
-            Entree("menu.commandes", "📋", typeof(CommandesVueModele)),
-            Entree("menu.fournisseurs", "🚚", typeof(FournisseursVueModele)),
-            Entree("menu.ventes", "🛒", typeof(VentesVueModele)),
-            Entree("menu.paiements", "💳", typeof(PaiementsVueModele)),
-            Entree("menu.factures", "📄", typeof(FacturesVueModele)),
-            Entree("menu.depenses", "💸", typeof(DepensesVueModele)),
-            Entree("menu.rapports", "📊"),
-            Entree("menu.parametres", "⚙️")
+            Section("Paramètres", "⚙️",
+                Ecran<ParametresVueModele>("Atelier", "🏛️"),
+                Ecran<CategoriesDepensesVueModele>("Catégories de dépenses", "🗂️"),
+                Ecran<UtilisateursVueModele>("Utilisateurs", "👤", administrateur: true),
+                Ecran<SauvegardeVueModele>("Sauvegarde", "💾", administrateur: true))
         };
     }
 }

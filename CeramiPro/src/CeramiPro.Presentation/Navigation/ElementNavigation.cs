@@ -1,67 +1,42 @@
-using CeramiPro.Application.Localisation;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CeramiPro.Presentation.Navigation;
 
-/// <summary>
-/// Une entrée du menu latéral.
-///
-/// L'entrée ne retient qu'une clé de traduction, jamais un texte figé : c'est
-/// ce qui permet de basculer l'interface en arabe sans reconstruire le menu.
-/// </summary>
+/// <summary>Une entrée du menu latéral.</summary>
 public partial class ElementNavigation : ObservableObject
 {
-    private readonly IServiceLangue _langue;
-
     public ElementNavigation(
-        IServiceLangue langue,
-        string cleLibelle,
+        string libelle,
         string icone,
         Type? destination = null,
-        string? droitRequis = null,
+        bool administrateurSeulement = false,
         IReadOnlyList<ElementNavigation>? enfants = null)
     {
-        _langue = langue;
-        CleLibelle = cleLibelle;
+        Libelle = libelle;
         Icone = icone;
         Destination = destination;
-        DroitRequis = droitRequis;
+        AdministrateurSeulement = administrateurSeulement;
         Enfants = enfants ?? Array.Empty<ElementNavigation>();
     }
 
-    /// <summary>Clé de traduction, par exemple « menu.stock ».</summary>
-    public string CleLibelle { get; }
-
-    /// <summary>Texte affiché, dans la langue courante.</summary>
-    public string Libelle => _langue[CleLibelle];
+    public string Libelle { get; }
 
     public string Icone { get; }
 
-    /// <summary>Vue-modèle ouverte au clic.</summary>
+    /// <summary>Vue-modèle ouverte au clic ; nulle pour un groupe.</summary>
     public Type? Destination { get; }
 
-    /// <summary>Droit nécessaire pour voir cette entrée ; nul si accessible à tous.</summary>
-    public string? DroitRequis { get; }
+    /// <summary>
+    /// Entrée réservée aux administrateurs : comptes et sauvegardes. Le reste
+    /// du logiciel est ouvert à tous les employés de l'atelier.
+    /// </summary>
+    public bool AdministrateurSeulement { get; }
 
     public IReadOnlyList<ElementNavigation> Enfants { get; }
 
     public bool EstGroupe => Enfants.Count > 0;
 
-    /// <summary>
-    /// Un groupe est replié au départ : le menu tient à l'écran sans avoir à
-    /// faire défiler seize rubriques.
-    /// </summary>
+    /// <summary>Un groupe est replié au départ, pour que le menu reste court.</summary>
     [ObservableProperty]
     private bool _estDeplie;
-
-    /// <summary>Redemande l'affichage du libellé après un changement de langue.</summary>
-    public void RafraichirLibelle()
-    {
-        OnPropertyChanged(nameof(Libelle));
-
-        foreach (var enfant in Enfants)
-        {
-            enfant.RafraichirLibelle();
-        }
-    }
 }

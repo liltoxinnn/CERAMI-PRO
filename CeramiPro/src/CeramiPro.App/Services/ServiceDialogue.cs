@@ -1,4 +1,5 @@
 using System.Windows;
+using CeramiPro.App.Vues;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.App.Services;
@@ -26,6 +27,17 @@ public class ServiceDialogue : IServiceDialogue
                message, $"CeramiPro — {titre}",
                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)
            == MessageBoxResult.Yes;
+
+    public string? Demander(string message, string titre = "Précision", string valeurInitiale = "",
+        bool obligatoire = true)
+    {
+        var fenetre = new FenetreSaisie(message, $"CeramiPro — {titre}", valeurInitiale, obligatoire)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        return fenetre.ShowDialog() == true ? fenetre.Valeur : null;
+    }
 
     private static void Afficher(string message, string titre, MessageBoxImage icone)
         => MessageBox.Show(message, $"CeramiPro — {titre}", MessageBoxButton.OK, icone);

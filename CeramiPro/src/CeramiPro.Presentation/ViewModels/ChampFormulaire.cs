@@ -13,7 +13,14 @@ public enum TypeChamp
 }
 
 /// <summary>Une valeur proposée dans une liste déroulante.</summary>
-public record OptionChamp(int Valeur, string Libelle);
+public record OptionChamp(int Valeur, string Libelle)
+{
+    /// <summary>Les valeurs d'une énumération, avec leur libellé français.</summary>
+    public static IReadOnlyList<OptionChamp> De<TEnum>() where TEnum : struct, Enum
+        => Domain.Common.EnumExtensions.Libelles<TEnum>()
+            .Select(e => new OptionChamp(Convert.ToInt32(e.Valeur), e.Libelle))
+            .ToList();
+}
 
 /// <summary>
 /// Un champ d'un formulaire de saisie.

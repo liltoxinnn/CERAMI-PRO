@@ -3,7 +3,6 @@ using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.DTOs.Stock;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Domain.Common;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Sales;
 using CeramiPro.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -104,12 +103,30 @@ public class VenteService : IVenteService
         return Convertir(vente);
     }
 
-    public async Task<VenteDto> EnregistrerAsync(
+    /// <summary>
+    /// Enregistre la vente, la sortie de stock de chaque produit et le
+    /// règlement reçu, en une seule transaction.
+    /// </summary>
+    public Task<VenteDto> EnregistrerAsync(
         VenteRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => EnregistrerVenteAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<VenteDto> EnregistrerVenteAsync(
+        VenteRequete requete, CancellationToken cancellationToken)
     {
         if (requete.Lignes.Count == 0)
         {
             throw new RegleMetierException("Ajoutez au moins un produit à la vente.");
+        }
+
+        if (requete.MontantPaye < 0)
+        {
+            throw new RegleMetierException("Le montant encaissé ne peut pas être négatif.");
+        }
+
+        if (requete.MontantPaye > 0 && requete.ModeReglementId is null)
+        {
+            throw new RegleMetierException("Choisissez le mode de règlement.");
         }
 
         if (requete.ClientId is not null
@@ -124,7 +141,7 @@ public class VenteService : IVenteService
         {
             SaleNumber = await _numerotation.GenererAsync(TypeDocument.Vente, cancellationToken),
             CustomerId = requete.ClientId,
-            SaleDate = requete.Date ?? _horloge.MaintenantUtc,
+            SaleDate = _horloge.JourSaisiVersUtc(requete.Date),
             Status = SaleStatus.Confirmee,
             DiscountAmount = requete.Remise,
             Notes = Nettoyer(requete.Notes),
@@ -147,7 +164,6 @@ public class VenteService : IVenteService
             vente.Items.Add(new SaleItem
             {
                 ProductId = produit.Id,
-                ProductVariantId = ligne.VarianteId,
                 Description = produit.Name,
                 Quantity = ligne.Quantite,
                 UnitPrice = prix,
@@ -172,44 +188,35 @@ public class VenteService : IVenteService
         }
 
         _context.Sales.Add(vente);
-        await _context.SaveChangesAsync(cancellationToken);
 
-        // Le stock des produits finis diminue, mouvement par mouvement.
+        // Le stock des produits finis diminue, mouvement par mouvement. Rien
+        // n'est écrit avant que chaque produit ait été vérifié : la vente,
+        // ses lignes et ses sorties de stock partent ensemble, en une seule
+        // écriture.
         foreach (var ligne in vente.Items)
         {
-            await _inventaire.EnregistrerAsync(new MouvementStockRequete
+            var mouvement = await _inventaire.EnregistrerAsync(new MouvementStockRequete
             {
-                TypeArticle = InventoryItemType.ProduitFini,
                 TypeMouvement = InventoryTransactionType.Vente,
                 ProduitId = ligne.ProductId,
-                VarianteId = ligne.ProductVariantId,
                 Quantite = -ligne.Quantity,
                 CoutUnitaire = ligne.UnitCost,
-                VenteId = vente.Id,
                 Reference = vente.SaleNumber
             }, cancellationToken);
+
+            mouvement.Sale = vente;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-
-        if (requete.EmettreFacture)
-        {
-            await CreerFactureAsync(vente, parametres.DefaultTaxRate, cancellationToken);
-        }
 
         if (requete.MontantPaye > 0)
         {
-            if (requete.ModeReglementId is null)
-            {
-                throw new RegleMetierException("Choisissez le mode de règlement.");
-            }
-
             await _paiements.EnregistrerAsync(new PaiementRequete
             {
                 ClientId = vente.CustomerId,
                 VenteId = vente.Id,
                 Montant = requete.MontantPaye,
-                ModeReglementId = requete.ModeReglementId.Value,
+                ModeReglementId = requete.ModeReglementId!.Value,
                 Date = vente.SaleDate
             }, cancellationToken);
         }
@@ -221,43 +228,17 @@ public class VenteService : IVenteService
         return await ObtenirAsync(vente.Id, cancellationToken);
     }
 
-    /// <summary>Crée la facture correspondant à la vente.</summary>
-    private async Task CreerFactureAsync(Sale vente, decimal tauxTva, CancellationToken cancellationToken)
-    {
-        var facture = new Invoice
-        {
-            InvoiceNumber = await _numerotation.GenererAsync(TypeDocument.Facture, cancellationToken),
-            CustomerId = vente.CustomerId,
-            SaleId = vente.Id,
-            IssueDate = vente.SaleDate,
-            Subtotal = vente.Subtotal,
-            DiscountAmount = vente.DiscountAmount,
-            TaxRate = vente.TaxAmount > 0 ? tauxTva : 0m,
-            TaxAmount = vente.TaxAmount,
-            TotalAmount = vente.TotalAmount,
-            Status = InvoiceStatus.Emise,
-            UserId = _utilisateurCourant.UtilisateurId
-        };
+    /// <summary>
+    /// Annule la vente : les produits reviennent en stock et, si le client
+    /// avait payé, ses règlements sont annulés — tout ou rien.
+    /// </summary>
+    public Task<VenteDto> AnnulerAsync(
+        int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(
+            () => AnnulerVenteAsync(id, motif, rembourser, cancellationToken), cancellationToken);
 
-        foreach (var ligne in vente.Items)
-        {
-            facture.Items.Add(new InvoiceItem
-            {
-                ProductId = ligne.ProductId,
-                Description = ligne.Description,
-                Quantity = ligne.Quantity,
-                UnitPrice = ligne.UnitPrice,
-                DiscountAmount = ligne.DiscountAmount,
-                LineTotal = ligne.LineTotal
-            });
-        }
-
-        _context.Invoices.Add(facture);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task<VenteDto> AnnulerAsync(
-        int id, string motif, CancellationToken cancellationToken = default)
+    private async Task<VenteDto> AnnulerVenteAsync(
+        int id, string motif, bool rembourser, CancellationToken cancellationToken)
     {
         var vente = await ChargerAvecDetails().FirstOrDefaultAsync(v => v.Id == id, cancellationToken)
                     ?? throw IntrouvableException.Pour("Vente", id);
@@ -274,20 +255,23 @@ public class VenteService : IVenteService
 
         if (vente.PaidAmount > 0)
         {
-            throw new RegleMetierException(
-                $"La vente {vente.SaleNumber} a déjà été réglée " +
-                $"({Formatage.Montant(vente.PaidAmount)}). Annulez d'abord les paiements.");
+            if (!rembourser)
+            {
+                throw new RegleMetierException(
+                    $"La vente {vente.SaleNumber} a déjà été réglée " +
+                    $"({Formatage.Montant(vente.PaidAmount)}) : l'annuler suppose de rembourser le client.");
+            }
+
+            await Remboursement.AnnulerPaiementsAsync(
+                _context, p => p.SaleId == vente.Id, $"Remboursé à l'annulation de la vente : {motif.Trim()}",
+                cancellationToken);
+
+            vente.PaidAmount = 0m;
         }
 
         // Les produits reviennent en stock (règle métier n°6).
-        await _inventaire.AnnulerDocumentAsync(null, vente.Id, null,
+        await _inventaire.AnnulerDocumentAsync(vente.Id, null,
             $"Annulation de la vente {vente.SaleNumber} : {motif.Trim()}", cancellationToken);
-
-        foreach (var facture in await _context.Invoices
-                     .Where(f => f.SaleId == vente.Id).ToListAsync(cancellationToken))
-        {
-            facture.Status = InvoiceStatus.Annulee;
-        }
 
         vente.Status = SaleStatus.Annulee;
         vente.Notes = string.IsNullOrWhiteSpace(vente.Notes)
@@ -306,18 +290,17 @@ public class VenteService : IVenteService
         => _context.Sales
             .Include(v => v.Customer)
             .Include(v => v.User)
-            .Include(v => v.Invoices)
             .Include(v => v.Items).ThenInclude(i => i.Product);
 
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 
-    private static VenteDto Convertir(Sale v) => new(
+    private VenteDto Convertir(Sale v) => new(
         v.Id,
         v.SaleNumber,
         v.CustomerId,
         v.Customer?.FullName ?? "Client de passage",
-        v.SaleDate,
+        _horloge.EnHeureAtelier(v.SaleDate),
         v.Status,
         v.Status.Libelle(),
         v.Subtotal,
@@ -330,8 +313,7 @@ public class VenteService : IVenteService
         Math.Round(v.TotalAmount - v.TaxAmount - v.TotalCost, 2),
         v.Notes,
         v.User?.FullName,
-        v.Invoices.FirstOrDefault(f => f.Status != InvoiceStatus.Annulee)?.InvoiceNumber,
         v.Items.Select(i => new LigneVenteDto(
-            i.Id, i.ProductId, i.Product.Name, i.Product.Reference, i.ProductVariantId,
+            i.Id, i.ProductId, i.Product.Name, i.Product.Reference,
             i.Description, i.Quantity, i.UnitPrice, i.DiscountAmount, i.LineTotal)).ToList());
 }

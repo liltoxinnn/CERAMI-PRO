@@ -2,17 +2,28 @@ using CeramiPro.Domain.Common;
 
 namespace CeramiPro.Domain.Enums;
 
-/// <summary>Suivi d'une commande personnalisée, de la demande à la livraison.</summary>
+/// <summary>
+/// Où en est une commande personnalisée : quatre étapes, du message du
+/// client à la remise de la pièce.
+///
+/// Les numéros sont ceux de la version précédente, qui comptait dix étapes
+/// (conception, validation, cuisson, décoration, contrôle…) : les commandes
+/// déjà enregistrées gardent ainsi leur sens. Les numéros 1, 2, 4, 5 et 6
+/// appartenaient aux étapes retirées et ne doivent pas être réattribués.
+/// </summary>
 public enum CustomOrderStatus
 {
-    [Libelle("Commande")] Commande = 0,
-    [Libelle("Conception")] Conception = 1,
-    [Libelle("Validation client")] ValidationClient = 2,
-    [Libelle("Production")] Production = 3,
-    [Libelle("Cuisson")] Cuisson = 4,
-    [Libelle("Décoration")] Decoration = 5,
-    [Libelle("Contrôle qualité")] ControleQualite = 6,
-    [Libelle("Prêt")] Pret = 7,
-    [Libelle("Livré")] Livre = 8,
-    [Libelle("Annulé")] Annule = 9
+    /// <summary>Commande reçue, acompte éventuellement versé, pas encore commencée.</summary>
+    [Libelle("Reçue")] Recue = 0,
+
+    /// <summary>La pièce est en cours de fabrication.</summary>
+    [Libelle("En fabrication")] EnFabrication = 3,
+
+    /// <summary>La pièce est terminée et attend le client.</summary>
+    [Libelle("Prête")] Prete = 7,
+
+    /// <summary>Remise au client.</summary>
+    [Libelle("Livrée")] Livree = 8,
+
+    [Libelle("Annulée")] Annulee = 9
 }

@@ -54,12 +54,7 @@ public class ProduitService : IProduitService
 
         if (requete.SeulementStockFaible)
         {
-            requeteBase = requeteBase.Where(p => p.CurrentStock <= p.MinimumStock);
-        }
-
-        if (requete.SeulementPersonnalisables)
-        {
-            requeteBase = requeteBase.Where(p => p.IsCustomizable);
+            requeteBase = requeteBase.Where(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock);
         }
 
         if (!string.IsNullOrWhiteSpace(requete.Recherche))
@@ -68,7 +63,6 @@ public class ProduitService : IProduitService
             requeteBase = requeteBase.Where(p =>
                 p.Name.ToLower().Contains(recherche) ||
                 p.Reference.ToLower().Contains(recherche) ||
-                (p.Barcode != null && p.Barcode.ToLower().Contains(recherche)) ||
                 (p.Color != null && p.Color.ToLower().Contains(recherche)));
         }
 
@@ -104,9 +98,7 @@ public class ProduitService : IProduitService
         return await _context.Products
             .Include(p => p.ProductCategory).Include(p => p.Images)
             .AsNoTracking()
-            .Where(p => p.Barcode!.ToLower() == recherche
-                        || p.Reference.ToLower() == recherche
-                        || p.QrCode!.ToLower() == recherche)
+            .Where(p => p.Reference.ToLower() == recherche)
             .Select(Projection)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -133,10 +125,9 @@ public class ProduitService : IProduitService
             Weight = requete.Poids,
             ProductionCost = requete.CoutProduction,
             SellingPrice = requete.PrixVente,
-            MinimumStock = requete.StockMinimum,
-            Barcode = Nettoyer(requete.CodeBarres) ?? reference,
-            QrCode = reference,
+            MinimumStock = requete.PieceUnique ? 0m : requete.StockMinimum,
             IsCustomizable = requete.Personnalisable,
+            IsUniquePiece = requete.PieceUnique,
             IsActive = requete.Actif
         };
 
@@ -147,8 +138,7 @@ public class ProduitService : IProduitService
         {
             await _inventaire.EnregistrerAsync(new MouvementStockRequete
             {
-                TypeArticle = InventoryItemType.ProduitFini,
-                TypeMouvement = InventoryTransactionType.Ajustement,
+                TypeMouvement = InventoryTransactionType.Entree,
                 ProduitId = produit.Id,
                 Quantite = requete.StockInitial,
                 CoutUnitaire = requete.CoutProduction,
@@ -185,9 +175,16 @@ public class ProduitService : IProduitService
         produit.Weight = requete.Poids;
         produit.ProductionCost = requete.CoutProduction;
         produit.SellingPrice = requete.PrixVente;
-        produit.MinimumStock = requete.StockMinimum;
-        produit.Barcode = Nettoyer(requete.CodeBarres) ?? produit.Reference;
+        if (requete.PieceUnique && produit.CurrentStock > 1)
+        {
+            throw new RegleMetierException(
+                $"« {produit.Name} » compte {Formatage.Quantite(produit.CurrentStock)} pièces en stock : " +
+                "une pièce unique n'en a qu'une. Corrigez d'abord le stock.");
+        }
+
+        produit.MinimumStock = requete.PieceUnique ? 0m : requete.StockMinimum;
         produit.IsCustomizable = requete.Personnalisable;
+        produit.IsUniquePiece = requete.PieceUnique;
         produit.IsActive = requete.Actif;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -203,9 +200,8 @@ public class ProduitService : IProduitService
                       ?? throw IntrouvableException.Pour("Produit", id);
 
         var utilise = await _context.InventoryTransactions.AnyAsync(t => t.ProductId == id, cancellationToken)
-                      || await _context.SaleItems.IgnoreQueryFilters().AnyAsync(i => i.ProductId == id, cancellationToken)
-                      || await _context.ProductionOrders.IgnoreQueryFilters()
-                          .AnyAsync(o => o.ProductId == id, cancellationToken);
+                      || await _context.SaleItems.IgnoreQueryFilters()
+                          .AnyAsync(i => i.ProductId == id, cancellationToken);
 
         if (utilise)
         {
@@ -224,14 +220,14 @@ public class ProduitService : IProduitService
     {
         var donnees = await _context.Products
             .AsNoTracking().Where(p => p.IsActive)
-            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost, p.SellingPrice })
+            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost, p.SellingPrice, p.IsUniquePiece })
             .ToListAsync(cancellationToken);
 
         var margesConnues = donnees.Where(p => p.SellingPrice > 0).ToList();
 
         return new SyntheseCatalogueDto(
             donnees.Count,
-            donnees.Count(p => p.CurrentStock <= p.MinimumStock),
+            donnees.Count(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock),
             Math.Round(donnees.Sum(p => p.CurrentStock * p.ProductionCost), 2),
             margesConnues.Count == 0
                 ? 0m
@@ -243,7 +239,17 @@ public class ProduitService : IProduitService
         => await _context.Products
             .Include(p => p.ProductCategory).Include(p => p.Images)
             .AsNoTracking()
-            .Where(p => p.IsActive && p.CurrentStock <= p.MinimumStock)
+            .Where(p => p.IsActive && !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock)
+            .OrderBy(p => p.Name)
+            .Select(Projection)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProduitDto>> ListerActifsAsync(
+        CancellationToken cancellationToken = default)
+        => await _context.Products
+            .Include(p => p.ProductCategory).Include(p => p.Images)
+            .AsNoTracking()
+            .Where(p => p.IsActive)
             .OrderBy(p => p.Name)
             .Select(Projection)
             .ToListAsync(cancellationToken);
@@ -258,8 +264,8 @@ public class ProduitService : IProduitService
             .ToListAsync(cancellationToken);
 
         return photos
-            .Select(i => new PhotoProduitDto(i.Id, i.ProductId, i.FilePath, i.Caption,
-                i.Kind, i.Kind.Libelle(), i.IsPrimary, i.SortOrder))
+            .Select(i => new PhotoProduitDto(
+                i.Id, i.ProductId, i.FilePath, i.Caption, i.IsPrimary, i.SortOrder))
             .ToList();
     }
 
@@ -276,7 +282,11 @@ public class ProduitService : IProduitService
             throw new RegleMetierException("Sélectionnez une photo à ajouter.");
         }
 
-        if (requete.Principale)
+        // La première photo d'un produit le représente d'office.
+        var principale = requete.Principale
+                         || !await _context.ProductImages.AnyAsync(i => i.ProductId == produitId, cancellationToken);
+
+        if (principale)
         {
             foreach (var autre in await _context.ProductImages
                          .Where(i => i.ProductId == produitId && i.IsPrimary).ToListAsync(cancellationToken))
@@ -294,19 +304,18 @@ public class ProduitService : IProduitService
             ProductId = produitId,
             FilePath = requete.Chemin.Trim(),
             Caption = Nettoyer(requete.Legende),
-            Kind = requete.Type,
-            IsPrimary = requete.Principale,
+            IsPrimary = principale,
             SortOrder = ordre + 1
         };
 
         _context.ProductImages.Add(photo);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return new PhotoProduitDto(photo.Id, produitId, photo.FilePath, photo.Caption,
-            photo.Kind, photo.Kind.Libelle(), photo.IsPrimary, photo.SortOrder);
+        return new PhotoProduitDto(
+            photo.Id, produitId, photo.FilePath, photo.Caption, photo.IsPrimary, photo.SortOrder);
     }
 
-    public async Task SupprimerPhotoAsync(
+    public async Task<string> SupprimerPhotoAsync(
         int produitId, int photoId, CancellationToken cancellationToken = default)
     {
         var photo = await _context.ProductImages
@@ -314,89 +323,48 @@ public class ProduitService : IProduitService
                     ?? throw IntrouvableException.Pour("Photo", photoId);
 
         _context.ProductImages.Remove(photo);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
 
-    public async Task<IReadOnlyList<VarianteProduitDto>> ListerVariantesAsync(
-        int produitId, CancellationToken cancellationToken = default)
-        => await _context.ProductVariants
-            .Include(v => v.Product)
-            .AsNoTracking()
-            .Where(v => v.ProductId == produitId)
-            .OrderBy(v => v.Name)
-            .Select(v => new VarianteProduitDto(
-                v.Id, v.ProductId, v.Reference, v.Name, v.Color, v.Size,
-                v.PriceAdjustment, v.Product.SellingPrice + v.PriceAdjustment,
-                v.CurrentStock, v.MinimumStock, v.Barcode, v.IsActive))
-            .ToListAsync(cancellationToken);
-
-    public async Task<VarianteProduitDto> AjouterVarianteAsync(
-        int produitId, VarianteProduitRequete requete, CancellationToken cancellationToken = default)
-    {
-        var produit = await _context.Products.FirstOrDefaultAsync(p => p.Id == produitId, cancellationToken)
-                      ?? throw IntrouvableException.Pour("Produit", produitId);
-
-        var nombre = await _context.ProductVariants.CountAsync(v => v.ProductId == produitId, cancellationToken);
-
-        var variante = new ProductVariant
+        // Le produit garde une photo principale tant qu'il lui en reste une.
+        if (photo.IsPrimary
+            && await _context.ProductImages
+                .Where(i => i.ProductId == produitId && i.Id != photoId)
+                .OrderBy(i => i.SortOrder).ThenBy(i => i.Id)
+                .FirstOrDefaultAsync(cancellationToken) is { } suivante)
         {
-            ProductId = produitId,
-            Reference = $"{produit.Reference}-{nombre + 1:00}",
-            Name = requete.Nom.Trim(),
-            Color = Nettoyer(requete.Couleur),
-            Size = Nettoyer(requete.Taille),
-            PriceAdjustment = requete.AjustementPrix,
-            MinimumStock = requete.StockMinimum,
-            Barcode = Nettoyer(requete.CodeBarres),
-            IsActive = requete.Actif
-        };
-
-        _context.ProductVariants.Add(variante);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return (await ListerVariantesAsync(produitId, cancellationToken)).First(v => v.Id == variante.Id);
-    }
-
-    public async Task<VarianteProduitDto> ModifierVarianteAsync(
-        int produitId, int varianteId, VarianteProduitRequete requete,
-        CancellationToken cancellationToken = default)
-    {
-        var variante = await _context.ProductVariants
-                           .FirstOrDefaultAsync(v => v.Id == varianteId && v.ProductId == produitId, cancellationToken)
-                       ?? throw IntrouvableException.Pour("Variante", varianteId);
-
-        variante.Name = requete.Nom.Trim();
-        variante.Color = Nettoyer(requete.Couleur);
-        variante.Size = Nettoyer(requete.Taille);
-        variante.PriceAdjustment = requete.AjustementPrix;
-        variante.MinimumStock = requete.StockMinimum;
-        variante.Barcode = Nettoyer(requete.CodeBarres);
-        variante.IsActive = requete.Actif;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return (await ListerVariantesAsync(produitId, cancellationToken)).First(v => v.Id == varianteId);
-    }
-
-    public async Task SupprimerVarianteAsync(
-        int produitId, int varianteId, CancellationToken cancellationToken = default)
-    {
-        var variante = await _context.ProductVariants
-                           .FirstOrDefaultAsync(v => v.Id == varianteId && v.ProductId == produitId, cancellationToken)
-                       ?? throw IntrouvableException.Pour("Variante", varianteId);
-
-        if (variante.CurrentStock != 0)
-        {
-            throw new RegleMetierException(
-                $"La variante « {variante.Name} » a encore du stock : désactivez-la au lieu de la supprimer.");
+            suivante.IsPrimary = true;
         }
 
-        _context.ProductVariants.Remove(variante);
+        await _context.SaveChangesAsync(cancellationToken);
+        return photo.FilePath;
+    }
+
+    public async Task DefinirPhotoPrincipaleAsync(
+        int produitId, int photoId, CancellationToken cancellationToken = default)
+    {
+        var photos = await _context.ProductImages
+            .Where(i => i.ProductId == produitId)
+            .ToListAsync(cancellationToken);
+
+        if (photos.All(p => p.Id != photoId))
+        {
+            throw IntrouvableException.Pour("Photo", photoId);
+        }
+
+        foreach (var photo in photos)
+        {
+            photo.IsPrimary = photo.Id == photoId;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
     private async Task VerifierAsync(ProduitRequete requete, int? idExclu, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(requete.Nom))
+        {
+            throw new RegleMetierException("Donnez un nom au produit : c'est lui qui figure sur les reçus.");
+        }
+
         if (!await _context.ProductCategories.AnyAsync(c => c.Id == requete.CategorieId, cancellationToken))
         {
             throw new RegleMetierException("La catégorie sélectionnée n'existe pas.");
@@ -407,12 +375,15 @@ public class ProduitService : IProduitService
             throw new RegleMetierException("Le prix de vente et le coût de production ne peuvent pas être négatifs.");
         }
 
-        var codeBarres = Nettoyer(requete.CodeBarres);
-
-        if (codeBarres is not null && await _context.Products
-                .AnyAsync(p => p.Id != idExclu && p.Barcode == codeBarres, cancellationToken))
+        if (requete.StockInitial < 0 || requete.StockMinimum < 0)
         {
-            throw new RegleMetierException($"Le code-barres « {codeBarres} » est déjà utilisé par un autre produit.");
+            throw new RegleMetierException("Le stock initial et le seuil d'alerte ne peuvent pas être négatifs.");
+        }
+
+        if (requete.PieceUnique && requete.StockInitial > 1)
+        {
+            throw new RegleMetierException(
+                "Une pièce unique n'existe qu'en un exemplaire : son stock initial vaut 0 ou 1.");
         }
     }
 
@@ -439,13 +410,10 @@ public class ProduitService : IProduitService
         p.SellingPrice > 0 ? (p.SellingPrice - p.ProductionCost) / p.SellingPrice * 100m : 0m,
         p.CurrentStock,
         p.MinimumStock,
-        p.Barcode,
-        p.QrCode,
         p.IsCustomizable,
+        p.IsUniquePiece,
         p.IsActive,
-        p.CurrentStock <= p.MinimumStock,
+        !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock,
         p.Images.Where(i => i.IsPrimary).Select(i => i.FilePath).FirstOrDefault(),
-        p.Images.Count,
-        p.Variants.Count,
-        p.Recipes.Count);
+        p.Images.Count);
 }

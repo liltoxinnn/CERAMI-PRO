@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compile le C# de l'application Windows sur une machine sans Windows.
+
+    Le kit WindowsDesktop n'existe pas sous Linux : on compile donc le code
+    de CeramiPro.App contre les assemblys de référence de WPF, prises sur
+    NuGet, et l'on remplace ce que le compilateur XAML produirait —
+    InitializeComponent() et les champs des éléments nommés — par les
+    fichiers que génère « generer_parties_xaml.py ». Le XAML lui-même est
+    vérifié par « outils/verifier-xaml.py ».
+
+    Lancer : outils/verifier-application-windows.sh
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(VersionDotNet)</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>CeramiPro.App</RootNamespace>
+    <AssemblyName>CeramiPro.VerificationWindows</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <!-- Les champs simulés ne sont jamais affectés : c'est attendu. -->
+    <NoWarn>$(NoWarn);CS0649;CS0169</NoWarn>
+    <VersionWpf>8.0.10</VersionWpf>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.WindowsDesktop.App.Ref" Version="[$(VersionWpf)]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/CeramiPro.App/**/*.cs" Exclude="../../src/CeramiPro.App/obj/**;../../src/CeramiPro.App/bin/**" />
+    <Compile Include="$(BaseIntermediateOutputPath)parties-xaml/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/CeramiPro.Application/CeramiPro.Application.csproj" />
+    <ProjectReference Include="../../src/CeramiPro.Infrastructure/CeramiPro.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/CeramiPro.Presentation/CeramiPro.Presentation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+  </ItemGroup>
+
+  <!--
+    Les assemblys WPF, une fois le paquet téléchargé par la restauration.
+    Référencées directement, et non par une cible : elles doivent l'emporter
+    sur la façade « WindowsBase » que .NET fournit pour la compatibilité.
+  -->
+  <ItemGroup Condition="'$(NuGetPackageRoot)' != ''">
+    <Reference Include="$(NuGetPackageRoot)microsoft.windowsdesktop.app.ref/$(VersionWpf)/ref/$(VersionDotNet)/*.dll" />
+  </ItemGroup>
+
+</Project>

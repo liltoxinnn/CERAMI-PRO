@@ -33,4 +33,9 @@
     <ProjectReference Include="..\..\src\CeramiPro.Presentation\CeramiPro.Presentation.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Jeux de données SQL utilisés par les tests sur un vrai PostgreSQL. -->
+    <None Include="Donnees\**\*.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

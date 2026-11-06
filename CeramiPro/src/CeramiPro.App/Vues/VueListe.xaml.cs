@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using CeramiPro.Presentation.ViewModels;
 
 namespace CeramiPro.App.Vues;
@@ -10,7 +11,7 @@ namespace CeramiPro.App.Vues;
 ///
 /// Les colonnes du tableau sont construites à partir de celles déclarées par
 /// la vue-modèle : c'est ce qui permet à un seul fichier XAML de servir les
-/// seize écrans de liste, avec la même ergonomie partout.
+/// écrans de liste, avec la même ergonomie partout.
 /// </summary>
 public partial class VueListe : UserControl
 {
@@ -47,12 +48,43 @@ public partial class VueListe : UserControl
             Tableau.Columns.Add(new DataGridTextColumn
             {
                 Header = colonne.EnTete,
-                Binding = new Binding(colonne.Propriete) { StringFormat = colonne.Format },
+                // La colonne met elle-même sa valeur en forme : un montant
+                // s'écrit ainsi à l'identique à l'écran, dans le tableur
+                // exporté et sur le document imprimé.
+                Binding = new Binding(colonne.Propriete)
+                {
+                    Converter = new ValeurDeColonne(colonne)
+                },
                 Width = double.IsNaN(colonne.Largeur)
                     ? new DataGridLength(1, DataGridLengthUnitType.Auto)
                     : new DataGridLength(colonne.Largeur),
                 ElementStyle = style
             });
+        }
+    }
+
+    /// <summary>
+    /// Un double-clic ouvre la fiche : c'est le geste attendu dans un
+    /// tableau, et il évite d'aller chercher le bouton « Modifier ».
+    /// </summary>
+    private void OuvrirLaFiche(object expediteur, MouseButtonEventArgs args)
+    {
+        if (DataContext is not { } contexte)
+        {
+            return;
+        }
+
+        var type = contexte.GetType();
+
+        if (type.GetProperty("PeutModifier")?.GetValue(contexte) is not true)
+        {
+            return;
+        }
+
+        if (type.GetProperty("ModifierCommand")?.GetValue(contexte) is ICommand commande
+            && commande.CanExecute(null))
+        {
+            commande.Execute(null);
         }
     }
 
@@ -62,4 +94,18 @@ public partial class VueListe : UserControl
         ColonneAlignement.Centre => TextAlignment.Center,
         _ => TextAlignment.Left
     };
+
+    /// <summary>Applique à une cellule la mise en forme déclarée par sa colonne.</summary>
+    private sealed class ValeurDeColonne : IValueConverter
+    {
+        private readonly ColonneListe _colonne;
+
+        public ValeurDeColonne(ColonneListe colonne) => _colonne = colonne;
+
+        public object Convert(object? value, Type targetType, object? parameter,
+            System.Globalization.CultureInfo culture) => _colonne.Formater(value);
+
+        public object ConvertBack(object? value, Type targetType, object? parameter,
+            System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
 }

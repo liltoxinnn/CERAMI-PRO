@@ -46,10 +46,12 @@ public static class InjectionDependances
 
         services.AddScoped<IServiceEtatBaseDeDonnees, ServiceEtatBaseDeDonnees>();
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
-        services.AddSingleton<ICodeGraphiqueService, CodeGraphiqueService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<ISauvegardeService, SauvegardeService>();
+        services.AddScoped<IDocumentService, DocumentService>();
+        services.AddSingleton<IStockagePhotos, StockagePhotos>();
+        services.AddScoped<IExportService, ExportService>();
         services.AddHostedService<SauvegardeAutomatique>();
 
         services.AddSingleton<IServiceDateHeure>(fournisseur => new ServiceDateHeure(

@@ -24,15 +24,12 @@ public record ProduitDto(
     decimal TauxMarge,
     decimal StockActuel,
     decimal StockMinimum,
-    string? CodeBarres,
-    string? QrCode,
     bool Personnalisable,
+    bool PieceUnique,
     bool Actif,
     bool StockFaible,
     string? ImagePrincipale,
-    int NombrePhotos,
-    int NombreVariantes,
-    int NombreRecettes);
+    int NombrePhotos);
 
 public class ProduitRequete
 {
@@ -49,8 +46,11 @@ public class ProduitRequete
     public decimal CoutProduction { get; set; }
     public decimal PrixVente { get; set; }
     public decimal StockMinimum { get; set; }
-    public string? CodeBarres { get; set; }
     public bool Personnalisable { get; set; }
+
+    /// <summary>Pièce faite à la main en un seul exemplaire : stock de 0 ou 1.</summary>
+    public bool PieceUnique { get; set; }
+
     public bool Actif { get; set; } = true;
 
     /// <summary>Pièces déjà présentes dans l'atelier lors de la création de la fiche.</summary>
@@ -61,7 +61,6 @@ public class FiltreProduitsRequete : PagedRequest
 {
     public int? CategorieId { get; set; }
     public bool SeulementStockFaible { get; set; }
-    public bool SeulementPersonnalisables { get; set; }
     public bool InclureInactifs { get; set; } = true;
 }
 
@@ -71,8 +70,6 @@ public record PhotoProduitDto(
     int ProduitId,
     string Chemin,
     string? Legende,
-    ProductImageKind Type,
-    string TypeLibelle,
     bool Principale,
     int Ordre);
 
@@ -80,34 +77,7 @@ public class PhotoProduitRequete
 {
     public string Chemin { get; set; } = string.Empty;
     public string? Legende { get; set; }
-    public ProductImageKind Type { get; set; } = ProductImageKind.Supplementaire;
     public bool Principale { get; set; }
-}
-
-/// <summary>Déclinaison d'un produit (taille, couleur).</summary>
-public record VarianteProduitDto(
-    int Id,
-    int ProduitId,
-    string Reference,
-    string Nom,
-    string? Couleur,
-    string? Taille,
-    decimal AjustementPrix,
-    decimal PrixFinal,
-    decimal StockActuel,
-    decimal StockMinimum,
-    string? CodeBarres,
-    bool Actif);
-
-public class VarianteProduitRequete
-{
-    public string Nom { get; set; } = string.Empty;
-    public string? Couleur { get; set; }
-    public string? Taille { get; set; }
-    public decimal AjustementPrix { get; set; }
-    public decimal StockMinimum { get; set; }
-    public string? CodeBarres { get; set; }
-    public bool Actif { get; set; } = true;
 }
 
 /// <summary>Synthèse du catalogue affichée en haut de l'écran des produits.</summary>

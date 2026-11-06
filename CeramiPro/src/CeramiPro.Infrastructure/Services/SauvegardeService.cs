@@ -34,30 +34,45 @@ public class SauvegardeService : ISauvegardeService
     /// <summary>Préfixe des archives créées à la demande.</summary>
     public const string PrefixeManuel = "ceramipro-";
 
+    /// <summary>Dossier de l'archive qui contient les photos des produits et des commandes.</summary>
+    public const string DossierPhotos = "photos/";
+
     private readonly CeramiProDbContext _context;
+    private readonly IStockagePhotos _photos;
     private readonly IServiceDateHeure _horloge;
     private readonly IAuditService _audit;
+    private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly ILogger<SauvegardeService> _journal;
     private readonly string _dossier;
 
     public SauvegardeService(
         CeramiProDbContext context,
+        IStockagePhotos photos,
         IServiceDateHeure horloge,
         IAuditService audit,
+        IUtilisateurCourant utilisateurCourant,
         IConfiguration configuration,
         ILogger<SauvegardeService> journal)
     {
         _context = context;
+        _photos = photos;
         _horloge = horloge;
         _audit = audit;
+        _utilisateurCourant = utilisateurCourant;
         _journal = journal;
 
+        // Dans le profil de l'utilisateur, comme le prépare l'installateur :
+        // le dossier du programme, sous « Program Files », est en lecture seule.
         _dossier = configuration["Sauvegarde:Dossier"]
-                   ?? Path.Combine(AppContext.BaseDirectory, "sauvegardes");
+                   ?? Path.Combine(
+                       Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                       "CeramiPro", "sauvegardes");
     }
 
     public async Task<EtatSauvegardeDto> EtatAsync(CancellationToken cancellationToken = default)
     {
+        RecupererAnciennesSauvegardes();
+
         var reglages = await LireReglagesAsync(cancellationToken);
         var sauvegardes = ListerFichiers();
 
@@ -75,6 +90,13 @@ public class SauvegardeService : ISauvegardeService
     public async Task<SauvegardeDto> CreerAsync(
         bool automatique = false, CancellationToken cancellationToken = default)
     {
+        // La sauvegarde automatique protège l'atelier quel que soit celui qui
+        // travaille ; seule la sauvegarde à la demande relève de l'administrateur.
+        if (!automatique)
+        {
+            Autorisation.ExigerAdministrateur(_utilisateurCourant, "lancer une sauvegarde");
+        }
+
         Directory.CreateDirectory(_dossier);
 
         var horodatage = _horloge.MaintenantAtelier.ToString("yyyy-MM-dd-HHmm", CultureInfo.InvariantCulture);
@@ -91,6 +113,8 @@ public class SauvegardeService : ISauvegardeService
             {
                 await EcrireTableAsync(archive, table, cancellationToken);
             }
+
+            await EcrirePhotosAsync(archive, cancellationToken);
         }
 
         var information = new FileInfo(chemin);
@@ -118,6 +142,8 @@ public class SauvegardeService : ISauvegardeService
 
     public async Task SupprimerAsync(string nomFichier, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "supprimer une sauvegarde");
+
         var chemin = CheminSur(nomFichier);
 
         if (!File.Exists(chemin))
@@ -157,6 +183,58 @@ public class SauvegardeService : ISauvegardeService
         return supprimees;
     }
 
+    public async Task ReglerAsync(ReglageSauvegardeRequete requete, CancellationToken cancellationToken = default)
+    {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "régler la sauvegarde automatique");
+
+        if (!TimeSpan.TryParseExact(requete.Heure?.Trim(), new[] { @"h\:mm", @"hh\:mm" },
+                CultureInfo.InvariantCulture, out var heure)
+            || heure >= TimeSpan.FromDays(1))
+        {
+            throw new RegleMetierException("Indiquez l'heure de la sauvegarde sous la forme 13:00.");
+        }
+
+        if (requete.ConservationJours is < 1 or > 3650)
+        {
+            throw new RegleMetierException("La durée de conservation va de 1 à 3 650 jours.");
+        }
+
+        var valeurs = new Dictionary<string, string>
+        {
+            [CleAutomatique] = requete.Active ? "true" : "false",
+            [CleHeure] = heure.ToString(@"hh\:mm", CultureInfo.InvariantCulture),
+            [CleConservation] = requete.ConservationJours.ToString(CultureInfo.InvariantCulture)
+        };
+
+        var existants = await _context.SystemSettings
+            .Where(s => valeurs.Keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        foreach (var (cle, valeur) in valeurs)
+        {
+            if (existants.FirstOrDefault(s => s.Key == cle) is { } reglage)
+            {
+                reglage.Value = valeur;
+            }
+            else
+            {
+                _context.SystemSettings.Add(new Domain.Entities.Settings.SystemSetting
+                {
+                    Key = cle, Value = valeur, Category = "Sauvegarde", IsAdminOnly = true,
+                    ValueType = cle == CleAutomatique ? "booleen" : cle == CleHeure ? "heure" : "entier"
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _audit.EnregistrerAsync(AuditAction.Modification, "Sauvegarde", null,
+            requete.Active
+                ? $"Sauvegarde automatique activée chaque jour à {valeurs[CleHeure]}, conservée {requete.ConservationJours} jour(s)."
+                : "Sauvegarde automatique désactivée.",
+            null, cancellationToken);
+    }
+
     // ------------------------------------------------------------- Détails
 
     /// <summary>Réglages de la sauvegarde, lus dans les paramètres du logiciel.</summary>
@@ -171,10 +249,47 @@ public class SauvegardeService : ISauvegardeService
 
         return (
             reglages.TryGetValue(CleAutomatique, out var actif) && bool.TryParse(actif, out var vrai) && vrai,
-            reglages.TryGetValue(CleHeure, out var heure) && !string.IsNullOrWhiteSpace(heure) ? heure : "22:00",
+            reglages.TryGetValue(CleHeure, out var heure) && !string.IsNullOrWhiteSpace(heure) ? heure : "13:00",
             reglages.TryGetValue(CleConservation, out var jours) && int.TryParse(jours, out var valeur)
                 ? valeur
                 : 30);
+    }
+
+    /// <summary>
+    /// Les versions précédentes rangeaient les sauvegardes à côté du
+    /// programme. Celles qui s'y trouvent encore sont recopiées — jamais
+    /// déplacées — dans le dossier actuel, pour rester dans la liste.
+    /// </summary>
+    private void RecupererAnciennesSauvegardes()
+    {
+        var ancien = Path.Combine(AppContext.BaseDirectory, "sauvegardes");
+
+        if (!Directory.Exists(ancien)
+            || string.Equals(Path.GetFullPath(ancien), Path.GetFullPath(_dossier), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_dossier);
+
+            foreach (var fichier in Directory.EnumerateFiles(ancien, "*.zip"))
+            {
+                var cible = Path.Combine(_dossier, Path.GetFileName(fichier));
+
+                if (!File.Exists(cible))
+                {
+                    File.Copy(fichier, cible);
+                    File.SetLastWriteTimeUtc(cible, File.GetLastWriteTimeUtc(fichier));
+                    _journal.LogInformation("Ancienne sauvegarde recopiée : {Fichier}", Path.GetFileName(fichier));
+                }
+            }
+        }
+        catch (Exception erreur) when (erreur is IOException or UnauthorizedAccessException)
+        {
+            _journal.LogWarning(erreur, "Les anciennes sauvegardes de {Dossier} n'ont pas pu être recopiées.", ancien);
+        }
     }
 
     private List<SauvegardeDto> ListerFichiers()
@@ -211,6 +326,591 @@ public class SauvegardeService : ISauvegardeService
         }
 
         return Path.Combine(_dossier, nom);
+    }
+
+
+    // ---------------------------------------------------------- Restauration
+
+    /// <summary>
+    /// Sous PostgreSQL, ce réglage suspend le contrôle des clés étrangères le
+    /// temps de la restauration : les tables se remplissent alors dans
+    /// n'importe quel ordre, sans avoir à deviner lequel.
+    /// </summary>
+    private const string SuspendreLesLiens = "SET session_replication_role = 'replica'";
+
+    private const string RetablirLesLiens = "SET session_replication_role = 'origin'";
+
+    public async Task<RestaurationDto> RestaurerAsync(
+        string nomFichier, CancellationToken cancellationToken = default)
+    {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "restaurer une sauvegarde");
+
+        var chemin = CheminSur(nomFichier);
+
+        if (!File.Exists(chemin))
+        {
+            throw new IntrouvableException($"La sauvegarde « {nomFichier} » est introuvable.");
+        }
+
+        using var archive = ZipFile.OpenRead(chemin);
+
+        IReadOnlyList<string> tables = TablesDuModele().ToList();
+        var connues = tables.ToHashSet(StringComparer.Ordinal);
+
+        var contenus = archive.Entries
+            .Where(e => e.FullName.StartsWith("donnees/", StringComparison.Ordinal)
+                        && e.FullName.EndsWith(".csv", StringComparison.Ordinal))
+            .ToDictionary(
+                e => Path.GetFileNameWithoutExtension(e.FullName),
+                e => e,
+                StringComparer.Ordinal);
+
+        if (contenus.Count == 0)
+        {
+            throw new RegleMetierException(
+                $"Le fichier « {nomFichier} » ne contient aucune donnée : "
+                + "ce n'est pas une sauvegarde CeramiPro.");
+        }
+
+        // L'ancienne version, d'avant la simplification, se reconnaît à ses
+        // tables retirées : ses données sont converties au nouveau schéma.
+        var ancienFormat = RepriseAncienneVersion.EstAncienFormat(contenus.Keys);
+
+        // Une archive qui parle de tables que ce logiciel ne connaît pas vient
+        // d'une autre version : la restaurer laisserait la base incohérente.
+        var etrangeres = contenus.Keys
+            .Where(nom => !connues.Contains(nom))
+            .Where(nom => !(ancienFormat && RepriseAncienneVersion.TablesRetirees.Contains(nom)))
+            .ToList();
+
+        if (etrangeres.Count > 0)
+        {
+            throw new RegleMetierException(
+                $"La sauvegarde « {nomFichier} » comporte des tables inconnues de cette "
+                + "version du logiciel : " + string.Join(", ", etrangeres.Take(5)) + ". "
+                + "Elle a probablement été produite par une version plus récente.");
+        }
+
+        var connexion = _context.Database.GetDbConnection();
+        var ouverte = connexion.State == System.Data.ConnectionState.Open;
+
+        if (!ouverte)
+        {
+            await connexion.OpenAsync(cancellationToken);
+        }
+
+        var lignesRestaurees = 0;
+        var tablesRestaurees = 0;
+
+        try
+        {
+            await using var transaction = await connexion.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                await ExecuterAsync(connexion, transaction, SuspendreLesLiens, cancellationToken);
+            }
+            catch (DbException erreur)
+            {
+                throw new RegleMetierException(
+                    "La restauration demande des droits que le compte de base de données ne "
+                    + "possède pas. Connectez-vous à PostgreSQL avec le compte administrateur, "
+                    + "puis recommencez.\n\nDétail : " + erreur.Message);
+            }
+
+            // Toutes les tables sont vidées d'abord : restaurer une archive
+            // partielle ne doit pas laisser d'anciennes lignes derrière elle.
+            foreach (var table in tables)
+            {
+                await ExecuterAsync(
+                    connexion, transaction, $"TRUNCATE TABLE \"{table}\" CASCADE", cancellationToken);
+            }
+
+            if (ancienFormat)
+            {
+                (tablesRestaurees, lignesRestaurees) = await ReprendreAncienneVersionAsync(
+                    connexion, transaction, tables, contenus, cancellationToken);
+            }
+            else
+            {
+                foreach (var table in tables.Where(contenus.ContainsKey))
+                {
+                    var lignes = await RemplirTableAsync(
+                        connexion, transaction, table, contenus[table], cancellationToken);
+
+                    lignesRestaurees += lignes;
+                    tablesRestaurees++;
+                }
+            }
+
+            // Les compteurs d'identifiants doivent repartir après la dernière
+            // ligne remise en place, sans quoi le prochain enregistrement
+            // entrerait en collision avec une fiche restaurée.
+            foreach (var table in await TablesAvecCompteurAsync(connexion, transaction, cancellationToken))
+            {
+                await RemettreLeCompteurAsync(connexion, transaction, table, cancellationToken);
+            }
+
+            await ExecuterAsync(connexion, transaction, RetablirLesLiens, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            if (!ouverte)
+            {
+                await connexion.CloseAsync();
+            }
+        }
+
+        // Les photos sont remises une fois les données validées : une
+        // restauration refusée ne doit rien changer sur le disque.
+        var photosRestaurees = RestaurerPhotos(archive);
+
+        _journal.LogInformation(
+            "Base restaurée depuis « {Fichier} » : {Tables} tables, {Lignes} lignes, {Photos} photos.",
+            nomFichier, tablesRestaurees, lignesRestaurees, photosRestaurees);
+
+        await _audit.EnregistrerAsync(
+            AuditAction.Restauration, "Sauvegarde", nomFichier,
+            $"Restauration de {tablesRestaurees} table(s) et {lignesRestaurees} ligne(s).",
+            cancellationToken: cancellationToken);
+
+        return new RestaurationDto(
+            Path.GetFileName(chemin),
+            File.GetLastWriteTime(chemin),
+            tablesRestaurees,
+            lignesRestaurees,
+            ancienFormat,
+            ancienFormat ? contenus.Keys.Count(RepriseAncienneVersion.TablesRetirees.Contains) : 0,
+            photosRestaurees);
+    }
+
+    /// <summary>
+    /// Ajoute les photos à l'archive. Elles sont déjà compressées : les
+    /// recompresser prendrait du temps sans rien gagner.
+    /// </summary>
+    private async Task EcrirePhotosAsync(ZipArchive archive, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(_photos.Racine))
+        {
+            return;
+        }
+
+        foreach (var fichier in Directory.EnumerateFiles(_photos.Racine, "*", SearchOption.AllDirectories))
+        {
+            var relatif = Path.GetRelativePath(_photos.Racine, fichier).Replace('\\', '/');
+            var entree = archive.CreateEntry(DossierPhotos + relatif, CompressionLevel.NoCompression);
+
+            await using var source = File.OpenRead(fichier);
+            await using var cible = entree.Open();
+            await source.CopyToAsync(cible, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Remet les photos de l'archive dans le dossier des photos. Un chemin
+    /// qui sortirait de ce dossier est ignoré : une archive ne doit jamais
+    /// pouvoir écrire ailleurs sur l'ordinateur.
+    /// </summary>
+    private int RestaurerPhotos(ZipArchive archive)
+    {
+        var racine = Path.GetFullPath(_photos.Racine) + Path.DirectorySeparatorChar;
+        var restaurees = 0;
+
+        foreach (var entree in archive.Entries.Where(e =>
+                     e.FullName.StartsWith(DossierPhotos, StringComparison.Ordinal) && e.Name.Length > 0))
+        {
+            var relatif = entree.FullName[DossierPhotos.Length..].Replace('/', Path.DirectorySeparatorChar);
+            var destination = Path.GetFullPath(Path.Combine(racine, relatif));
+
+            if (!destination.StartsWith(racine, StringComparison.OrdinalIgnoreCase))
+            {
+                _journal.LogWarning("Photo ignorée, chemin hors du dossier des photos : {Chemin}", entree.FullName);
+                continue;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                entree.ExtractToFile(destination, overwrite: true);
+                restaurees++;
+            }
+            catch (IOException erreur)
+            {
+                _journal.LogWarning(erreur, "La photo {Chemin} n'a pas pu être remise en place.", entree.FullName);
+            }
+        }
+
+        return restaurees;
+    }
+
+    /// <summary>
+    /// Restaure une sauvegarde de l'ancienne version : chaque fichier est
+    /// chargé tel quel dans une table temporaire, puis recopié dans la table
+    /// actuelle avec les conversions de la simplification.
+    /// </summary>
+    private static async Task<(int Tables, int Lignes)> ReprendreAncienneVersionAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        IReadOnlyList<string> tables,
+        IReadOnlyDictionary<string, ZipArchiveEntry> contenus,
+        CancellationToken cancellationToken)
+    {
+        var colonnesAnciennes = new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+
+        foreach (var (table, entree) in contenus)
+        {
+            colonnesAnciennes[table] = await ChargerEnTemporaireAsync(
+                connexion, transaction, table, entree, cancellationToken);
+        }
+
+        // Les tables dont les conversions ont besoin existent toujours, même
+        // vides, pour que les requêtes restent valides.
+        foreach (var (table, colonnes) in RepriseAncienneVersion.TablesDeReference
+                     .Where(t => !colonnesAnciennes.ContainsKey(t.Key)))
+        {
+            await ExecuterAsync(connexion, transaction,
+                $"CREATE TEMP TABLE \"{RepriseAncienneVersion.TableTemporaire(table)}\" ("
+                + string.Join(", ", colonnes.Select(c => $"\"{c}\" text")) + ") ON COMMIT DROP",
+                cancellationToken);
+        }
+
+        var tablesReprises = 0;
+        var lignes = 0;
+
+        foreach (var table in tables.Where(colonnesAnciennes.ContainsKey))
+        {
+            var cibles = await ColonnesAsync(connexion, transaction, table, cancellationToken);
+
+            await using var commande = connexion.CreateCommand();
+            commande.Transaction = transaction;
+            commande.CommandText = RepriseAncienneVersion.RequeteDeReprise(
+                table, cibles, colonnesAnciennes[table]);
+
+            lignes += await commande.ExecuteNonQueryAsync(cancellationToken);
+            tablesReprises++;
+        }
+
+        await ExecuterAsync(
+            connexion, transaction, RepriseAncienneVersion.GarantirUnAdministrateur, cancellationToken);
+
+        return (tablesReprises, lignes);
+    }
+
+    /// <summary>
+    /// Charge le fichier d'une table dans une table temporaire dont toutes
+    /// les colonnes sont du texte, et renvoie le nom de ces colonnes.
+    /// </summary>
+    private static async Task<IReadOnlySet<string>> ChargerEnTemporaireAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        string table,
+        ZipArchiveEntry entree,
+        CancellationToken cancellationToken)
+    {
+        var colonnes = await LireEnTeteAsync(entree, table, cancellationToken);
+
+        if (colonnes.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var temporaire = RepriseAncienneVersion.TableTemporaire(table);
+
+        await ExecuterAsync(connexion, transaction,
+            $"CREATE TEMP TABLE \"{temporaire}\" ("
+            + string.Join(", ", colonnes.Select(c => $"\"{c}\" text")) + ") ON COMMIT DROP",
+            cancellationToken);
+
+        await RemplirTableAsync(connexion, transaction, temporaire, entree, cancellationToken);
+
+        return colonnes.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>Colonnes d'une table actuelle, avec leur type SQL exact.</summary>
+    private static async Task<IReadOnlyList<(string Nom, string Type)>> ColonnesAsync(
+        DbConnection connexion, DbTransaction transaction, string table,
+        CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = """
+            SELECT attribut.attname, format_type(attribut.atttypid, attribut.atttypmod)
+            FROM pg_attribute attribut
+            JOIN pg_class classe ON classe.oid = attribut.attrelid
+            JOIN pg_namespace ns ON ns.oid = classe.relnamespace
+            WHERE ns.nspname = 'public' AND classe.relname = @table
+              AND attribut.attnum > 0 AND NOT attribut.attisdropped
+            ORDER BY attribut.attnum
+            """;
+
+        var parametre = commande.CreateParameter();
+        parametre.ParameterName = "@table";
+        parametre.Value = table;
+        commande.Parameters.Add(parametre);
+
+        var colonnes = new List<(string, string)>();
+
+        await using var lecteur = await commande.ExecuteReaderAsync(cancellationToken);
+
+        while (await lecteur.ReadAsync(cancellationToken))
+        {
+            colonnes.Add((lecteur.GetString(0), lecteur.GetString(1)));
+        }
+
+        return colonnes;
+    }
+
+    /// <summary>Noms des colonnes d'un fichier de sauvegarde, vérifiés.</summary>
+    private static async Task<IReadOnlyList<string>> LireEnTeteAsync(
+        ZipArchiveEntry entree, string table, CancellationToken cancellationToken)
+    {
+        await using var flux = entree.Open();
+        using var lecture = new StreamReader(flux, new UTF8Encoding(true));
+
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } enTete)
+        {
+            return Array.Empty<string>();
+        }
+
+        var colonnes = DecouperLigne(enTete).Select(c => c.Valeur ?? string.Empty).ToList();
+
+        if (colonnes.Count == 0 || colonnes.Any(c => !NomDeTableValide(c)))
+        {
+            throw new RegleMetierException(
+                $"Les colonnes de la table « {table} » ne sont pas lisibles dans cette sauvegarde.");
+        }
+
+        return colonnes;
+    }
+
+    private static async Task ExecuterAsync(
+        DbConnection connexion, DbTransaction transaction, string sql,
+        CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = sql;
+
+        await commande.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Réinsère les lignes d'une table. Les valeurs sont transmises comme du
+    /// texte : c'est PostgreSQL qui les convertit au type de chaque colonne,
+    /// ce qui évite d'avoir à deviner ce type depuis le fichier.
+    /// </summary>
+    private static async Task<int> RemplirTableAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        string table,
+        ZipArchiveEntry entree,
+        CancellationToken cancellationToken)
+    {
+        await using var flux = entree.Open();
+        using var lecture = new StreamReader(flux, new UTF8Encoding(true));
+
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } enTete)
+        {
+            return 0;
+        }
+
+        var colonnes = DecouperLigne(enTete)
+            .Select(c => c.Valeur ?? string.Empty)
+            .ToList();
+
+        if (colonnes.Count == 0 || colonnes.Any(c => !NomDeTableValide(c)))
+        {
+            throw new RegleMetierException(
+                $"Les colonnes de la table « {table} » ne sont pas lisibles dans cette sauvegarde.");
+        }
+
+        var noms = string.Join(", ", colonnes.Select(c => $"\"{c}\""));
+        var marques = string.Join(", ", colonnes.Select((_, rang) => $"@p{rang}"));
+        var sql = $"INSERT INTO \"{table}\" ({noms}) VALUES ({marques})";
+
+        var lignes = 0;
+
+        while (await LireLigneAsync(lecture, cancellationToken) is { } ligne)
+        {
+            var valeurs = DecouperLigne(ligne);
+
+            if (valeurs.Count != colonnes.Count)
+            {
+                throw new RegleMetierException(
+                    $"Une ligne de la table « {table} » ne comporte pas le bon nombre de colonnes : "
+                    + "la sauvegarde est abîmée.");
+            }
+
+            await using var commande = connexion.CreateCommand();
+            commande.Transaction = transaction;
+            commande.CommandText = sql;
+
+            for (var rang = 0; rang < valeurs.Count; rang++)
+            {
+                var parametre = commande.CreateParameter();
+                parametre.ParameterName = $"@p{rang}";
+
+                // Une case vide représente une valeur absente ; deux
+                // guillemets, un texte vide.
+                parametre.Value = valeurs[rang].Valeur is null
+                    ? DBNull.Value
+                    : valeurs[rang].Valeur!;
+
+                if (parametre is Npgsql.NpgsqlParameter npgsql)
+                {
+                    npgsql.NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown;
+                }
+
+                commande.Parameters.Add(parametre);
+            }
+
+            await commande.ExecuteNonQueryAsync(cancellationToken);
+            lignes++;
+        }
+
+        return lignes;
+    }
+
+    /// <summary>
+    /// Lit une ligne du fichier, en tenant compte des valeurs qui contiennent
+    /// elles-mêmes un retour à la ligne, entre guillemets.
+    /// </summary>
+    private static async Task<string?> LireLigneAsync(
+        StreamReader lecture, CancellationToken cancellationToken)
+    {
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } ligne)
+        {
+            return null;
+        }
+
+        while (ligne.Count(c => c == '"') % 2 != 0)
+        {
+            if (await lecture.ReadLineAsync(cancellationToken) is not { } suite)
+            {
+                break;
+            }
+
+            ligne += "\n" + suite;
+        }
+
+        return ligne;
+    }
+
+    /// <summary>
+    /// Découpe une ligne en valeurs. Une valeur absente et un texte vide sont
+    /// distingués : la première n'est pas entre guillemets, le second l'est.
+    /// </summary>
+    private static List<(string? Valeur, bool Cite)> DecouperLigne(string ligne)
+    {
+        var valeurs = new List<(string?, bool)>();
+        var courante = new StringBuilder();
+        var entreGuillemets = false;
+        var cite = false;
+
+        for (var rang = 0; rang < ligne.Length; rang++)
+        {
+            var caractere = ligne[rang];
+
+            if (entreGuillemets)
+            {
+                if (caractere != '"')
+                {
+                    courante.Append(caractere);
+                }
+                else if (rang + 1 < ligne.Length && ligne[rang + 1] == '"')
+                {
+                    courante.Append('"');
+                    rang++;
+                }
+                else
+                {
+                    entreGuillemets = false;
+                }
+
+                continue;
+            }
+
+            switch (caractere)
+            {
+                case '"':
+                    entreGuillemets = true;
+                    cite = true;
+                    break;
+
+                case ';':
+                    valeurs.Add((cite || courante.Length > 0 ? courante.ToString() : null, cite));
+                    courante.Clear();
+                    cite = false;
+                    break;
+
+                default:
+                    courante.Append(caractere);
+                    break;
+            }
+        }
+
+        valeurs.Add((cite || courante.Length > 0 ? courante.ToString() : null, cite));
+
+        return valeurs;
+    }
+
+    /// <summary>
+    /// Tables dont la colonne « Id » est attribuée automatiquement.
+    ///
+    /// La question est posée au catalogue plutôt que table par table : les
+    /// tables de liaison n'ont pas de colonne « Id », et PostgreSQL refuse
+    /// une requête qui la nommerait, sans se contenter de répondre « rien ».
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> TablesAvecCompteurAsync(
+        DbConnection connexion, DbTransaction transaction, CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = """
+            SELECT table_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND column_name = 'Id'
+              AND (is_identity = 'YES' OR column_default LIKE 'nextval%')
+            ORDER BY table_name
+            """;
+
+        var tables = new List<string>();
+
+        await using var lecteur = await commande.ExecuteReaderAsync(cancellationToken);
+
+        while (await lecteur.ReadAsync(cancellationToken))
+        {
+            tables.Add(lecteur.GetString(0));
+        }
+
+        return tables;
+    }
+
+    /// <summary>Remet le compteur d'identifiants après la dernière ligne restaurée.</summary>
+    private static async Task RemettreLeCompteurAsync(
+        DbConnection connexion, DbTransaction transaction, string table,
+        CancellationToken cancellationToken)
+    {
+        if (!NomDeTableValide(table))
+        {
+            return;
+        }
+
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+
+        // Le troisième paramètre indique si le compteur a déjà servi : sur une
+        // table vide, le prochain identifiant doit rester 1.
+        commande.CommandText = $"""
+            SELECT setval(
+                pg_get_serial_sequence('"{table}"', 'Id'),
+                COALESCE((SELECT MAX("Id") FROM "{table}"), 1),
+                (SELECT COUNT(*) FROM "{table}") > 0)
+            """;
+
+        await commande.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>Tables réelles du modèle de données, dans l'ordre alphabétique.</summary>
@@ -288,18 +988,30 @@ public class SauvegardeService : ISauvegardeService
             Cette archive contient une copie de toutes les données de l'atelier.
             Le dossier « donnees » comprend un fichier par table, au format CSV,
             séparé par des points-virgules et encodé en UTF-8. Chaque fichier
-            s'ouvre directement dans un tableur.
+            s'ouvre directement dans un tableur. Le dossier « photos » contient
+            les photos des produits et des commandes.
 
             Conservez cette archive en lieu sûr, de préférence sur un support
             différent de l'ordinateur de l'atelier (clé USB, disque externe).
 
-            Pour restaurer les données, reportez-vous au guide de déploiement
-            fourni avec le logiciel (docs/DEPLOIEMENT.md).
+            Pour remettre ces données en place, ouvrez CeramiPro, allez dans
+            « Paramètres », onglet « Sauvegarde », choisissez cette archive
+            dans la liste et cliquez sur « Restaurer ».
+
+            La restauration remplace TOUTES les données actuelles par celles de
+            l'archive : sauvegardez l'état présent avant de vous en servir.
             """;
 
         await ecriture.WriteAsync(texte.AsMemory(), cancellationToken);
     }
 
+    /// <summary>
+    /// Écrit une valeur dans le fichier.
+    ///
+    /// Une case laissée vide représente une valeur absente, et deux
+    /// guillemets un texte vide : sans cette distinction, la restauration ne
+    /// saurait pas laquelle des deux remettre en place.
+    /// </summary>
     private static string Valeur(DbDataReader lecteur, int colonne)
     {
         if (lecteur.IsDBNull(colonne))
@@ -308,6 +1020,11 @@ public class SauvegardeService : ISauvegardeService
         }
 
         var valeur = lecteur.GetValue(colonne);
+
+        if (valeur is string texte && texte.Length == 0)
+        {
+            return "\"\"";
+        }
 
         return Echapper(valeur switch
         {

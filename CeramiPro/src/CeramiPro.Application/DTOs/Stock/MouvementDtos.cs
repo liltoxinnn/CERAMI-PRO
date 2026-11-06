@@ -6,13 +6,9 @@ namespace CeramiPro.Application.DTOs.Stock;
 /// <summary>Demande d'enregistrement d'un mouvement de stock.</summary>
 public class MouvementStockRequete
 {
-    public InventoryItemType TypeArticle { get; set; }
     public InventoryTransactionType TypeMouvement { get; set; }
 
-    public int? MatiereId { get; set; }
-    public int? ProduitId { get; set; }
-    public int? VarianteId { get; set; }
-    public int? LotId { get; set; }
+    public int ProduitId { get; set; }
 
     /// <summary>Quantité signée : positive pour une entrée, négative pour une sortie.</summary>
     public decimal Quantite { get; set; }
@@ -20,10 +16,8 @@ public class MouvementStockRequete
     public decimal CoutUnitaire { get; set; }
     public DateTime? Date { get; set; }
 
-    public int? AchatId { get; set; }
     public int? VenteId { get; set; }
-    public int? ProductionId { get; set; }
-    public int? AjustementId { get; set; }
+    public int? CommandeId { get; set; }
     public int? MouvementAnnuleId { get; set; }
 
     public string? Reference { get; set; }
@@ -33,15 +27,35 @@ public class MouvementStockRequete
     public bool AutoriserStockNegatif { get; set; }
 }
 
-/// <summary>Mouvement affiché dans l'écran « Mouvements de stock ».</summary>
+/// <summary>
+/// Entrée ou sortie saisie à la main dans l'écran « Stock » : pièces
+/// terminées ou reçues, pièces cassées ou perdues. Les ventes, retours et
+/// annulations, eux, passent par leur propre document.
+/// </summary>
+public class MouvementManuelRequete
+{
+    public int ProduitId { get; set; }
+
+    /// <summary><see cref="InventoryTransactionType.Entree"/> ou <see cref="InventoryTransactionType.Perte"/>.</summary>
+    public InventoryTransactionType TypeMouvement { get; set; } = InventoryTransactionType.Entree;
+
+    /// <summary>Nombre de pièces, toujours positif : le type dit s'il entre ou s'il sort.</summary>
+    public decimal Quantite { get; set; } = 1m;
+
+    /// <summary>Coût d'une pièce à l'entrée ; laissé à zéro, le coût actuel est conservé.</summary>
+    public decimal CoutUnitaire { get; set; }
+
+    /// <summary>Précision libre ; obligatoire pour une casse ou une perte.</summary>
+    public string? Notes { get; set; }
+}
+
+/// <summary>Mouvement affiché dans l'historique du stock.</summary>
 public record MouvementStockDto(
     int Id,
     DateTime Date,
-    string TypeArticle,
     string TypeMouvement,
-    string Article,
-    string? ReferenceArticle,
-    string Unite,
+    string Produit,
+    string? ReferenceProduit,
     decimal Quantite,
     decimal StockAvant,
     decimal StockApres,
@@ -51,24 +65,23 @@ public record MouvementStockDto(
     string? Utilisateur,
     string? Notes);
 
-/// <summary>Filtres de l'écran des mouvements de stock.</summary>
+/// <summary>Filtres de l'historique des mouvements.</summary>
 public class FiltreMouvementsRequete : PagedRequest
 {
-    public InventoryItemType? TypeArticle { get; set; }
     public InventoryTransactionType? TypeMouvement { get; set; }
-    public int? MatiereId { get; set; }
     public int? ProduitId { get; set; }
     public DateTime? Du { get; set; }
     public DateTime? Au { get; set; }
 }
 
-/// <summary>Régularisation de stock après comptage physique.</summary>
+/// <summary>
+/// Régularisation après comptage physique. Le motif est obligatoire : un
+/// écart de stock corrigé sans explication ne s'analyse plus ensuite.
+/// </summary>
 public class RegularisationRequete
 {
-    public InventoryItemType TypeArticle { get; set; }
-    public int? MatiereId { get; set; }
-    public int? ProduitId { get; set; }
+    public int ProduitId { get; set; }
     public decimal QuantiteComptee { get; set; }
-    public StockAdjustmentReason Motif { get; set; }
+    public string Motif { get; set; } = string.Empty;
     public string? Notes { get; set; }
 }

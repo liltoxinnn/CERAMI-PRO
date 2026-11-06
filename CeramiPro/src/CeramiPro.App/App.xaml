@@ -1,6 +1,15 @@
 <Application x:Class="CeramiPro.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!--
+        La fermeture de l'application est décidée explicitement.
+
+        Par défaut, WPF quitte dès que la dernière fenêtre se ferme : la
+        fenêtre de connexion étant seule à l'écran, sa fermeture après une
+        connexion réussie arrêtait le programme avant que la fenêtre
+        principale n'ait pu s'afficher.
+    -->
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

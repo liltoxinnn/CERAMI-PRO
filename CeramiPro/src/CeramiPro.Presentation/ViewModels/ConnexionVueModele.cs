@@ -1,6 +1,5 @@
 using CeramiPro.Application.DTOs.Auth;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -14,16 +13,10 @@ namespace CeramiPro.Presentation.ViewModels;
 public partial class ConnexionVueModele : VueModeleBase
 {
     private readonly IAuthService _auth;
-    private readonly IServiceLangue _langue;
 
-    public ConnexionVueModele(IAuthService auth, IServiceLangue langue)
-    {
-        _auth = auth;
-        _langue = langue;
-        _langue.LangueChangee += RafraichirTextes;
-    }
+    public ConnexionVueModele(IAuthService auth) => _auth = auth;
 
-    public override string Titre => _langue["connexion.titre"];
+    public override string Titre => "Connexion";
 
     [ObservableProperty]
     private string _nomUtilisateur = string.Empty;
@@ -38,23 +31,19 @@ public partial class ConnexionVueModele : VueModeleBase
     /// <summary>Profil obtenu, lu par la fenêtre principale après la connexion.</summary>
     public UtilisateurConnecteDto? Profil { get; private set; }
 
-    public IReadOnlyList<Langue> Langues { get; } = new[] { Langue.Francais, Langue.Arabe };
-
-    public SensEcriture Sens => _langue.Sens;
-
-    public string TitreEcran => _langue["connexion.titre"];
-    public string LibelleNomUtilisateur => _langue["connexion.nomUtilisateur"];
-    public string LibelleMotDePasse => _langue["connexion.motDePasse"];
-    public string LibelleConnexion => _langue["action.connexion"];
-    public string NomApplication => _langue["app.nom"];
-    public string SousTitreApplication => _langue["app.sousTitre"];
+    public string TitreEcran => "Connexion";
+    public string LibelleNomUtilisateur => "Nom d'utilisateur";
+    public string LibelleMotDePasse => "Mot de passe";
+    public string LibelleConnexion => "Se connecter";
+    public string NomApplication => "CeramiPro";
+    public string SousTitreApplication => "Gestion d'atelier céramique";
 
     [RelayCommand]
     private async Task ConnecterAsync()
     {
         if (string.IsNullOrWhiteSpace(NomUtilisateur) || string.IsNullOrWhiteSpace(MotDePasse))
         {
-            MessageErreur = _langue["etat.obligatoire"];
+            MessageErreur = "Saisissez votre nom d'utilisateur et votre mot de passe.";
             return;
         }
 
@@ -72,20 +61,5 @@ public partial class ConnexionVueModele : VueModeleBase
 
         // Le mot de passe ne survit pas à la tentative, réussie ou non.
         MotDePasse = string.Empty;
-    }
-
-    [RelayCommand]
-    private void ChoisirLangue(Langue langue) => _langue.Changer(langue);
-
-    private void RafraichirTextes()
-    {
-        OnPropertyChanged(nameof(Titre));
-        OnPropertyChanged(nameof(Sens));
-        OnPropertyChanged(nameof(TitreEcran));
-        OnPropertyChanged(nameof(LibelleNomUtilisateur));
-        OnPropertyChanged(nameof(LibelleMotDePasse));
-        OnPropertyChanged(nameof(LibelleConnexion));
-        OnPropertyChanged(nameof(NomApplication));
-        OnPropertyChanged(nameof(SousTitreApplication));
     }
 }

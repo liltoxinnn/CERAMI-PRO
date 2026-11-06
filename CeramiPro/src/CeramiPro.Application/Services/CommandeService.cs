@@ -9,24 +9,19 @@ using Microsoft.EntityFrameworkCore;
 namespace CeramiPro.Application.Services;
 
 /// <summary>
-/// Commandes personnalisées : pièces sur mesure demandées par un client.
-/// Une date limite est obligatoire (règle n°16), les retards sont signalés
-/// (règle n°17) et les photos comme les notes sont conservées (règle n°19).
+/// Commandes personnalisées : pièces sur mesure demandées par un client,
+/// souvent par Instagram ou WhatsApp. Une date limite est obligatoire, les
+/// retards sont signalés, et les photos comme les notes sont conservées.
 /// </summary>
 public class CommandeService : ICommandeService
 {
     /// <summary>Enchaînement des étapes d'une commande personnalisée.</summary>
     public static readonly IReadOnlyList<CustomOrderStatus> Etapes = new[]
     {
-        CustomOrderStatus.Commande,
-        CustomOrderStatus.Conception,
-        CustomOrderStatus.ValidationClient,
-        CustomOrderStatus.Production,
-        CustomOrderStatus.Cuisson,
-        CustomOrderStatus.Decoration,
-        CustomOrderStatus.ControleQualite,
-        CustomOrderStatus.Pret,
-        CustomOrderStatus.Livre
+        CustomOrderStatus.Recue,
+        CustomOrderStatus.EnFabrication,
+        CustomOrderStatus.Prete,
+        CustomOrderStatus.Livree
     };
 
     /// <summary>Une commande à moins de trois jours de son échéance est signalée.</summary>
@@ -56,7 +51,6 @@ public class CommandeService : ICommandeService
         FiltreCommandesRequete requete, CancellationToken cancellationToken = default)
     {
         var requeteBase = ChargerAvecDetails().AsNoTracking();
-        var maintenant = _horloge.MaintenantUtc;
 
         if (requete.Statut is not null)
         {
@@ -71,22 +65,37 @@ public class CommandeService : ICommandeService
         if (requete.SeulementEnCours)
         {
             requeteBase = requeteBase.Where(c =>
-                c.Status != CustomOrderStatus.Livre && c.Status != CustomOrderStatus.Annule);
+                c.Status != CustomOrderStatus.Livree && c.Status != CustomOrderStatus.Annulee);
         }
+
+        if (requete.Canal is { } canal)
+        {
+            requeteBase = requeteBase.Where(c => c.Channel == canal);
+        }
+
+        if (requete.SeulementAvecReste)
+        {
+            requeteBase = requeteBase.Where(c =>
+                c.Status != CustomOrderStatus.Annulee && c.TotalAmount > c.PaidAmount);
+        }
+
+        // Une commande n'est en retard qu'une fois son jour d'échéance passé,
+        // à l'heure de l'atelier : pas dès minuit en temps universel.
+        var debutAujourdhui = _horloge.DebutDuJourUtc(_horloge.Aujourdhui);
 
         if (requete.SeulementEnRetard)
         {
-            requeteBase = requeteBase.Where(c => c.Deadline < maintenant
-                                                 && c.Status != CustomOrderStatus.Livre
-                                                 && c.Status != CustomOrderStatus.Annule);
+            requeteBase = requeteBase.Where(c => c.Deadline < debutAujourdhui
+                                                 && c.Status != CustomOrderStatus.Livree
+                                                 && c.Status != CustomOrderStatus.Annulee);
         }
 
         if (requete.SeulementProchesEcheance)
         {
-            var limite = maintenant.AddDays(JoursAlerteEcheance);
-            requeteBase = requeteBase.Where(c => c.Deadline >= maintenant && c.Deadline <= limite
-                                                 && c.Status != CustomOrderStatus.Livre
-                                                 && c.Status != CustomOrderStatus.Annule);
+            var limite = _horloge.DebutDuJourUtc(_horloge.Aujourdhui.AddDays(JoursAlerteEcheance + 1));
+            requeteBase = requeteBase.Where(c => c.Deadline >= debutAujourdhui && c.Deadline < limite
+                                                 && c.Status != CustomOrderStatus.Livree
+                                                 && c.Status != CustomOrderStatus.Annulee);
         }
 
         if (!string.IsNullOrWhiteSpace(requete.Recherche))
@@ -129,6 +138,7 @@ public class CommandeService : ICommandeService
             OrderNumber = await _numerotation.GenererAsync(TypeDocument.Commande, cancellationToken),
             CustomerId = requete.ClientId,
             Title = requete.Titre.Trim(),
+            Channel = requete.Canal,
             Description = Nettoyer(requete.Description),
             Width = requete.Largeur,
             Height = requete.Hauteur,
@@ -139,8 +149,8 @@ public class CommandeService : ICommandeService
             UnitPrice = requete.PrixUnitaire,
             DiscountAmount = requete.Remise,
             OrderDate = _horloge.MaintenantUtc,
-            Deadline = requete.DateLimite!.Value,
-            Status = CustomOrderStatus.Commande,
+            Deadline = _horloge.DebutDuJourUtc(requete.DateLimite!.Value),
+            Status = CustomOrderStatus.Recue,
             AssignedUserId = requete.EmployeId,
             Notes = Nettoyer(requete.Notes)
         };
@@ -163,7 +173,7 @@ public class CommandeService : ICommandeService
         var commande = await ChargerAvecDetails().FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Commande personnalisée", id);
 
-        if (commande.Status is CustomOrderStatus.Livre or CustomOrderStatus.Annule)
+        if (commande.Status is CustomOrderStatus.Livree or CustomOrderStatus.Annulee)
         {
             throw new RegleMetierException(
                 $"La commande {commande.OrderNumber} est « {commande.Status.Libelle()} » : " +
@@ -182,6 +192,7 @@ public class CommandeService : ICommandeService
         }
 
         commande.Title = requete.Titre.Trim();
+        commande.Channel = requete.Canal;
         commande.Description = Nettoyer(requete.Description);
         commande.Width = requete.Largeur;
         commande.Height = requete.Hauteur;
@@ -192,7 +203,7 @@ public class CommandeService : ICommandeService
         commande.UnitPrice = requete.PrixUnitaire;
         commande.DiscountAmount = requete.Remise;
         commande.TotalAmount = nouveauTotal;
-        commande.Deadline = requete.DateLimite!.Value;
+        commande.Deadline = _horloge.DebutDuJourUtc(requete.DateLimite!.Value);
         commande.AssignedUserId = requete.EmployeId;
         commande.Notes = Nettoyer(requete.Notes);
 
@@ -203,13 +214,17 @@ public class CommandeService : ICommandeService
         return await ObtenirAsync(id, cancellationToken);
     }
 
-    public async Task<CommandeDto> ChangerStatutAsync(
+    public Task<CommandeDto> ChangerStatutAsync(
         int id, CustomOrderStatus statut, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => ChangerEtapeAsync(id, statut, cancellationToken), cancellationToken);
+
+    private async Task<CommandeDto> ChangerEtapeAsync(
+        int id, CustomOrderStatus statut, CancellationToken cancellationToken)
     {
         var commande = await ChargerAvecDetails().FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Commande personnalisée", id);
 
-        if (commande.Status == CustomOrderStatus.Annule)
+        if (commande.Status == CustomOrderStatus.Annulee)
         {
             throw new RegleMetierException($"La commande {commande.OrderNumber} est annulée.");
         }
@@ -225,7 +240,7 @@ public class CommandeService : ICommandeService
         }
 
         // Le solde doit être réglé avant de remettre la pièce au client.
-        if (statut == CustomOrderStatus.Livre && commande.RemainingAmount > 0)
+        if (statut == CustomOrderStatus.Livree && commande.RemainingAmount > 0)
         {
             throw new RegleMetierException(
                 $"Il reste {Formatage.Montant(commande.RemainingAmount)} à encaisser " +
@@ -234,7 +249,7 @@ public class CommandeService : ICommandeService
 
         commande.Status = statut;
 
-        if (statut == CustomOrderStatus.Livre)
+        if (statut == CustomOrderStatus.Livree)
         {
             commande.DeliveredAt = _horloge.MaintenantUtc;
         }
@@ -276,6 +291,19 @@ public class CommandeService : ICommandeService
         return await ObtenirAsync(id, cancellationToken);
     }
 
+    public async Task<string> SupprimerPhotoAsync(
+        int id, int photoId, CancellationToken cancellationToken = default)
+    {
+        var photo = await _context.CustomOrderImages
+                        .FirstOrDefaultAsync(i => i.Id == photoId && i.CustomOrderId == id, cancellationToken)
+                    ?? throw IntrouvableException.Pour("Photo", photoId);
+
+        _context.CustomOrderImages.Remove(photo);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return photo.FilePath;
+    }
+
     public async Task<CommandeDto> AjouterNoteAsync(
         int id, NoteRequete requete, CancellationToken cancellationToken = default)
     {
@@ -300,18 +328,24 @@ public class CommandeService : ICommandeService
         return await ObtenirAsync(id, cancellationToken);
     }
 
-    public async Task<CommandeDto> AnnulerAsync(
-        int id, string motif, CancellationToken cancellationToken = default)
+    /// <summary>Annule la commande et, s'il y a lieu, rembourse ses acomptes — tout ou rien.</summary>
+    public Task<CommandeDto> AnnulerAsync(
+        int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(
+            () => AnnulerCommandeAsync(id, motif, rembourser, cancellationToken), cancellationToken);
+
+    private async Task<CommandeDto> AnnulerCommandeAsync(
+        int id, string motif, bool rembourser, CancellationToken cancellationToken)
     {
         var commande = await ChargerAvecDetails().FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Commande personnalisée", id);
 
-        if (commande.Status == CustomOrderStatus.Annule)
+        if (commande.Status == CustomOrderStatus.Annulee)
         {
             throw new RegleMetierException($"La commande {commande.OrderNumber} est déjà annulée.");
         }
 
-        if (commande.Status == CustomOrderStatus.Livre)
+        if (commande.Status == CustomOrderStatus.Livree)
         {
             throw new RegleMetierException(
                 $"La commande {commande.OrderNumber} est livrée : elle ne peut plus être annulée.");
@@ -324,12 +358,21 @@ public class CommandeService : ICommandeService
 
         if (commande.PaidAmount > 0)
         {
-            throw new RegleMetierException(
-                $"Un acompte de {Formatage.Montant(commande.PaidAmount)} a été encaissé. " +
-                "Annulez d'abord les paiements pour pouvoir annuler la commande.");
+            if (!rembourser)
+            {
+                throw new RegleMetierException(
+                    $"Un acompte de {Formatage.Montant(commande.PaidAmount)} a été encaissé : " +
+                    "annuler la commande suppose de le rembourser au client.");
+            }
+
+            await Remboursement.AnnulerPaiementsAsync(
+                _context, p => p.CustomOrderId == commande.Id,
+                $"Remboursé à l'annulation de la commande : {motif.Trim()}", cancellationToken);
+
+            commande.PaidAmount = 0m;
         }
 
-        commande.Status = CustomOrderStatus.Annule;
+        commande.Status = CustomOrderStatus.Annulee;
         commande.Notes = string.IsNullOrWhiteSpace(commande.Notes)
             ? $"Annulée : {motif.Trim()}"
             : $"{commande.Notes}\nAnnulée : {motif.Trim()}";
@@ -382,8 +425,9 @@ public class CommandeService : ICommandeService
 
     private CommandeDto Convertir(CustomOrder c)
     {
-        var maintenant = _horloge.MaintenantUtc;
-        var active = c.Status != CustomOrderStatus.Livre && c.Status != CustomOrderStatus.Annule;
+        var active = c.Status != CustomOrderStatus.Livree && c.Status != CustomOrderStatus.Annulee;
+        var echeance = _horloge.EnHeureAtelier(c.Deadline).Date;
+        var aujourdhui = _horloge.Aujourdhui;
 
         return new CommandeDto(
             c.Id,
@@ -392,6 +436,8 @@ public class CommandeService : ICommandeService
             c.Customer.FullName,
             c.Customer.PhoneNumber,
             c.Title,
+            c.Channel,
+            c.Channel.Libelle(),
             c.Description,
             c.Width,
             c.Height,
@@ -404,21 +450,21 @@ public class CommandeService : ICommandeService
             c.TotalAmount,
             c.PaidAmount,
             c.RemainingAmount,
-            c.OrderDate,
-            c.Deadline,
-            c.DeliveredAt,
+            _horloge.EnHeureAtelier(c.OrderDate),
+            echeance,
+            _horloge.EnHeureAtelier(c.DeliveredAt),
             c.Status,
             c.Status.Libelle(),
             c.AssignedUserId,
             c.AssignedUser?.FullName,
             c.Notes,
-            active && c.Deadline < maintenant,
-            (int)Math.Ceiling((c.Deadline - maintenant).TotalDays),
+            active && echeance < aujourdhui,
+            (echeance - aujourdhui).Days,
             c.Images.OrderBy(i => i.SortOrder)
                 .Select(i => new PhotoCommandeDto(i.Id, i.FilePath, i.Caption, i.Kind, i.Kind.Libelle()))
                 .ToList(),
             c.OrderNotes.OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NoteCommandeDto(n.Id, n.Content, n.User?.FullName, n.CreatedAt))
+                .Select(n => new NoteCommandeDto(n.Id, n.Content, n.User?.FullName, _horloge.EnHeureAtelier(n.CreatedAt)))
                 .ToList());
     }
 }

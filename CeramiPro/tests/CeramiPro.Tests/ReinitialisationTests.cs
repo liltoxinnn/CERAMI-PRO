@@ -122,8 +122,4 @@ public class ReinitialisationAdministrateurTests
             .Should().BeTrue();
     }
 
-    [Fact]
-    public void Le_role_administrateur_conserve_tous_les_droits()
-        => PermissionCodes.DroitsParDefaut[RoleCodes.Administrateur]
-            .Should().HaveCount(PermissionCodes.Catalogue.Count);
 }

@@ -1,4 +1,3 @@
-using CeramiPro.Application.Localisation;
 using CeramiPro.Application.Services;
 using CeramiPro.Infrastructure.Authentication;
 using CeramiPro.Presentation.ViewModels;
@@ -12,7 +11,6 @@ public class ConnexionVueModeleTests : IDisposable
 {
     private readonly Infrastructure.Data.CeramiProDbContext _contexte;
     private readonly UtilisateurCourantFactice _session = new();
-    private readonly ServiceLangue _langue = new();
     private readonly ConnexionVueModele _vue;
 
     public ConnexionVueModeleTests()
@@ -24,7 +22,7 @@ public class ConnexionVueModeleTests : IDisposable
             _contexte, new PasswordHasherService(), new HorlogeFactice(), new AuditFactice(),
             _session, LoggerFactory.Create(b => { }).CreateLogger<AuthService>());
 
-        _vue = new ConnexionVueModele(auth, _langue);
+        _vue = new ConnexionVueModele(auth);
     }
 
     [Fact]
@@ -80,20 +78,28 @@ public class ConnexionVueModeleTests : IDisposable
     {
         await _vue.ConnecterCommand.ExecuteAsync(null);
 
-        _vue.MessageErreur.Should().Be("Champ obligatoire");
+        _vue.MessageErreur.Should().Be("Saisissez votre nom d'utilisateur et votre mot de passe.");
         _vue.ConnexionReussie.Should().BeFalse();
     }
 
     [Fact]
-    public void L_ecran_de_connexion_se_traduit_en_arabe()
+    public async Task Le_profil_porte_le_role_de_la_personne()
+    {
+        _vue.NomUtilisateur = "admin";
+        _vue.MotDePasse = ContexteTest.MotDePasseAdministrateur;
+
+        await _vue.ConnecterCommand.ExecuteAsync(null);
+
+        _session.EstAdministrateur.Should().BeTrue();
+        _session.NomRole.Should().Be("Administrateur");
+    }
+
+    [Fact]
+    public void L_ecran_de_connexion_est_en_francais()
     {
         _vue.LibelleConnexion.Should().Be("Se connecter");
-
-        _langue.Changer(Langue.Arabe);
-
-        _vue.LibelleConnexion.Should().Be("تسجيل الدخول");
-        _vue.LibelleMotDePasse.Should().Be("كلمة المرور");
-        _vue.Sens.Should().Be(SensEcriture.DroiteAGauche);
+        _vue.LibelleMotDePasse.Should().Be("Mot de passe");
+        _vue.LibelleNomUtilisateur.Should().Be("Nom d'utilisateur");
     }
 
     public void Dispose() => _contexte.Dispose();

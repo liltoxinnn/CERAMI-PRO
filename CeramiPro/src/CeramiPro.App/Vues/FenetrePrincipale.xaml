@@ -7,8 +7,7 @@
         MinHeight="620" MinWidth="1024"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Fond}"
-        FontFamily="{StaticResource PoliceInterface}"
-        FlowDirection="{Binding Sens, Converter={StaticResource SensEnFlowDirection}}">
+        FontFamily="{StaticResource PoliceInterface}">
 
     <Grid>
         <Grid.ColumnDefinitions>
@@ -30,22 +29,6 @@
                         <TextBlock Text="{Binding SousTitreApplication}"
                                    Foreground="#8FA0B0" FontSize="11" Margin="0,3,0,0" />
 
-                        <ItemsControl ItemsSource="{Binding Langues}" Margin="0,12,0,0">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Content="{Binding Converter={StaticResource LangueEnNom}}"
-                                            Command="{Binding DataContext.ChoisirLangueCommand,
-                                                      RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}"
-                                            Foreground="#B9C4CF" Background="Transparent"
-                                            BorderThickness="0" Cursor="Hand"
-                                            FontSize="11" Padding="8,3" Margin="0,0,4,0" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
                     </StackPanel>
                 </Border>
 
@@ -56,6 +39,20 @@
                                    Foreground="{StaticResource TexteInverse}"
                                    FontSize="13" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding NomRole}" Foreground="#8FA0B0" FontSize="11" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="{Binding LibelleChangerMotDePasse}"
+                                    Command="{Binding ChangerMotDePasseCommand}"
+                                    Foreground="#B9C4CF" Background="Transparent"
+                                    BorderThickness="0" Cursor="Hand"
+                                    FontSize="11" Padding="0,2" Margin="0,0,14,0" />
+
+                            <Button Content="{Binding LibelleDeconnexion}"
+                                    Command="{Binding DeconnecterCommand}"
+                                    Foreground="#B9C4CF" Background="Transparent"
+                                    BorderThickness="0" Cursor="Hand"
+                                    FontSize="11" Padding="0,2" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

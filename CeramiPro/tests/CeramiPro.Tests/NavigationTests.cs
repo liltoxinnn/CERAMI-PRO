@@ -1,6 +1,7 @@
-using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
+using CeramiPro.Presentation.ViewModels.Ecrans;
 using CeramiPro.Tests.Aides;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,21 +11,16 @@ namespace CeramiPro.Tests;
 public class CatalogueNavigationTests
 {
     [Fact]
-    public void Le_menu_suit_le_chemin_de_l_atelier()
+    public void Le_menu_compte_exactement_les_sept_sections_de_l_atelier()
     {
-        var menu = CatalogueNavigation.Construire(new ServiceLangue());
-
-        menu.Select(e => e.CleLibelle).Should().ContainInOrder(
-            "menu.tableauDeBord", "menu.stock", "menu.produits", "menu.production",
-            "menu.cuisson", "menu.decoration", "menu.qualite", "menu.clients",
-            "menu.commandes", "menu.fournisseurs", "menu.ventes", "menu.paiements",
-            "menu.factures", "menu.depenses", "menu.rapports", "menu.parametres");
+        CatalogueNavigation.Construire().Select(e => e.Libelle).Should().Equal(
+            "Tableau de bord", "Produits", "Commandes", "Clients", "Ventes", "Rapports", "Paramètres");
     }
 
     [Fact]
     public void Chaque_entree_porte_un_libelle_francais_et_une_icone()
     {
-        foreach (var element in Aplatir(CatalogueNavigation.Construire(new ServiceLangue())))
+        foreach (var element in Aplatir(CatalogueNavigation.Construire()))
         {
             element.Libelle.Should().NotBeNullOrWhiteSpace();
             element.Icone.Should().NotBeNullOrWhiteSpace();
@@ -32,47 +28,67 @@ public class CatalogueNavigationTests
     }
 
     [Fact]
-    public void Les_groupes_ont_des_sous_entrees()
+    public void Les_sections_regroupent_leurs_ecrans()
     {
-        var menu = CatalogueNavigation.Construire(new ServiceLangue());
+        var menu = CatalogueNavigation.Construire();
 
-        menu.First(e => e.CleLibelle == "menu.stock").Enfants.Select(e => e.Libelle)
-            .Should().Equal("Vue générale", "Matières premières", "Produits finis",
-                "Mouvements", "Alertes");
+        menu.Single(e => e.Libelle == "Produits").Enfants.Select(e => e.Libelle)
+            .Should().Equal("Catalogue", "Stock", "Historique du stock", "Catégories");
 
-        menu.First(e => e.CleLibelle == "menu.cuisson").Enfants.Should().HaveCount(3);
+        menu.Single(e => e.Libelle == "Ventes").Enfants.Select(e => e.Libelle)
+            .Should().Equal("Nouvelle vente", "Historique des ventes", "Paiements");
+
+        menu.Single(e => e.Libelle == "Rapports").Enfants.Select(e => e.Libelle)
+            .Should().Equal("Rapports", "Dépenses");
+
+        menu.Single(e => e.Libelle == "Paramètres").Enfants.Select(e => e.Libelle)
+            .Should().Equal("Atelier", "Catégories de dépenses", "Utilisateurs", "Sauvegarde");
     }
 
     [Fact]
-    public void Les_ecrans_developpes_sont_atteignables_depuis_le_menu()
-    {
-        var avecDestination = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
-            .Where(e => e.Destination is not null)
-            .ToList();
-
-        avecDestination.Should().HaveCountGreaterThanOrEqualTo(15);
-        avecDestination.Select(e => e.Destination).Should().Contain(typeof(TableauDeBordVueModele));
-    }
-
-    [Fact]
-    public void Toute_entree_sans_ecran_est_un_groupe_depliable()
+    public void Toute_entree_ouvre_un_ecran_ou_deplie_une_section()
     {
         // Une entrée qui n'ouvre rien et ne déplie rien serait sans effet.
-        var inertes = Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+        var inertes = Aplatir(CatalogueNavigation.Construire())
             .Where(e => e.Destination is null && !e.EstGroupe)
-            .Select(e => e.CleLibelle)
+            .Select(e => e.Libelle)
             .ToList();
 
-        inertes.Should().BeSubsetOf(new[]
-        {
-            "menu.stock.vueGenerale", "menu.stock.produitsFinis", "menu.stock.alertes",
-            "menu.produits.categories", "menu.produits.variantes", "menu.produits.recettes",
-            "menu.production.planning", "menu.production.enCours", "menu.production.historique",
-            "menu.cuisson.fours", "menu.decoration.types", "menu.rapports", "menu.parametres"
-        }, "seuls les écrans encore à développer peuvent être inactifs");
+        inertes.Should().BeEmpty("ces entrées de menu n'ont aucun effet : " + string.Join(", ", inertes));
     }
 
-    private static IEnumerable<ElementNavigation> Aplatir(IEnumerable<ElementNavigation> elements)
+    [Fact]
+    public void Chaque_destination_est_bien_un_ecran()
+    {
+        foreach (var element in Aplatir(CatalogueNavigation.Construire()))
+        {
+            if (element.Destination is { } destination)
+            {
+                typeof(VueModeleBase).IsAssignableFrom(destination).Should().BeTrue(
+                    $"la destination de « {element.Libelle} » doit être un écran");
+            }
+        }
+    }
+
+    [Fact]
+    public void Aucun_ecran_n_est_atteignable_par_deux_entrees_differentes()
+    {
+        Aplatir(CatalogueNavigation.Construire())
+            .Where(e => e.Destination is not null)
+            .Select(e => e.Destination!)
+            .Should().OnlyHaveUniqueItems("deux entrées de menu qui ouvrent le même écran prêtent à confusion");
+    }
+
+    [Fact]
+    public void Seuls_les_utilisateurs_et_la_sauvegarde_sont_reserves_a_l_administrateur()
+    {
+        Aplatir(CatalogueNavigation.Construire())
+            .Where(e => e.AdministrateurSeulement)
+            .Select(e => e.Destination)
+            .Should().BeEquivalentTo(new[] { typeof(UtilisateursVueModele), typeof(SauvegardeVueModele) });
+    }
+
+    public static IEnumerable<ElementNavigation> Aplatir(IEnumerable<ElementNavigation> elements)
     {
         foreach (var element in elements)
         {
@@ -86,25 +102,22 @@ public class CatalogueNavigationTests
     }
 }
 
-public class ServiceNavigationTests
+public class ServiceNavigationTests : IDisposable
 {
-    private static ServiceProvider ConstruireServices()
-    {
-        var services = new ServiceCollection();
-        services.AddTransient<TableauDeBordVueModele>();
-        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
-            EtatBaseFactice>();
-        return services.BuildServiceProvider();
-    }
+    private readonly InterfaceDeTest _ui = new();
+
+    public void Dispose() => _ui.Dispose();
+
+    private ServiceNavigation Navigation() => new(_ui.Obtenir<IServiceProvider>());
 
     [Fact]
     public void Aucun_ecran_n_est_affiche_au_demarrage()
-        => new ServiceNavigation(ConstruireServices()).VueCourante.Should().BeNull();
+        => Navigation().VueCourante.Should().BeNull();
 
     [Fact]
     public void Naviguer_ouvre_l_ecran_demande()
     {
-        var navigation = new ServiceNavigation(ConstruireServices());
+        var navigation = Navigation();
 
         navigation.Naviguer<TableauDeBordVueModele>();
 
@@ -115,7 +128,7 @@ public class ServiceNavigationTests
     [Fact]
     public void Un_changement_d_ecran_est_signale()
     {
-        var navigation = new ServiceNavigation(ConstruireServices());
+        var navigation = Navigation();
         VueModeleBase? recue = null;
         navigation.VueChangee += vue => recue = vue;
 
@@ -127,42 +140,69 @@ public class ServiceNavigationTests
     [Fact]
     public void Un_type_qui_n_est_pas_un_ecran_est_refuse()
     {
-        var navigation = new ServiceNavigation(ConstruireServices());
-
-        var action = () => navigation.Naviguer(typeof(string));
+        var action = () => Navigation().Naviguer(typeof(string));
 
         action.Should().Throw<ArgumentException>().WithMessage("*n'est pas un écran*");
     }
 }
 
-public class FenetrePrincipaleTests
+public class FenetrePrincipaleTests : IDisposable
 {
-    private static FenetrePrincipaleVueModele Construire(UtilisateurFactice utilisateur)
-    {
-        var services = new ServiceCollection();
-        services.AddTransient<TableauDeBordVueModele>();
-        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
-            EtatBaseFactice>();
+    private readonly InterfaceDeTest _ui = new();
 
-        return new FenetrePrincipaleVueModele(
-            new ServiceNavigation(services.BuildServiceProvider()), utilisateur, new ServiceLangue());
-    }
+    public void Dispose() => _ui.Dispose();
+
+    private FenetrePrincipaleVueModele Construire(UtilisateurFactice utilisateur)
+        => new(new ServiceNavigation(_ui.Obtenir<IServiceProvider>()), utilisateur);
 
     [Fact]
-    public void Le_menu_complet_est_visible_sans_restriction_de_droits()
+    public void Un_administrateur_voit_les_sept_sections_et_tous_les_parametres()
     {
         var fenetre = Construire(new UtilisateurFactice());
 
-        fenetre.Menu.Should().HaveCount(16);
+        fenetre.Menu.Should().HaveCount(7);
         fenetre.Menu.First().Libelle.Should().Be("Tableau de bord");
+        fenetre.Menu.Single(e => e.Libelle == "Paramètres").Enfants.Should().HaveCount(4);
     }
 
     [Fact]
-    public void Le_nom_de_l_utilisateur_connecte_est_affiche()
+    public void Un_employe_voit_les_sept_sections_sans_les_utilisateurs_ni_la_sauvegarde()
     {
-        var fenetre = Construire(new UtilisateurFactice { NomUtilisateur = "karim" });
+        // Le menu ne montre que ce qui est permis ; la couche métier refuse
+        // de son côté, l'écran n'est pas la seule barrière.
+        var fenetre = Construire(new UtilisateurFactice { Role = RoleUtilisateur.Employe });
 
-        fenetre.NomUtilisateur.Should().Be("karim");
+        fenetre.Menu.Should().HaveCount(7);
+
+        var parametres = fenetre.Menu.Single(e => e.Libelle == "Paramètres").Enfants.Select(e => e.Libelle);
+        parametres.Should().Equal("Atelier", "Catégories de dépenses");
+    }
+
+    [Fact]
+    public void Le_nom_et_le_role_de_l_utilisateur_connecte_sont_affiches()
+    {
+        var fenetre = Construire(new UtilisateurFactice
+        {
+            NomUtilisateur = "karim",
+            NomComplet = "Karim Saïdi",
+            Role = RoleUtilisateur.Employe
+        });
+
+        // L'en-tête montre le nom de la personne, pas son identifiant.
+        fenetre.NomUtilisateur.Should().Be("Karim Saïdi");
+        fenetre.NomRole.Should().Be("Employé");
+    }
+
+    [Fact]
+    public void Aucune_session_ouverte_est_annoncee_clairement()
+    {
+        var fenetre = Construire(new UtilisateurFactice
+        {
+            UtilisateurId = null, NomUtilisateur = null, NomComplet = null, Role = null
+        });
+
+        fenetre.NomUtilisateur.Should().Be("Aucune session");
+        fenetre.NomRole.Should().BeEmpty();
     }
 
     [Fact]
@@ -178,87 +218,45 @@ public class FenetrePrincipaleTests
     }
 
     [Fact]
-    public void Cliquer_sur_une_entree_disponible_ouvre_son_ecran()
+    public void Cliquer_sur_une_entree_ouvre_son_ecran()
     {
         var fenetre = Construire(new UtilisateurFactice());
-        var tableauDeBord = fenetre.Menu.First(e => e.CleLibelle == "menu.tableauDeBord");
 
-        fenetre.NaviguerCommand.Execute(tableauDeBord);
+        fenetre.NaviguerCommand.Execute(fenetre.Menu.Single(e => e.Libelle == "Commandes"));
 
-        fenetre.VueCourante.Should().BeOfType<TableauDeBordVueModele>();
+        fenetre.VueCourante.Should().BeOfType<CommandesVueModele>();
     }
 
     [Fact]
-    public void Cliquer_sur_un_groupe_n_ouvre_aucun_ecran()
+    public void Les_sections_sont_repliees_au_depart()
+        => Construire(new UtilisateurFactice()).Menu.Where(e => e.EstGroupe)
+            .Should().OnlyContain(e => !e.EstDeplie);
+
+    [Fact]
+    public void Cliquer_sur_une_section_la_deplie_puis_la_replie_sans_ouvrir_d_ecran()
     {
         var fenetre = Construire(new UtilisateurFactice());
-        var stock = fenetre.Menu.First(e => e.CleLibelle == "menu.stock");
+        var produits = fenetre.Menu.Single(e => e.Libelle == "Produits");
 
-        fenetre.NaviguerCommand.Execute(stock);
-
+        fenetre.NaviguerCommand.Execute(produits);
+        produits.EstDeplie.Should().BeTrue();
         fenetre.VueCourante.Should().BeNull();
-    }
-}
 
-public class DepliageMenuTests
-{
-    private static FenetrePrincipaleVueModele Construire()
-    {
-        var services = new ServiceCollection();
-        services.AddTransient<TableauDeBordVueModele>();
-        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
-            EtatBaseFactice>();
-
-        return new FenetrePrincipaleVueModele(
-            new ServiceNavigation(services.BuildServiceProvider()),
-            new UtilisateurFactice(), new ServiceLangue());
+        fenetre.NaviguerCommand.Execute(produits);
+        produits.EstDeplie.Should().BeFalse();
     }
 
     [Fact]
-    public void Les_groupes_sont_replies_au_depart()
+    public void Se_deconnecter_et_changer_de_mot_de_passe_passent_par_le_compte()
     {
-        var fenetre = Construire();
-
-        fenetre.Menu.Where(e => e.EstGroupe).Should().OnlyContain(e => !e.EstDeplie);
-    }
-
-    [Fact]
-    public void Cliquer_sur_un_groupe_le_deplie_puis_le_replie()
-    {
-        var fenetre = Construire();
-        var stock = fenetre.Menu.First(e => e.CleLibelle == "menu.stock");
-
-        fenetre.NaviguerCommand.Execute(stock);
-        stock.EstDeplie.Should().BeTrue();
-
-        fenetre.NaviguerCommand.Execute(stock);
-        stock.EstDeplie.Should().BeFalse();
-    }
-
-    [Fact]
-    public void Deplier_un_groupe_n_ouvre_aucun_ecran()
-    {
-        var fenetre = Construire();
-
-        fenetre.NaviguerCommand.Execute(fenetre.Menu.First(e => e.CleLibelle == "menu.production"));
-
-        fenetre.VueCourante.Should().BeNull();
-    }
-
-    [Fact]
-    public void Aucune_session_ouverte_est_annonce_clairement()
-    {
-        var services = new ServiceCollection();
-        services.AddTransient<TableauDeBordVueModele>();
-        services.AddSingleton<CeramiPro.Application.Interfaces.IServiceEtatBaseDeDonnees,
-            EtatBaseFactice>();
-
+        var compte = new CompteFactice();
         var fenetre = new FenetrePrincipaleVueModele(
-            new ServiceNavigation(services.BuildServiceProvider()),
-            new UtilisateurFactice { UtilisateurId = null, NomUtilisateur = null, CodeRole = null },
-            new ServiceLangue());
+            new ServiceNavigation(_ui.Obtenir<IServiceProvider>()), new UtilisateurFactice(), compte);
 
-        fenetre.NomUtilisateur.Should().Be("Aucune session");
-        fenetre.NomRole.Should().BeEmpty();
+        fenetre.ChangerMotDePasseCommand.Execute(null);
+        fenetre.DeconnecterCommand.Execute(null);
+
+        compte.ChangementsDemandes.Should().Be(1);
+        compte.Deconnexions.Should().Be(1);
     }
 }

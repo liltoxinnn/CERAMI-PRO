@@ -5,28 +5,24 @@
                     xmlns:vues="clr-namespace:CeramiPro.App.Vues">
 
     <!--
-        Association entre chaque vue-modèle et son écran. Les seize écrans de
-        liste partagent la même vue générique : leurs colonnes viennent de la
-        vue-modèle, pas du XAML.
+        Association entre chaque vue-modèle et son écran, rangée comme les
+        sept sections du menu.
+
+        Les écrans de liste partagent la même vue générique : leurs colonnes,
+        leurs filtres et leurs actions viennent de la vue-modèle, pas du XAML.
     -->
 
+    <!-- Tableau de bord -->
     <DataTemplate DataType="{x:Type vm:TableauDeBordVueModele}">
         <vues:TableauDeBordVue />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:MatieresVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
+    <!-- Produits -->
     <DataTemplate DataType="{x:Type ecrans:ProduitsVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:FournisseursVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:AchatsVueModele}">
+    <DataTemplate DataType="{x:Type ecrans:ProduitsStockVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
@@ -34,19 +30,25 @@
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:ClientsVueModele}">
+    <DataTemplate DataType="{x:Type ecrans:CategoriesProduitsVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
+    <!-- Commandes et clients -->
     <DataTemplate DataType="{x:Type ecrans:CommandesVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:VentesVueModele}">
+    <DataTemplate DataType="{x:Type ecrans:ClientsVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:FacturesVueModele}">
+    <!-- Ventes -->
+    <DataTemplate DataType="{x:Type ecrans:CaisseVueModele}">
+        <vues:VueDocument />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:VentesVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
@@ -54,27 +56,49 @@
         <vues:VueListe />
     </DataTemplate>
 
+    <!-- Rapports -->
+    <DataTemplate DataType="{x:Type ecrans:RapportsVueModele}">
+        <vues:RapportsVue />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type ecrans:DepensesVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:ProductionVueModele}">
-        <vues:VueListe />
+    <!-- Paramètres -->
+    <DataTemplate DataType="{x:Type ecrans:ParametresVueModele}">
+        <vues:ParametresVue />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:CuissonsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:DecorationsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:QualiteVueModele}">
+    <DataTemplate DataType="{x:Type ecrans:CategoriesDepensesVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type ecrans:UtilisateursVueModele}">
         <vues:VueListe />
     </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:SauvegardeVueModele}">
+        <vues:SauvegardeVue />
+    </DataTemplate>
+
+    <!--
+        Filtres des écrans de liste : une case à cocher, ou une liste de choix.
+        La vue générique les présente sans rien savoir du métier.
+    -->
+    <DataTemplate DataType="{x:Type vm:FiltreCase}">
+        <CheckBox Content="{Binding Libelle}" IsChecked="{Binding Actif}"
+                  VerticalAlignment="Center" Margin="0,0,24,8" FontSize="13" />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:FiltreChoix}">
+        <StackPanel Orientation="Horizontal" Margin="0,0,24,8">
+            <TextBlock Text="{Binding Libelle}" VerticalAlignment="Center" Margin="0,0,8,0"
+                       FontSize="13" Foreground="{StaticResource TexteSecondaire}" />
+            <ComboBox ItemsSource="{Binding Options}" DisplayMemberPath="Libelle"
+                      SelectedValuePath="Valeur" SelectedValue="{Binding Valeur}"
+                      MinWidth="200" MinHeight="32" Padding="8,4" VerticalContentAlignment="Center" />
+        </StackPanel>
+    </DataTemplate>
+
 </ResourceDictionary>

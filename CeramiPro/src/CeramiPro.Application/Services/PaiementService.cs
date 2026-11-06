@@ -46,6 +46,16 @@ public class PaiementService : IPaiementService
             requeteBase = requeteBase.Where(p => p.CustomerId == requete.ClientId);
         }
 
+        if (requete.VenteId is not null)
+        {
+            requeteBase = requeteBase.Where(p => p.SaleId == requete.VenteId);
+        }
+
+        if (requete.CommandeId is not null)
+        {
+            requeteBase = requeteBase.Where(p => p.CustomOrderId == requete.CommandeId);
+        }
+
         if (requete.Du is not null)
         {
             var du = DateTime.SpecifyKind(requete.Du.Value.Date, DateTimeKind.Utc);
@@ -79,8 +89,12 @@ public class PaiementService : IPaiementService
             paiements.Select(Convertir).ToList(), total, requete.Page, requete.TaillePage);
     }
 
-    public async Task<PaiementDto> EnregistrerAsync(
+    public Task<PaiementDto> EnregistrerAsync(
         PaiementRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => EnregistrerPaiementAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<PaiementDto> EnregistrerPaiementAsync(
+        PaiementRequete requete, CancellationToken cancellationToken)
     {
         if (requete.Montant <= 0)
         {
@@ -92,8 +106,7 @@ public class PaiementService : IPaiementService
             throw new RegleMetierException("Le mode de règlement sélectionné n'existe pas.");
         }
 
-        if (requete.VenteId is null && requete.CommandeId is null
-            && requete.FactureId is null && requete.ClientId is null)
+        if (requete.VenteId is null && requete.CommandeId is null && requete.ClientId is null)
         {
             throw new RegleMetierException("Indiquez le client, la vente ou la commande concernée.");
         }
@@ -103,9 +116,8 @@ public class PaiementService : IPaiementService
         var paiement = new Payment
         {
             PaymentNumber = await _numerotation.GenererAsync(TypeDocument.Paiement, cancellationToken),
-            Direction = PaymentDirection.Encaissement,
             Amount = requete.Montant,
-            PaymentDate = requete.Date ?? _horloge.MaintenantUtc,
+            PaymentDate = _horloge.JourSaisiVersUtc(requete.Date),
             PaymentMethodId = requete.ModeReglementId,
             IsDeposit = requete.Acompte,
             Reference = Nettoyer(requete.Reference),
@@ -137,7 +149,7 @@ public class PaiementService : IPaiementService
                                .FirstOrDefaultAsync(c => c.Id == requete.CommandeId, cancellationToken)
                            ?? throw IntrouvableException.Pour("Commande personnalisée", requete.CommandeId);
 
-            if (commande.Status == CustomOrderStatus.Annule)
+            if (commande.Status == CustomOrderStatus.Annulee)
             {
                 throw new RegleMetierException($"La commande {commande.OrderNumber} est annulée.");
             }
@@ -147,25 +159,6 @@ public class PaiementService : IPaiementService
             commande.PaidAmount += requete.Montant;
             paiement.CustomOrderId = commande.Id;
             clientId ??= commande.CustomerId;
-        }
-
-        var factureId = requete.FactureId
-                        ?? await TrouverFactureAsync(requete.VenteId, requete.CommandeId, cancellationToken);
-
-        if (factureId is not null)
-        {
-            var facture = await _context.Invoices.FirstOrDefaultAsync(f => f.Id == factureId, cancellationToken);
-
-            if (facture is not null && facture.Status != InvoiceStatus.Annulee)
-            {
-                facture.PaidAmount = Math.Min(facture.TotalAmount, facture.PaidAmount + requete.Montant);
-                facture.Status = facture.PaidAmount >= facture.TotalAmount
-                    ? InvoiceStatus.Payee
-                    : InvoiceStatus.PartiellementPayee;
-
-                paiement.InvoiceId = facture.Id;
-                clientId ??= facture.CustomerId;
-            }
         }
 
         paiement.CustomerId = clientId;
@@ -183,7 +176,10 @@ public class PaiementService : IPaiementService
         return Convertir(enregistre);
     }
 
-    public async Task AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default)
+    public Task AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => AnnulerPaiementAsync(id, motif, cancellationToken), cancellationToken);
+
+    private async Task AnnulerPaiementAsync(int id, string motif, CancellationToken cancellationToken)
     {
         var paiement = await _context.Payments.FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Paiement", id);
@@ -213,25 +209,10 @@ public class PaiementService : IPaiementService
             }
         }
 
-        if (paiement.InvoiceId is not null)
-        {
-            var facture = await _context.Invoices
-                .FirstOrDefaultAsync(f => f.Id == paiement.InvoiceId, cancellationToken);
-
-            if (facture is not null)
-            {
-                facture.PaidAmount = Math.Max(0m, facture.PaidAmount - paiement.Amount);
-                facture.Status = facture.PaidAmount <= 0
-                    ? InvoiceStatus.Emise
-                    : facture.PaidAmount >= facture.TotalAmount
-                        ? InvoiceStatus.Payee
-                        : InvoiceStatus.PartiellementPayee;
-            }
-        }
-
         paiement.Notes = string.IsNullOrWhiteSpace(paiement.Notes)
             ? $"Annulé : {motif.Trim()}"
             : $"{paiement.Notes}\nAnnulé : {motif.Trim()}";
+        paiement.DeletionReason = motif.Trim();
 
         // Suppression logique : l'écriture reste consultable (règle métier n°15).
         _context.Payments.Remove(paiement);
@@ -240,22 +221,6 @@ public class PaiementService : IPaiementService
         await _audit.EnregistrerAsync(AuditAction.Annulation, nameof(Payment), id.ToString(),
             $"Annulation du paiement {paiement.PaymentNumber} " +
             $"({Formatage.Montant(paiement.Amount)}) : {motif.Trim()}", null, cancellationToken);
-    }
-
-    private async Task<int?> TrouverFactureAsync(
-        int? venteId, int? commandeId, CancellationToken cancellationToken)
-    {
-        if (venteId is null && commandeId is null)
-        {
-            return null;
-        }
-
-        return await _context.Invoices
-            .Where(f => f.Status != InvoiceStatus.Annulee
-                        && ((venteId != null && f.SaleId == venteId)
-                            || (commandeId != null && f.CustomOrderId == commandeId)))
-            .Select(f => (int?)f.Id)
-            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static void VerifierMontant(decimal montant, decimal reste, string document)
@@ -273,14 +238,13 @@ public class PaiementService : IPaiementService
             .Include(p => p.Customer)
             .Include(p => p.Sale)
             .Include(p => p.CustomOrder)
-            .Include(p => p.Invoice)
             .Include(p => p.PaymentMethod)
             .Include(p => p.User);
 
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 
-    private static PaiementDto Convertir(Payment p) => new(
+    private PaiementDto Convertir(Payment p) => new(
         p.Id,
         p.PaymentNumber,
         p.CustomerId,
@@ -289,10 +253,8 @@ public class PaiementService : IPaiementService
         p.Sale?.SaleNumber,
         p.CustomOrderId,
         p.CustomOrder?.OrderNumber,
-        p.InvoiceId,
-        p.Invoice?.InvoiceNumber,
         p.Amount,
-        p.PaymentDate,
+        _horloge.EnHeureAtelier(p.PaymentDate),
         p.PaymentMethodId,
         p.PaymentMethod.Name,
         p.IsDeposit,

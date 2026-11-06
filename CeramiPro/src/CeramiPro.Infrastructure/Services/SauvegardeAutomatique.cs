@@ -84,11 +84,11 @@ public class SauvegardeAutomatique : BackgroundService
             return;
         }
 
-        var heureTexte = reglages.TryGetValue(SauvegardeService.CleHeure, out var texte) ? texte : "22:00";
+        var heureTexte = reglages.TryGetValue(SauvegardeService.CleHeure, out var texte) ? texte : "13:00";
 
         if (!TimeSpan.TryParse(heureTexte, out var heure))
         {
-            heure = new TimeSpan(22, 0, 0);
+            heure = new TimeSpan(13, 0, 0);
         }
 
         var maintenant = horloge.MaintenantAtelier;

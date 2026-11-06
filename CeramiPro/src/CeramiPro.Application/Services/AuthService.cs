@@ -1,6 +1,7 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Auth;
 using CeramiPro.Application.Interfaces;
+using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Identity;
 using CeramiPro.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -59,8 +60,8 @@ public class AuthService : IAuthService
     {
         var nom = (requete.NomUtilisateur ?? string.Empty).Trim();
 
+        // Le rôle est une simple valeur de la fiche : rien à joindre.
         var utilisateur = await _context.Users
-            .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.UserName.ToLower() == nom.ToLower(), cancellationToken);
 
         if (utilisateur is null)
@@ -94,8 +95,6 @@ public class AuthService : IAuthService
             throw new RegleMetierException(MessageIdentifiantsInvalides);
         }
 
-        var droits = await DroitsDuRoleAsync(utilisateur.RoleId, cancellationToken);
-
         utilisateur.FailedLoginAttempts = 0;
         utilisateur.LockedUntil = null;
         utilisateur.LastLoginAt = maintenant;
@@ -103,12 +102,7 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync(cancellationToken);
 
         _session.Ouvrir(
-            utilisateur.Id,
-            utilisateur.UserName,
-            utilisateur.FullName,
-            utilisateur.Role!.Code,
-            utilisateur.Role.Name,
-            droits);
+            utilisateur.Id, utilisateur.UserName, utilisateur.FullName, utilisateur.Role);
 
         await _audit.EnregistrerAsync(AuditAction.Connexion, nameof(User), utilisateur.Id.ToString(),
             $"Connexion de « {utilisateur.UserName} ».", null, cancellationToken);
@@ -118,9 +112,8 @@ public class AuthService : IAuthService
             utilisateur.UserName,
             utilisateur.FullName,
             utilisateur.Email,
-            utilisateur.Role.Code,
-            utilisateur.Role.Name,
-            droits,
+            utilisateur.Role,
+            utilisateur.Role.Libelle(),
             utilisateur.MustChangePassword));
     }
 
@@ -149,6 +142,8 @@ public class AuthService : IAuthService
             throw new RegleMetierException(
                 "Le nouveau mot de passe et sa confirmation ne correspondent pas.");
         }
+
+        RegleMotDePasse.Verifier(requete.NouveauMotDePasse);
 
         var utilisateur = await _context.Users
                               .FirstOrDefaultAsync(u => u.Id == _session.UtilisateurId, cancellationToken)
@@ -189,11 +184,4 @@ public class AuthService : IAuthService
             utilisateur.Id.ToString(),
             $"Mot de passe incorrect pour « {utilisateur.UserName} ».", null, cancellationToken);
     }
-
-    private async Task<IReadOnlyList<string>> DroitsDuRoleAsync(
-        int roleId, CancellationToken cancellationToken)
-        => await _context.RolePermissions
-            .Where(rp => rp.RoleId == roleId)
-            .Select(rp => rp.Permission!.Code)
-            .ToListAsync(cancellationToken);
 }

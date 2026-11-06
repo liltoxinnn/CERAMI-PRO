@@ -2,7 +2,7 @@ using CeramiPro.Application.DTOs.Referentiels;
 
 namespace CeramiPro.Application.Interfaces;
 
-/// <summary>Gestion des listes simples : catégories et types de décoration.</summary>
+/// <summary>Gestion des listes simples : catégories de produits et de dépenses.</summary>
 public interface IReferentielService
 {
     Task<IReadOnlyList<ElementReferentielDto>> ListerAsync(
@@ -18,17 +18,4 @@ public interface IReferentielService
 
     /// <summary>Modes de règlement disponibles (espèces, virement, carte, chèque…).</summary>
     Task<IReadOnlyList<ModeReglementDto>> ListerModesReglementAsync(CancellationToken cancellationToken = default);
-}
-
-/// <summary>Gestion des unités de mesure.</summary>
-public interface IUniteService
-{
-    Task<IReadOnlyList<UniteDto>> ListerAsync(
-        bool inclureInactives = true, CancellationToken cancellationToken = default);
-
-    Task<UniteDto> CreerAsync(UniteRequete requete, CancellationToken cancellationToken = default);
-
-    Task<UniteDto> ModifierAsync(int id, UniteRequete requete, CancellationToken cancellationToken = default);
-
-    Task SupprimerAsync(int id, CancellationToken cancellationToken = default);
 }

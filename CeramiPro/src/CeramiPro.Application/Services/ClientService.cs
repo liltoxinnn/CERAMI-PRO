@@ -17,18 +17,25 @@ public class ClientService : IClientService
     private readonly IReferenceNumberService _numerotation;
     private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly IAuditService _audit;
+    private readonly IServiceDateHeure _horloge;
 
     public ClientService(
         IApplicationDbContext context,
         IReferenceNumberService numerotation,
         IUtilisateurCourant utilisateurCourant,
-        IAuditService audit)
+        IAuditService audit,
+        IServiceDateHeure horloge)
     {
         _context = context;
         _numerotation = numerotation;
         _utilisateurCourant = utilisateurCourant;
         _audit = audit;
+        _horloge = horloge;
     }
+
+    /// <summary>Dates affichées à l'heure de l'atelier.</summary>
+    private ClientDto Localiser(ClientDto c)
+        => c with { DerniereTransaction = _horloge.EnHeureAtelier(c.DerniereTransaction) };
 
     public async Task<PagedResult<ClientDto>> ListerAsync(
         FiltreClientsRequete requete, CancellationToken cancellationToken = default)
@@ -47,10 +54,13 @@ public class ClientService : IClientService
                 c.FullName.ToLower().Contains(recherche) ||
                 c.CustomerNumber.ToLower().Contains(recherche) ||
                 (c.PhoneNumber != null && c.PhoneNumber.Contains(recherche)) ||
+                (c.Instagram != null && c.Instagram.ToLower().Contains(recherche)) ||
                 (c.Email != null && c.Email.ToLower().Contains(recherche)));
         }
 
-        var elements = await requeteBase.Select(Projeter()).ToListAsync(cancellationToken);
+        var elements = (await requeteBase.Select(Projeter()).ToListAsync(cancellationToken))
+            .Select(Localiser)
+            .ToList();
 
         if (requete.SeulementAvecDette)
         {
@@ -69,18 +79,21 @@ public class ClientService : IClientService
     }
 
     public async Task<ClientDto> ObtenirAsync(int id, CancellationToken cancellationToken = default)
-        => await _context.Customers.AsNoTracking().Where(c => c.Id == id)
-               .Select(Projeter()).FirstOrDefaultAsync(cancellationToken)
-           ?? throw IntrouvableException.Pour("Client", id);
+        => Localiser(await _context.Customers.AsNoTracking().Where(c => c.Id == id)
+                         .Select(Projeter()).FirstOrDefaultAsync(cancellationToken)
+                     ?? throw IntrouvableException.Pour("Client", id));
 
     public async Task<ClientDto> CreerAsync(
         ClientRequete requete, CancellationToken cancellationToken = default)
     {
+        VerifierNom(requete);
+
         var client = new Customer
         {
             CustomerNumber = await _numerotation.GenererAsync(TypeDocument.Client, cancellationToken),
             FullName = requete.Nom.Trim(),
             PhoneNumber = Nettoyer(requete.Telephone),
+            Instagram = CompteInstagram(requete.Instagram),
             Email = Nettoyer(requete.Email),
             Address = Nettoyer(requete.Adresse),
             City = Nettoyer(requete.Ville),
@@ -99,11 +112,14 @@ public class ClientService : IClientService
     public async Task<ClientDto> ModifierAsync(
         int id, ClientRequete requete, CancellationToken cancellationToken = default)
     {
+        VerifierNom(requete);
+
         var client = await _context.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                      ?? throw IntrouvableException.Pour("Client", id);
 
         client.FullName = requete.Nom.Trim();
         client.PhoneNumber = Nettoyer(requete.Telephone);
+        client.Instagram = CompteInstagram(requete.Instagram);
         client.Email = Nettoyer(requete.Email);
         client.Address = Nettoyer(requete.Adresse);
         client.City = Nettoyer(requete.Ville);
@@ -140,13 +156,15 @@ public class ClientService : IClientService
 
     public async Task<IReadOnlyList<NoteClientDto>> ListerNotesAsync(
         int id, CancellationToken cancellationToken = default)
-        => await _context.CustomerNotes
-            .Include(n => n.User)
-            .AsNoTracking()
-            .Where(n => n.CustomerId == id)
-            .OrderByDescending(n => n.CreatedAt)
-            .Select(n => new NoteClientDto(n.Id, n.Content, n.User != null ? n.User.FullName : null, n.CreatedAt))
-            .ToListAsync(cancellationToken);
+        => (await _context.CustomerNotes
+                .Include(n => n.User)
+                .AsNoTracking()
+                .Where(n => n.CustomerId == id)
+                .OrderByDescending(n => n.CreatedAt)
+                .Select(n => new NoteClientDto(n.Id, n.Content, n.User != null ? n.User.FullName : null, n.CreatedAt))
+                .ToListAsync(cancellationToken))
+            .Select(n => n with { Date = _horloge.EnHeureAtelier(n.Date) })
+            .ToList();
 
     public async Task<NoteClientDto> AjouterNoteAsync(
         int id, NoteRequete requete, CancellationToken cancellationToken = default)
@@ -181,7 +199,7 @@ public class ClientService : IClientService
 
         var echeances = await _context.CustomOrders
             .AsNoTracking()
-            .Where(c => c.Status != CustomOrderStatus.Annule)
+            .Where(c => c.Status != CustomOrderStatus.Annulee)
             .GroupBy(c => c.CustomerId)
             .Select(g => new { ClientId = g.Key, Echeance = g.Min(c => (DateTime?)c.Deadline) })
             .ToListAsync(cancellationToken);
@@ -195,8 +213,58 @@ public class ClientService : IClientService
             .ToList();
     }
 
+    public async Task<IReadOnlyList<ClientChoixDto>> ListerPourChoixAsync(
+        CancellationToken cancellationToken = default)
+        => await _context.Customers.AsNoTracking()
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.FullName)
+            .Select(c => new ClientChoixDto(c.Id, c.FullName, c.PhoneNumber, c.Instagram))
+            .ToListAsync(cancellationToken);
+
+    private static void VerifierNom(ClientRequete requete)
+    {
+        if (string.IsNullOrWhiteSpace(requete.Nom))
+        {
+            throw new RegleMetierException("Le nom du client est obligatoire.");
+        }
+    }
+
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
+
+    /// <summary>
+    /// Un compte Instagram s'écrit toujours « @nom » : on l'enregistre ainsi
+    /// quelle que soit la façon dont il a été tapé ou collé.
+    /// </summary>
+    private static string? CompteInstagram(string? valeur)
+    {
+        var compte = Nettoyer(valeur);
+
+        if (compte is null)
+        {
+            return null;
+        }
+
+        foreach (var prefixe in new[] { "https://www.instagram.com/", "https://instagram.com/",
+                     "http://www.instagram.com/", "instagram.com/", "www.instagram.com/" })
+        {
+            if (compte.StartsWith(prefixe, StringComparison.OrdinalIgnoreCase))
+            {
+                compte = compte[prefixe.Length..];
+                break;
+            }
+        }
+
+        // Un lien partagé depuis l'application porte souvent « ?igsh=… ».
+        if (compte.IndexOf('?') is var question and >= 0)
+        {
+            compte = compte[..question];
+        }
+
+        compte = compte.Trim('/', ' ').TrimStart('@');
+
+        return compte.Length == 0 ? null : "@" + compte;
+    }
 
     /// <summary>
     /// Le total dépensé additionne les ventes confirmées et les commandes non annulées ;
@@ -208,20 +276,21 @@ public class ClientService : IClientService
             c.CustomerNumber,
             c.FullName,
             c.PhoneNumber,
+            c.Instagram,
             c.Email,
             c.Address,
             c.City,
             c.Notes,
             c.IsActive,
             (c.Sales.Where(v => v.Status == SaleStatus.Confirmee).Sum(v => (decimal?)v.TotalAmount) ?? 0m)
-            + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annule)
+            + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annulee)
                 .Sum(o => (decimal?)o.TotalAmount) ?? 0m),
             c.Payments.Sum(p => (decimal?)p.Amount) ?? 0m,
             (c.Sales.Where(v => v.Status == SaleStatus.Confirmee).Sum(v => (decimal?)v.TotalAmount) ?? 0m)
-            + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annule)
+            + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annulee)
                 .Sum(o => (decimal?)o.TotalAmount) ?? 0m)
             - (c.Payments.Sum(p => (decimal?)p.Amount) ?? 0m),
             c.Sales.Count(v => v.Status == SaleStatus.Confirmee),
-            c.CustomOrders.Count(o => o.Status != CustomOrderStatus.Annule),
+            c.CustomOrders.Count(o => o.Status != CustomOrderStatus.Annulee),
             c.Sales.Max(v => (DateTime?)v.SaleDate));
 }

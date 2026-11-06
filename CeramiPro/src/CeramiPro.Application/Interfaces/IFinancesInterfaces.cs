@@ -1,6 +1,5 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Finances;
-using CeramiPro.Application.DTOs.Alertes;
 using CeramiPro.Application.DTOs.Sauvegarde;
 
 namespace CeramiPro.Application.Interfaces;
@@ -9,6 +8,8 @@ public interface IDepenseService
 {
     Task<PagedResult<DepenseDto>> ListerAsync(
         FiltreDepensesRequete requete, CancellationToken cancellationToken = default);
+
+    Task<DepenseDto> ObtenirAsync(int id, CancellationToken cancellationToken = default);
 
     Task<DepenseDto> CreerAsync(DepenseRequete requete, CancellationToken cancellationToken = default);
 
@@ -35,39 +36,6 @@ public interface IRapportService
 }
 
 /// <summary>
-/// Calculs d'aide à la préparation d'une production : surface à couvrir et
-/// nombre d'unités à prévoir, perte comprise.
-/// </summary>
-public interface ICalculateurService
-{
-    CalculSurfaceDto Surface(CalculSurfaceRequete requete);
-
-    CalculQuantiteDto Quantite(CalculQuantiteRequete requete);
-}
-
-/// <summary>
-/// Centre d'alertes : stock faible, échéances de commandes, retards de
-/// production, dettes en attente. Les alertes sont recalculées à la demande.
-/// </summary>
-public interface IAlerteService
-{
-    /// <summary>Recalcule les alertes puis renvoie celles qui sont ouvertes.</summary>
-    Task<IReadOnlyList<AlerteDto>> ListerAsync(
-        FiltreAlertesRequete requete, CancellationToken cancellationToken = default);
-
-    Task<ResumeAlertesDto> ResumeAsync(CancellationToken cancellationToken = default);
-
-    Task MarquerLueAsync(int id, CancellationToken cancellationToken = default);
-
-    Task ToutMarquerLuAsync(CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<ReglageAlerteDto>> ListerReglagesAsync(CancellationToken cancellationToken = default);
-
-    Task<ReglageAlerteDto> ModifierReglageAsync(
-        int id, ReglageAlerteDto reglage, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
 /// Sauvegarde des données de l'atelier. L'archive produite contient une copie
 /// lisible de chaque table, au format CSV, dans un fichier ZIP unique que
 /// l'administrateur peut copier sur une clé USB.
@@ -87,4 +55,15 @@ public interface ISauvegardeService
 
     /// <summary>Supprime les sauvegardes dépassant la durée de conservation.</summary>
     Task<int> PurgerAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Active ou coupe la sauvegarde quotidienne, et règle son heure et sa durée de conservation.</summary>
+    Task ReglerAsync(ReglageSauvegardeRequete requete, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Remet la base dans l'état d'une sauvegarde. Toutes les données
+    /// enregistrées depuis sont perdues : l'opération est irréversible et
+    /// réservée à l'administrateur.
+    /// </summary>
+    Task<RestaurationDto> RestaurerAsync(
+        string nomFichier, CancellationToken cancellationToken = default);
 }

@@ -1,8 +1,8 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Finances;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
+using CommunityToolkit.Mvvm.Input;
 using CeramiPro.Presentation.ViewModels.Formulaires;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
@@ -12,24 +12,29 @@ public partial class DepensesVueModele : ListeVueModele<DepenseDto>
 {
     private readonly IDepenseService _service;
 
-    public DepensesVueModele(IDepenseService service, IServiceLangue langue,
-        IServiceFormulaire formulaires, IServiceProvider services)
-        : base(langue, formulaires)
+    public DepensesVueModele(IDepenseService service, OutilsListe outils)
+        : base(outils)
+        => _service = service;
+
+    protected override Type TypeFormulaire => typeof(DepenseFormulaireVueModele);
+
+    public override IReadOnlyList<ActionListe> Actions => new ActionListe[]
     {
-        _service = service;
-        _services = services;
-    }
+        new("Supprimer la dépense", SupprimerDepenseCommand, Destructive: true,
+            Aide: "Pour une dépense saisie par erreur. Elle reste consultable dans l'historique.")
+    };
 
-    private readonly IServiceProvider _services;
+    [RelayCommand]
+    private Task SupprimerDepenseAsync() => AgirAvecMotifAsync(
+        (depense, motif) => _service.SupprimerAsync(depense.Id, motif),
+        question: "Pourquoi supprimer cette dépense ?\n\nElle disparaîtra des rapports ; le motif reste dans l'historique.",
+        succes: "La dépense est supprimée.");
 
-    public override bool PeutAjouter => true;
+    public override string Titre => "Dépenses";
 
-    protected override object? CreerFormulaire(int? id = null)
-        => _services.GetService(typeof(DepenseFormulaireVueModele));
-
-    public override string Titre => Langue["menu.depenses"];
-
-    public override string Introduction => "Électricité, gaz, transport, emballage, salaires.";
+    public override string Introduction =>
+        "Ce que coûte l'atelier : argile et émaux, électricité et gaz du four, emballages, transport, " +
+        "salaires. Ces dépenses sont déduites dans le rapport des bénéfices.";
 
     protected override Task<PagedResult<DepenseDto>> LireAsync()
         => _service.ListerAsync(new FiltreDepensesRequete
@@ -43,9 +48,10 @@ public partial class DepensesVueModele : ListeVueModele<DepenseDto>
     public override IReadOnlyList<ColonneListe> Colonnes { get; } = new ColonneListe[]
     {
         new("Référence", "Reference", ColonneAlignement.Gauche),
-        new("Date", "DateAffichee", ColonneAlignement.Gauche),
+        new("Date", "Date", ColonneAlignement.Gauche, FormatColonne.Date),
         new("Catégorie", "CategorieNom", ColonneAlignement.Gauche),
         new("Description", "Description", ColonneAlignement.Gauche),
-        new("Montant", "MontantAffiche", ColonneAlignement.Droite)
+        new("Mode", "ModeReglement", ColonneAlignement.Gauche),
+        new("Montant", "Montant", ColonneAlignement.Droite, FormatColonne.Montant)
     };
 }

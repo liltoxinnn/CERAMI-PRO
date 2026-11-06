@@ -3,10 +3,14 @@
                     xmlns:conv="clr-namespace:CeramiPro.App.Convertisseurs">
 
     <conv:BooleenEnVisibilite x:Key="BooleenEnVisibilite" />
+    <conv:BooleenEnVisibiliteInverse x:Key="BooleenEnVisibiliteInverse" />
     <conv:BooleenEnPastille x:Key="BooleenEnPastille" />
-    <conv:SensEnFlowDirection x:Key="SensEnFlowDirection" />
-    <conv:LangueEnNom x:Key="LangueEnNom" />
     <conv:BooleenInverse x:Key="BooleenInverse" />
     <conv:TexteEnVisibilite x:Key="TexteEnVisibilite" />
+    <conv:BooleenEnOuiNon x:Key="BooleenEnOuiNon" />
+    <conv:ActionEnStyle x:Key="ActionEnStyle" />
 
+    <conv:CheminEnImage x:Key="CheminEnImage" />
+    <conv:MontantEnTexte x:Key="MontantEnTexte" />
+    <conv:DateEnTexte x:Key="DateEnTexte" />
 </ResourceDictionary>

@@ -1,9 +1,7 @@
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Customers;
 using CeramiPro.Domain.Entities.Identity;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Payments;
-using CeramiPro.Domain.Entities.Production;
 using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Domain.Entities.CustomOrders;
@@ -20,6 +18,9 @@ public class CustomOrder : AuditableEntity, ISoftDeletable
     public Customer Customer { get; set; } = null!;
 
     public string Title { get; set; } = null!;
+
+    /// <summary>Par où la commande est arrivée : atelier, Instagram, WhatsApp…</summary>
+    public CanalCommande Channel { get; set; } = CanalCommande.Atelier;
     public string? Description { get; set; }
 
     public decimal? Width { get; set; }
@@ -41,7 +42,7 @@ public class CustomOrder : AuditableEntity, ISoftDeletable
     public DateTime Deadline { get; set; }
     public DateTime? DeliveredAt { get; set; }
 
-    public CustomOrderStatus Status { get; set; } = CustomOrderStatus.Commande;
+    public CustomOrderStatus Status { get; set; } = CustomOrderStatus.Recue;
 
     public int? AssignedUserId { get; set; }
     public User? AssignedUser { get; set; }
@@ -55,9 +56,10 @@ public class CustomOrder : AuditableEntity, ISoftDeletable
     /// <summary>Motif saisi lors de la suppression, conservé pour l\'historique.</summary>
     public string? DeletionReason { get; set; }
 
+    /// <summary>Jeton de concurrence (« xmin ») : protège le montant déjà encaissé.</summary>
+    public uint Version { get; set; }
+
     public ICollection<CustomOrderImage> Images { get; set; } = new List<CustomOrderImage>();
     public ICollection<CustomOrderNote> OrderNotes { get; set; } = new List<CustomOrderNote>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
-    public ICollection<ProductionOrder> ProductionOrders { get; set; } = new List<ProductionOrder>();
-    public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
 }

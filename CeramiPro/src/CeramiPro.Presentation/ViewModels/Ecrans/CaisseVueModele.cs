@@ -1,0 +1,213 @@
+using CeramiPro.Application.Common;
+using CeramiPro.Application.DTOs.Commercial;
+using CeramiPro.Application.Interfaces;
+using CeramiPro.Presentation.Navigation;
+
+namespace CeramiPro.Presentation.ViewModels.Ecrans;
+
+/// <summary>
+/// Caisse de l'atelier : vente au comptoir.
+///
+/// L'écran est conçu pour aller vite : on tape le début du nom ou de la
+/// référence d'un produit, la quantité vaut un par défaut, le rendu de
+/// monnaie s'affiche pendant que l'on tape le montant reçu, et le reçu
+/// s'imprime à la validation.
+/// </summary>
+public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
+{
+    private readonly IVenteService _ventes;
+    private readonly IProduitService _produits;
+    private readonly IClientService _clients;
+    private readonly IReferentielService _referentiels;
+    private readonly IDocumentService _documents;
+    private readonly IServiceFichier _fichiers;
+
+    public CaisseVueModele(
+        IVenteService ventes,
+        IProduitService produits,
+        IClientService clients,
+        IReferentielService referentiels,
+        IDocumentService documents,
+        IServiceFichier fichiers,
+        IServiceDialogue dialogue)
+        : base(dialogue)
+    {
+        _ventes = ventes;
+        _produits = produits;
+        _clients = clients;
+        _referentiels = referentiels;
+        _documents = documents;
+        _fichiers = fichiers;
+
+        _champs = Construire(Array.Empty<OptionChamp>(), Array.Empty<OptionChamp>());
+    }
+
+    private IReadOnlyList<ChampFormulaire> _champs;
+
+    public override string Titre => "Nouvelle vente";
+
+    public override string Introduction =>
+        "Choisissez les produits — tapez le début de leur nom ou de leur référence — puis " +
+        "encaissez : le stock se met à jour et le reçu est prêt à imprimer.";
+
+    public override IReadOnlyList<ChampFormulaire> Champs => _champs;
+
+    public override string NomArticle => "produit";
+
+    public override string LibelleEnregistrer => "Encaisser";
+
+    public override bool GereReglement => true;
+
+    public override async Task ChargerAsync()
+    {
+        await ExecuterAsync(async () =>
+        {
+            // Une pièce unique déjà vendue n'existe plus : la proposer ne
+            // mènerait qu'à un refus au moment d'encaisser.
+            var produits = (await _produits.ListerActifsAsync())
+                .Where(p => !(p.PieceUnique && p.StockActuel <= 0m));
+
+            Articles.Clear();
+            foreach (var produit in produits)
+            {
+                var disponibilite = produit.PieceUnique
+                    ? "pièce unique"
+                    : $"{Formatage.Quantite(produit.StockActuel)} en stock";
+
+                Articles.Add(new OptionChamp(produit.Id,
+                    $"{produit.Nom} — {produit.Reference} — {disponibilite}"));
+                _prix[produit.Id] = produit.PrixVente;
+            }
+
+            var clients = await _clients.ListerPourChoixAsync();
+            var modes = (await _referentiels.ListerModesReglementAsync())
+                .Where(m => m.Actif)
+                .ToList();
+
+            _modeParDefaut = modes.FirstOrDefault()?.Id;
+
+            _champs = Construire(
+                clients.Select(c => new OptionChamp(c.Id, c.Libelle)).ToList(),
+                modes.Select(m => new OptionChamp(m.Id, m.Nom)).ToList());
+
+            // Au comptoir, on règle presque toujours de la même façon : le
+            // premier mode est proposé, et reste modifiable.
+            Requete.ModeReglementId ??= _modeParDefaut;
+
+            OnPropertyChanged(nameof(Champs));
+            OnPropertyChanged(nameof(Requete));
+        });
+    }
+
+    /// <summary>Prix de vente de chaque produit, pour ne pas le redemander à la base.</summary>
+    private readonly Dictionary<int, decimal> _prix = new();
+
+    /// <summary>Mode de règlement proposé d'emblée, repris à chaque vente.</summary>
+    private int? _modeParDefaut;
+
+    /// <summary>Propose le prix du catalogue dès que le produit est choisi.</summary>
+    protected override Task ArticleChoisiAsync(int? articleId)
+    {
+        if (articleId is { } id && _prix.TryGetValue(id, out var prix))
+        {
+            PrixUnitaire = prix;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static IReadOnlyList<ChampFormulaire> Construire(
+        IReadOnlyList<OptionChamp> clients, IReadOnlyList<OptionChamp> modes)
+        => new ChampFormulaire[]
+        {
+            new("Client", nameof(VenteRequete.ClientId), TypeChamp.Liste, Options: clients,
+                Aide: "Laissez vide pour une vente au comptoir sans client identifié."),
+            new("Mode de règlement", nameof(VenteRequete.ModeReglementId), TypeChamp.Liste,
+                Options: modes),
+            new("Notes", nameof(VenteRequete.Notes), TypeChamp.TexteLong)
+        };
+
+    protected override string? Verifier()
+    {
+        if (MontantPaye < 0m)
+        {
+            return "Le montant reçu ne peut pas être négatif.";
+        }
+
+        if (MontantPaye > 0m && Requete.ModeReglementId is null)
+        {
+            return "Choisissez le mode de règlement de cet encaissement.";
+        }
+
+        if (Reste > 0m && Requete.ClientId is null)
+        {
+            return "Une vente réglée en partie doit être rattachée à un client, " +
+                   "sans quoi le reste dû ne pourrait être réclamé à personne.";
+        }
+
+        return null;
+    }
+
+    protected override async Task ValiderAsync()
+    {
+        Requete.Remise = RemiseDocument;
+
+        // Le client tend souvent plus que le total : ce qui est encaissé,
+        // c'est le total, et la différence lui est rendue en monnaie. Porter
+        // le billet entier au crédit de la vente créerait un avoir imaginaire.
+        Requete.MontantPaye = Math.Min(MontantPaye, Total);
+        Requete.Lignes = Lignes.Select(l => new LigneVenteRequete
+        {
+            ProduitId = l.ArticleId,
+            Quantite = l.Quantite,
+            PrixUnitaire = l.PrixUnitaire,
+            Remise = l.Remise
+        }).ToList();
+
+        var vente = await _ventes.EnregistrerAsync(Requete);
+        var rendu = RenduAffiche;
+
+        Reinitialiser();
+
+        // Le mode de règlement est reproposé : il change rarement d'une
+        // vente à l'autre au comptoir.
+        Requete.ModeReglementId = _modeParDefaut;
+        OnPropertyChanged(nameof(Requete));
+
+        if (Dialogue.Confirmer(
+                $"Vente {vente.Numero} enregistrée.\n\n" +
+                $"Total : {Formatage.Montant(vente.Total)}\n" +
+                $"Monnaie à rendre : {rendu}\n\n" +
+                "Voulez-vous imprimer le reçu ?",
+                "Vente enregistrée"))
+        {
+            await ImprimerRecuAsync(vente);
+        }
+    }
+
+    /// <summary>Produit le reçu au format d'un rouleau de 80 mm et l'ouvre.</summary>
+    private async Task ImprimerRecuAsync(VenteDto vente)
+    {
+        try
+        {
+            var contenu = await _documents.RecuVentePdfAsync(vente.Id);
+            var nomFichier = $"recu-{vente.Numero}.pdf";
+
+            if (_fichiers.DemanderOuEnregistrer(nomFichier, "Document PDF (*.pdf)|*.pdf") is not { } chemin)
+            {
+                return;
+            }
+
+            await File.WriteAllBytesAsync(chemin, contenu);
+            _fichiers.Ouvrir(chemin);
+        }
+        catch (Exception)
+        {
+            // La vente est enregistrée : un souci d'impression ne doit pas
+            // laisser croire le contraire.
+            Dialogue.Avertissement(
+                "La vente est bien enregistrée, mais le reçu n'a pas pu être produit.\n\n" +
+                "Vous pouvez le réimprimer depuis l'écran des ventes.");
+        }
+    }
+}

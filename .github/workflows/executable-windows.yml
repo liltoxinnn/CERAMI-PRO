@@ -1,0 +1,58 @@
+# Construit CeramiPro.exe et CeramiPro_Setup.exe sur une machine Windows de
+# GitHub, et les met à disposition dans l'onglet « Actions » du dépôt.
+#
+# Se lance à la main (Actions → « Exécutable Windows » → Run workflow), ou en
+# poussant une étiquette de version (v2.0.0…). Il ne tourne pas à chaque
+# envoi de code.
+name: Exécutable Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: CeramiPro
+        shell: cmd
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # La logique métier et les écrans ; les tests PostgreSQL sont ignorés
+      # s'il n'y a pas de serveur, ce qui est le cas ici.
+      - name: Tests
+        run: dotnet test CeramiPro.sln --configuration Release
+
+      # L'application WPF elle-même, compilée par le vrai compilateur XAML.
+      - name: Compilation de l'application Windows
+        run: dotnet build CeramiPro.Windows.sln --configuration Release
+
+      - name: Publication (exécutable autonome win-x64)
+        run: deploiement\publier.bat
+
+      - name: Inno Setup
+        run: |
+          if not exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" choco install innosetup -y --no-progress
+
+      - name: Installateur
+        run: deploiement\construire-installateur.bat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CeramiPro-installateur
+          path: CeramiPro/deploiement/CeramiPro_Setup.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CeramiPro-executable
+          path: CeramiPro/deploiement/publication/
+          if-no-files-found: error

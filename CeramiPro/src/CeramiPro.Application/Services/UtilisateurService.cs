@@ -16,22 +16,32 @@ public class UtilisateurService : IUtilisateurService
     private readonly IPasswordHasherService _hachage;
     private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly IAuditService _audit;
+    private readonly IServiceDateHeure _horloge;
 
     public UtilisateurService(
         IApplicationDbContext context,
         IPasswordHasherService hachage,
         IUtilisateurCourant utilisateurCourant,
-        IAuditService audit)
+        IAuditService audit,
+        IServiceDateHeure horloge)
     {
         _context = context;
         _hachage = hachage;
         _utilisateurCourant = utilisateurCourant;
         _audit = audit;
+        _horloge = horloge;
     }
+
+    /// <summary>Dates affichées à l'heure de l'atelier.</summary>
+    private UtilisateurDto Localiser(UtilisateurDto u) => u with
+    {
+        DerniereConnexion = _horloge.EnHeureAtelier(u.DerniereConnexion),
+        DateCreation = _horloge.EnHeureAtelier(u.DateCreation)
+    };
 
     public async Task<PagedResult<UtilisateurDto>> ListerAsync(PagedRequest requete, CancellationToken cancellationToken = default)
     {
-        var requeteBase = _context.Users.Include(u => u.Role).AsNoTracking();
+        var requeteBase = _context.Users.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(requete.Recherche))
         {
@@ -52,32 +62,38 @@ public class UtilisateurService : IUtilisateurService
             .Select(Projection)
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<UtilisateurDto>(elements, total, requete.Page, requete.TaillePage);
+        return new PagedResult<UtilisateurDto>(
+            elements.Select(Localiser).ToList(), total, requete.Page, requete.TaillePage);
     }
 
     public async Task<UtilisateurDto> ObtenirAsync(int id, CancellationToken cancellationToken = default)
     {
         var utilisateur = await _context.Users
-            .Include(u => u.Role)
             .AsNoTracking()
             .Where(u => u.Id == id)
             .Select(Projection)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return utilisateur ?? throw IntrouvableException.Pour("Utilisateur", id);
+        return utilisateur is null ? throw IntrouvableException.Pour("Utilisateur", id) : Localiser(utilisateur);
     }
 
     public async Task<UtilisateurDto> CreerAsync(CreerUtilisateurRequete requete, CancellationToken cancellationToken = default)
     {
-        var nomUtilisateur = requete.NomUtilisateur.Trim();
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "créer un compte utilisateur");
+
+        var nomUtilisateur = (requete.NomUtilisateur ?? string.Empty).Trim();
+
+        if (nomUtilisateur.Length == 0 || string.IsNullOrWhiteSpace(requete.NomComplet))
+        {
+            throw new RegleMetierException("Le nom d'utilisateur et le nom complet sont obligatoires.");
+        }
+
+        RegleMotDePasse.Verifier(requete.MotDePasse);
 
         if (await _context.Users.AnyAsync(u => u.UserName.ToLower() == nomUtilisateur.ToLower(), cancellationToken))
         {
             throw new RegleMetierException($"Le nom d'utilisateur « {nomUtilisateur} » est déjà utilisé.");
         }
-
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == requete.RoleId, cancellationToken)
-                   ?? throw new RegleMetierException("Le rôle sélectionné n'existe pas.");
 
         var utilisateur = new User
         {
@@ -86,7 +102,7 @@ public class UtilisateurService : IUtilisateurService
             Email = string.IsNullOrWhiteSpace(requete.Email) ? null : requete.Email.Trim(),
             PhoneNumber = string.IsNullOrWhiteSpace(requete.Telephone) ? null : requete.Telephone.Trim(),
             PasswordHash = _hachage.Hacher(requete.MotDePasse),
-            RoleId = role.Id,
+            Role = requete.Role,
             IsActive = requete.Actif,
             MustChangePassword = requete.DoitChangerMotDePasse
         };
@@ -95,52 +111,56 @@ public class UtilisateurService : IUtilisateurService
         await _context.SaveChangesAsync(cancellationToken);
 
         await _audit.EnregistrerAsync(AuditAction.Creation, nameof(User), utilisateur.Id.ToString(),
-            $"Création de l'utilisateur « {utilisateur.UserName} » (rôle : {role.Name}).", null, cancellationToken);
+            $"Création de l'utilisateur « {utilisateur.UserName} » (rôle : {requete.Role.Libelle()}).", null, cancellationToken);
 
-        utilisateur.Role = role;
-        return Convertir(utilisateur);
+        return Localiser(Convertir(utilisateur));
     }
 
     public async Task<UtilisateurDto> ModifierAsync(int id, ModifierUtilisateurRequete requete, CancellationToken cancellationToken = default)
     {
-        var utilisateur = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "modifier un compte utilisateur");
+
+        var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
 
-        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == requete.RoleId, cancellationToken)
-                   ?? throw new RegleMetierException("Le rôle sélectionné n'existe pas.");
+        var changeaitDeRole = utilisateur.Role != requete.Role;
 
-        var changeaitDeRole = utilisateur.RoleId != role.Id;
-
-        if ((changeaitDeRole || !requete.Actif) && utilisateur.Role.Code == RoleCodes.Administrateur)
+        if ((changeaitDeRole || !requete.Actif) && utilisateur.Role == RoleUtilisateur.Administrateur)
         {
             await VerifierDernierAdministrateurAsync(utilisateur.Id, cancellationToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(requete.NomComplet))
+        {
+            throw new RegleMetierException("Le nom complet est obligatoire.");
         }
 
         utilisateur.FullName = requete.NomComplet.Trim();
         utilisateur.Email = string.IsNullOrWhiteSpace(requete.Email) ? null : requete.Email.Trim();
         utilisateur.PhoneNumber = string.IsNullOrWhiteSpace(requete.Telephone) ? null : requete.Telephone.Trim();
-        utilisateur.RoleId = role.Id;
+        utilisateur.Role = requete.Role;
         utilisateur.IsActive = requete.Actif;
 
         await _context.SaveChangesAsync(cancellationToken);
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(User), utilisateur.Id.ToString(),
             $"Modification de l'utilisateur « {utilisateur.UserName} ».", null, cancellationToken);
 
-        utilisateur.Role = role;
-        return Convertir(utilisateur);
+        return Localiser(Convertir(utilisateur));
     }
 
     public async Task ReinitialiserMotDePasseAsync(int id, ReinitialiserMotDePasseRequete requete, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "changer le mot de passe d'une autre personne");
+
         var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
+
+        RegleMotDePasse.Verifier(requete.NouveauMotDePasse);
 
         utilisateur.PasswordHash = _hachage.Hacher(requete.NouveauMotDePasse);
         utilisateur.MustChangePassword = requete.DoitChangerMotDePasse;
         utilisateur.FailedLoginAttempts = 0;
         utilisateur.LockedUntil = null;
-        utilisateur.RefreshToken = null;
-        utilisateur.RefreshTokenExpiresAt = null;
 
         await _context.SaveChangesAsync(cancellationToken);
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(User), utilisateur.Id.ToString(),
@@ -149,7 +169,9 @@ public class UtilisateurService : IUtilisateurService
 
     public async Task ChangerActivationAsync(int id, bool actif, CancellationToken cancellationToken = default)
     {
-        var utilisateur = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "désactiver ou réactiver un compte");
+
+        var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
 
         if (!actif)
@@ -159,18 +181,13 @@ public class UtilisateurService : IUtilisateurService
                 throw new RegleMetierException("Vous ne pouvez pas désactiver votre propre compte.");
             }
 
-            if (utilisateur.Role.Code == RoleCodes.Administrateur)
+            if (utilisateur.Role == RoleUtilisateur.Administrateur)
             {
                 await VerifierDernierAdministrateurAsync(utilisateur.Id, cancellationToken);
             }
         }
 
         utilisateur.IsActive = actif;
-        if (!actif)
-        {
-            utilisateur.RefreshToken = null;
-            utilisateur.RefreshTokenExpiresAt = null;
-        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(User), utilisateur.Id.ToString(),
@@ -184,7 +201,7 @@ public class UtilisateurService : IUtilisateurService
     private async Task VerifierDernierAdministrateurAsync(int idExclu, CancellationToken cancellationToken)
     {
         var autresAdministrateurs = await _context.Users
-            .CountAsync(u => u.Id != idExclu && u.IsActive && u.Role.Code == RoleCodes.Administrateur, cancellationToken);
+            .CountAsync(u => u.Id != idExclu && u.IsActive && u.Role == RoleUtilisateur.Administrateur, cancellationToken);
 
         if (autresAdministrateurs == 0)
         {
@@ -200,8 +217,8 @@ public class UtilisateurService : IUtilisateurService
         u.FullName,
         u.Email,
         u.PhoneNumber,
-        u.RoleId,
-        u.Role.Name,
+        u.Role,
+        u.Role.Libelle(),
         u.IsActive,
         u.MustChangePassword,
         u.LastLoginAt,

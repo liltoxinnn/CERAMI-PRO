@@ -1,7 +1,7 @@
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Identity;
 using CeramiPro.Domain.Entities.Settings;
+using CeramiPro.Domain.Enums;
 using CeramiPro.Infrastructure.Authentication;
 using CeramiPro.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +9,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CeramiPro.Tests.Aides;
 
 /// <summary>
-/// Base de test en mémoire préremplie avec les rôles, les droits et un administrateur,
-/// afin de vérifier les règles métier sans dépendre d'un serveur PostgreSQL.
+/// Base de test en mémoire, préremplie avec un administrateur et les
+/// paramètres de l'atelier, afin de vérifier les règles métier sans
+/// dépendre d'un serveur PostgreSQL.
 /// </summary>
 public static class ContexteTest
 {
@@ -35,41 +36,14 @@ public static class ContexteTest
         return contexte;
     }
 
-    /// <summary>Crée les rôles, les droits et le compte administrateur de départ.</summary>
     private static void Remplir(CeramiProDbContext contexte)
     {
-        var hachage = new PasswordHasherService();
-
-        var droits = PermissionCodes.Catalogue
-            .Select(d => new Permission { Code = d.Code, Name = d.Nom, Module = d.Module })
-            .ToList();
-
-        contexte.Permissions.AddRange(droits);
-
-        var roles = RoleCodes.Catalogue
-            .Select(r => new Role { Code = r.Code, Name = r.Nom, Description = r.Description, IsSystem = true })
-            .ToList();
-
-        contexte.Roles.AddRange(roles);
-        contexte.SaveChanges();
-
-        foreach (var role in roles)
-        {
-            foreach (var code in PermissionCodes.DroitsParDefaut[role.Code])
-            {
-                var droit = droits.First(d => d.Code == code);
-                contexte.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionId = droit.Id });
-            }
-        }
-
-        var roleAdministrateur = roles.First(r => r.Code == RoleCodes.Administrateur);
-
         contexte.Users.Add(new User
         {
             UserName = "admin",
             FullName = "Administrateur de l'atelier",
-            PasswordHash = hachage.Hacher(MotDePasseAdministrateur),
-            RoleId = roleAdministrateur.Id,
+            PasswordHash = new PasswordHasherService().Hacher(MotDePasseAdministrateur),
+            Role = RoleUtilisateur.Administrateur,
             IsActive = true
         });
 

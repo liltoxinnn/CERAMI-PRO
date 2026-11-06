@@ -26,13 +26,12 @@ public class ParametresAtelierDto
     public decimal TauxTvaParDefaut { get; set; } = 19m;
     public bool TvaActivee { get; set; }
 
-    public string PrefixeFacture { get; set; } = "FAC";
-    public string PrefixeVente { get; set; } = "VTE";
-    public string PrefixeAchat { get; set; } = "ACH";
-    public string PrefixeProduction { get; set; } = "PROD";
+    public string PrefixeClient { get; set; } = "CLI";
+    public string PrefixeProduit { get; set; } = "PRD";
     public string PrefixeCommande { get; set; } = "CMD";
+    public string PrefixeVente { get; set; } = "VTE";
     public string PrefixePaiement { get; set; } = "PAI";
-    public string PrefixeCuisson { get; set; } = "CUIS";
+    public string PrefixeDepense { get; set; } = "DEP";
 
-    public string? PiedDePageFacture { get; set; }
+    public string? PiedDePageRecu { get; set; }
 }

@@ -4,13 +4,11 @@ using System.Windows;
 using System.Windows.Markup;
 using CeramiPro.Application;
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
+using CeramiPro.Presentation;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
-using Ecrans = CeramiPro.Presentation.ViewModels.Ecrans;
-using Formulaires = CeramiPro.Presentation.ViewModels.Formulaires;
 using CeramiPro.App.Services;
 using CeramiPro.App.Vues;
 using Microsoft.EntityFrameworkCore;
@@ -48,8 +46,14 @@ public partial class App : System.Windows.Application
     /// </summary>
     private static void VerifierReglagesLocaux()
     {
-        var chemin = Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux);
+        foreach (var dossier in new[] { AppContext.BaseDirectory, DossierDonnees })
+        {
+            VerifierUnFichierDeReglages(Path.Combine(dossier, FichierReglagesLocaux));
+        }
+    }
 
+    private static void VerifierUnFichierDeReglages(string chemin)
+    {
         if (!File.Exists(chemin))
         {
             return;
@@ -99,6 +103,27 @@ public partial class App : System.Windows.Application
 
         Directory.CreateDirectory(DossierDonnees);
 
+        // Les erreurs imprévues des écrans partent au journal ; l'utilisateur,
+        // lui, reçoit un message en français dans l'écran concerné.
+        VueModeleBase.SignalerErreur = erreur => Log.Error(erreur, "Erreur inattendue dans un écran.");
+
+        // Une erreur imprévue ne doit jamais fermer le logiciel sans un mot
+        // d'explication : le détail part au journal, l'utilisateur reçoit une
+        // phrase en français et peut continuer son travail.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Log.Error(args.Exception, "Erreur inattendue dans l'interface.");
+
+            MessageBox.Show(
+                "Une erreur est survenue pendant cette opération.\n\n" +
+                "Vos données enregistrées ne sont pas affectées. Si le problème\n" +
+                "se répète, le détail technique se trouve dans :\n" +
+                Path.Combine(DossierDonnees, "journaux"),
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            args.Handled = true;
+        };
+
         try
         {
             _hote = ConstruireHote();
@@ -119,6 +144,10 @@ public partial class App : System.Windows.Application
             var fenetre = _hote.Services.GetRequiredService<FenetrePrincipale>();
             fenetre.DataContext = _hote.Services.GetRequiredService<FenetrePrincipaleVueModele>();
             MainWindow = fenetre;
+
+            // À partir d'ici, fermer la fenêtre principale ferme le logiciel.
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+
             fenetre.Show();
 
             _hote.Services.GetRequiredService<IServiceNavigation>()
@@ -156,9 +185,13 @@ public partial class App : System.Windows.Application
     /// </summary>
     private bool OuvrirSession()
     {
+        // La connexion vit dans sa propre portée : son contexte de base de
+        // données est refermé une fois les identifiants vérifiés.
+        using var portee = _hote!.Services.CreateScope();
+
         var connexion = new FenetreConnexion
         {
-            DataContext = _hote!.Services.GetRequiredService<ConnexionVueModele>()
+            DataContext = portee.ServiceProvider.GetRequiredService<ConnexionVueModele>()
         };
 
         var vue = (ConnexionVueModele)connexion.DataContext;
@@ -170,7 +203,36 @@ public partial class App : System.Windows.Application
             }
         };
 
-        return connexion.ShowDialog() == true;
+        if (connexion.ShowDialog() != true)
+        {
+            return false;
+        }
+
+        // Un compte créé par un administrateur reçoit un mot de passe
+        // provisoire, communiqué de vive voix : mieux vaut ne pas le laisser
+        // en usage. La proposition est faite à chaque connexion tant qu'il
+        // n'a pas changé, mais elle n'empêche jamais d'ouvrir l'atelier.
+        if (vue.Profil is { DoitChangerMotDePasse: true })
+        {
+            ProposerDeChangerLeMotDePasse();
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Propose de remplacer un mot de passe provisoire. Le refus n'a aucune
+    /// conséquence : l'atelier s'ouvre, et le changement reste accessible à
+    /// tout moment depuis le bas du menu.
+    /// </summary>
+    private void ProposerDeChangerLeMotDePasse()
+    {
+        using var portee = _hote!.Services.CreateScope();
+
+        var vueModele = portee.ServiceProvider.GetRequiredService<ChangementMotDePasseVueModele>();
+        vueModele.ProposeAuDemarrage = true;
+
+        new FenetreMotDePasse { DataContext = vueModele }.ShowDialog();
     }
 
     private static IHost ConstruireHote()
@@ -179,6 +241,19 @@ public partial class App : System.Windows.Application
 
         return Host.CreateDefaultBuilder()
         .UseContentRoot(AppContext.BaseDirectory)
+        // La vérification à la construction reste active : elle signale un
+        // service impossible à fabriquer avant que l'utilisateur ne clique.
+        //
+        // Le contrôle des portées, lui, est désactivé : quelques fenêtres —
+        // la connexion, le changement de mot de passe — sont ouvertes depuis
+        // le conteneur racine, chacune dans sa propre portée créée à la main
+        // juste avant. Les écrans, eux, passent par le service de navigation,
+        // qui leur en donne une.
+        .UseDefaultServiceProvider(options =>
+        {
+            options.ValidateOnBuild = true;
+            options.ValidateScopes = false;
+        })
         .ConfigureAppConfiguration((contexte, configuration) => configuration
             .SetBasePath(AppContext.BaseDirectory)
             // Réglages livrés avec le logiciel, sans mot de passe.
@@ -189,6 +264,12 @@ public partial class App : System.Windows.Application
             // ajouté que s'il est exploitable : un fichier vide ou mal écrit
             // doit donner un message clair, pas une erreur technique.
             .AddJsonFile(FichierReglagesLocaux,
+                optional: true, reloadOnChange: false)
+            // Le même fichier, mais dans le dossier de données de
+            // l'utilisateur. C'est celui que l'installateur crée : sous
+            // « Program Files », modifier un fichier demande des droits
+            // d'administrateur que l'atelier n'a pas toujours.
+            .AddJsonFile(Path.Combine(DossierDonnees, FichierReglagesLocaux),
                 optional: true, reloadOnChange: false)
             .AddEnvironmentVariables("CERAMIPRO_"))
         .UseSerilog((contexte, journalisation) => journalisation
@@ -204,74 +285,122 @@ public partial class App : System.Windows.Application
             services.AjouterApplication();
             services.AjouterInfrastructure(contexte.Configuration);
 
-            services.AddSingleton<IServiceLangue, ServiceLangue>();
-            services.AddSingleton<IServiceNavigation, ServiceNavigation>();
+            // Ce que seule une application Windows peut fournir : les boîtes
+            // de dialogue et les fenêtres du système.
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
+            services.AddSingleton<IServiceFenetres, ServiceFenetres>();
             services.AddSingleton<IServiceFormulaire, ServiceFormulaire>();
-
-            services.AddTransient<Formulaires.ClientFormulaireVueModele>();
-            services.AddTransient<Formulaires.DepenseFormulaireVueModele>();
-
+            services.AddSingleton<IServiceFichier, ServiceFichier>();
+            services.AddSingleton<IServiceCompte, ServiceCompte>();
             services.AddSingleton<FenetrePrincipale>();
-            services.AddSingleton<FenetrePrincipaleVueModele>();
 
-            services.AddTransient<TableauDeBordVueModele>();
-            services.AddTransient<ConnexionVueModele>();
-
-            // Un écran par module ; tous partagent la même vue générique.
-            services.AddTransient<Ecrans.MatieresVueModele>();
-            services.AddTransient<Ecrans.ProduitsVueModele>();
-            services.AddTransient<Ecrans.FournisseursVueModele>();
-            services.AddTransient<Ecrans.AchatsVueModele>();
-            services.AddTransient<Ecrans.MouvementsVueModele>();
-            services.AddTransient<Ecrans.ClientsVueModele>();
-            services.AddTransient<Ecrans.CommandesVueModele>();
-            services.AddTransient<Ecrans.VentesVueModele>();
-            services.AddTransient<Ecrans.FacturesVueModele>();
-            services.AddTransient<Ecrans.PaiementsVueModele>();
-            services.AddTransient<Ecrans.DepensesVueModele>();
-            services.AddTransient<Ecrans.ProductionVueModele>();
-            services.AddTransient<Ecrans.CuissonsVueModele>();
-            services.AddTransient<Ecrans.DecorationsVueModele>();
-            services.AddTransient<Ecrans.QualiteVueModele>();
-            services.AddTransient<Ecrans.UtilisateursVueModele>();
+            // Les écrans et les formulaires sont déclarés dans la couche
+            // présentation, où les tests vérifient qu'aucun ne manque.
+            services.AjouterPresentation();
         })
             .Build();
     }
 
     /// <summary>
-    /// Vérifie que PostgreSQL répond avant d'ouvrir la fenêtre. Un message
-    /// clair vaut mieux qu'une application qui s'ouvre puis échoue partout.
+    /// Vérifie que PostgreSQL répond, puis met le schéma à jour, avant
+    /// d'ouvrir la fenêtre. Les deux échecs ont des remèdes différents : ils
+    /// ont donc chacun leur message.
     /// </summary>
     private async Task<bool> BaseDeDonneesPreteAsync()
     {
         using var portee = _hote!.Services.CreateScope();
         var contexte = portee.ServiceProvider.GetRequiredService<CeramiProDbContext>();
+        var nomBase = contexte.Database.GetDbConnection().Database;
+
+        bool joignable;
 
         try
         {
+            joignable = await contexte.Database.CanConnectAsync();
+        }
+        catch (Exception erreur)
+        {
+            Log.Error(erreur, "La base de données est injoignable.");
+            joignable = false;
+        }
+
+        if (!joignable)
+        {
+            // Une base qui n'existe pas encore n'empêche pas la connexion au
+            // serveur : la migration la créera. On ne s'arrête donc que si le
+            // serveur lui-même ne répond pas.
+            if (!await ServeurJoignableAsync(contexte))
+            {
+                MessageBox.Show(
+                    "Impossible de se connecter à la base de données.\n\n" +
+                    "Vérifiez, dans l'ordre :\n\n" +
+                    "1. Le service PostgreSQL est démarré.\n" +
+                    $"2. Le fichier « {FichierReglagesLocaux} » existe et\n" +
+                    "    contient le bon mot de passe.\n\n" +
+                    "Il est cherché à ces deux endroits, le second l'emportant :\n\n" +
+                    Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux) + "\n" +
+                    Path.Combine(DossierDonnees, FichierReglagesLocaux),
+                    "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                return false;
+            }
+        }
+
+        try
+        {
+            var enAttente = (await contexte.Database.GetPendingMigrationsAsync()).ToList();
+
+            if (enAttente.Count > 0)
+            {
+                Log.Information("Mise à jour du schéma de « {Base} » : {Migrations}.",
+                    nomBase, string.Join(", ", enAttente));
+            }
+
+            // Chaque mise à jour s'applique dans une transaction : si elle
+            // échoue, la base reste exactement dans son état d'avant.
             await contexte.Database.MigrateAsync();
 
             var semeur = portee.ServiceProvider.GetRequiredService<CeramiPro.Infrastructure.Data.Seed.DatabaseSeeder>();
             await semeur.ExecuterAsync();
 
-            Log.Information("Base de données « {Base} » prête.", ParametresAtelier.NomBaseDeDonnees);
+            Log.Information("Base de données « {Base} » prête.", nomBase);
             return true;
         }
         catch (Exception erreur)
         {
-            Log.Error(erreur, "La base de données est injoignable.");
+            Log.Error(erreur, "La mise à jour de la base de données a échoué.");
 
             MessageBox.Show(
-                "Impossible de se connecter à la base de données.\n\n" +
-                "Vérifiez, dans l'ordre :\n\n" +
-                "1. Le service PostgreSQL est démarré.\n" +
-                $"2. Le fichier « {FichierReglagesLocaux} » existe à côté du\n" +
-                "    programme et contient le bon mot de passe.\n\n" +
-                "Emplacement attendu :\n" +
-                Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux),
-                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+                $"La base « {nomBase} » est joignable, mais sa mise à jour a échoué.\n\n" +
+                "Aucune donnée n'a été modifiée : chaque mise à jour s'annule entièrement en cas d'échec.\n\n" +
+                $"Raison : {erreur.GetBaseException().Message}\n\n" +
+                "Le compte PostgreSQL utilisé doit pouvoir créer des tables et des schémas. " +
+                "Le détail complet se trouve dans :\n" +
+                Path.Combine(DossierDonnees, "journaux"),
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Error);
 
+            return false;
+        }
+    }
+
+    /// <summary>Vrai si le serveur PostgreSQL répond, même si la base n'existe pas encore.</summary>
+    private static async Task<bool> ServeurJoignableAsync(CeramiProDbContext contexte)
+    {
+        try
+        {
+            var chaine = new Npgsql.NpgsqlConnectionStringBuilder(contexte.Database.GetConnectionString())
+            {
+                Database = "postgres",
+                Timeout = 5
+            };
+
+            await using var connexion = new Npgsql.NpgsqlConnection(chaine.ConnectionString);
+            await connexion.OpenAsync();
+            return true;
+        }
+        catch (Exception erreur)
+        {
+            Log.Error(erreur, "Le serveur PostgreSQL ne répond pas.");
             return false;
         }
     }

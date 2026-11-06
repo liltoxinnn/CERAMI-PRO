@@ -9,12 +9,22 @@ using Microsoft.EntityFrameworkCore;
 namespace CeramiPro.Application.Services;
 
 /// <summary>
-/// Produit les rapports de l'atelier sur une période donnée : chiffre d'affaires,
-/// bénéfices, dépenses, dettes, consommation des matières, production, pièces
-/// endommagées, produits les plus vendus et les plus rentables, valeur du stock.
+/// Rapports de l'atelier sur une période : ventes par jour et par mois,
+/// bénéfices, dépenses, dettes des clients, produits les plus vendus et les
+/// plus rentables, état du stock.
+///
+/// Les périodes s'entendent en jours de l'atelier, à l'heure d'Alger.
 /// </summary>
 public class RapportService : IRapportService
 {
+    /// <summary>Au-delà, un graphique jour par jour devient illisible : seuls les jours actifs y figurent.</summary>
+    private const int JoursGraphiqueComplet = 62;
+
+    /// <summary>Rappel affiché sous les rapports qui comptent le chiffre d'affaires.</summary>
+    private const string RemarqueChiffreAffaires =
+        "Chiffre d'affaires = ventes au comptoir et commandes personnalisées livrées sur la période. " +
+        "Un acompte reçu avant la livraison figure dans « Encaissé », pas encore dans le chiffre d'affaires.";
+
     private readonly IApplicationDbContext _context;
     private readonly IServiceDateHeure _horloge;
 
@@ -27,23 +37,18 @@ public class RapportService : IRapportService
     public async Task<RapportDto> GenererAsync(
         RapportRequete requete, CancellationToken cancellationToken = default)
     {
-        var (du, au) = Periode(requete);
-        var periode = $"Du {Formatage.Date(du)} au {Formatage.Date(au.AddDays(-1))}";
+        var periode = Periode(requete);
 
         return requete.Type switch
         {
-            TypeRapport.ChiffreAffaires => await ChiffreAffairesAsync(du, au, periode, cancellationToken),
-            TypeRapport.Benefices => await BeneficesAsync(du, au, periode, cancellationToken),
-            TypeRapport.Depenses => await DepensesAsync(du, au, periode, cancellationToken),
-            TypeRapport.DettesClients => await DettesClientsAsync(periode, cancellationToken),
-            TypeRapport.DettesFournisseurs => await DettesFournisseursAsync(periode, cancellationToken),
-            TypeRapport.ConsommationMatieres => await ConsommationAsync(du, au, periode, cancellationToken),
-            TypeRapport.Production => await ProductionAsync(du, au, periode, cancellationToken),
-            TypeRapport.ProduitsEndommages => await EndommagesAsync(du, au, periode, cancellationToken),
-            TypeRapport.ProduitsLesPlusVendus => await PlusVendusAsync(du, au, periode, cancellationToken),
-            TypeRapport.ProduitsLesPlusRentables => await PlusRentablesAsync(du, au, periode, cancellationToken),
-            TypeRapport.ValeurStock => await ValeurStockAsync(periode, cancellationToken),
-            _ => await PerformanceProductionAsync(du, au, periode, cancellationToken)
+            TypeRapport.VentesParJour => await VentesParJourAsync(periode, cancellationToken),
+            TypeRapport.VentesParMois => await VentesParMoisAsync(periode, cancellationToken),
+            TypeRapport.Benefices => await BeneficesAsync(periode, cancellationToken),
+            TypeRapport.Depenses => await DepensesAsync(periode, cancellationToken),
+            TypeRapport.DettesClients => await DettesClientsAsync(cancellationToken),
+            TypeRapport.ProduitsLesPlusVendus => await PlusVendusAsync(periode, cancellationToken),
+            TypeRapport.ProduitsLesPlusRentables => await PlusRentablesAsync(periode, cancellationToken),
+            _ => await EtatDuStockAsync(cancellationToken)
         };
     }
 
@@ -79,106 +84,98 @@ public class RapportService : IRapportService
 
     // ------------------------------------------------------------- Rapports
 
-    private async Task<RapportDto> ChiffreAffairesAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
+    private async Task<RapportDto> VentesParJourAsync(PeriodeAtelier periode, CancellationToken cancellationToken)
     {
-        var ventes = await _context.Sales.AsNoTracking()
-            .Where(v => v.Status == SaleStatus.Confirmee && v.SaleDate >= du && v.SaleDate < au)
-            .Select(v => new { v.SaleDate, v.TotalAmount, v.TaxAmount, v.TotalCost })
-            .ToListAsync(cancellationToken);
+        var activite = await ActiviteCommerciale.ChargerAsync(_context, _horloge, periode, cancellationToken);
 
-        var lignes = ventes
-            .GroupBy(v => v.SaleDate.Date)
-            .OrderBy(g => g.Key)
-            .Select(g => (IReadOnlyList<string>)new List<string>
-            {
-                Formatage.Date(g.Key),
-                g.Count().ToString(),
-                Formatage.Montant(g.Sum(v => v.TotalAmount)),
-                Formatage.Montant(g.Sum(v => v.TotalAmount - v.TaxAmount - v.TotalCost))
-            })
+        var jours = Enumerable.Range(0, (periode.DernierJour - periode.PremierJour).Days + 1)
+            .Select(decalage => periode.PremierJour.AddDays(decalage))
+            .Select(jour => (Jour: jour, Bilan: activite.Sur(j => j == jour)))
             .ToList();
 
+        var actifs = jours.Where(j => !j.Bilan.EstVide).ToList();
+        var graphique = jours.Count <= JoursGraphiqueComplet ? jours : actifs;
+
         return new RapportDto(
-            TypeRapport.ChiffreAffaires,
-            "Chiffre d'affaires",
-            periode,
-            new[] { "Date", "Ventes", "Chiffre d'affaires", "Bénéfice" },
-            lignes,
-            new[]
-            {
-                "Total", ventes.Count.ToString(),
-                Formatage.Montant(ventes.Sum(v => v.TotalAmount)),
-                Formatage.Montant(ventes.Sum(v => v.TotalAmount - v.TaxAmount - v.TotalCost))
-            },
-            ventes.GroupBy(v => v.SaleDate.Date).OrderBy(g => g.Key)
-                .Select(g => new PointGraphiqueDto(g.Key.ToString("dd/MM"), g.Sum(v => v.TotalAmount)))
-                .ToList());
+            TypeRapport.VentesParJour,
+            "Ventes par jour",
+            periode.Libelle,
+            ColonnesVentes("Jour"),
+            actifs.Select(j => LigneVentes(Formatage.Date(j.Jour), j.Bilan)).ToList(),
+            LigneVentes("Total", activite.Total),
+            graphique.Select(j => new PointGraphiqueDto(j.Jour.ToString("dd/MM"), j.Bilan.ChiffreAffaires)).ToList(),
+            RemarqueChiffreAffaires);
     }
 
-    private async Task<RapportDto> BeneficesAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
+    private async Task<RapportDto> VentesParMoisAsync(PeriodeAtelier periode, CancellationToken cancellationToken)
     {
-        var ventes = await _context.Sales.AsNoTracking()
-            .Where(v => v.Status == SaleStatus.Confirmee && v.SaleDate >= du && v.SaleDate < au)
-            .Select(v => new { v.SaleDate, v.TotalAmount, v.TaxAmount, v.TotalCost })
-            .ToListAsync(cancellationToken);
+        var activite = await ActiviteCommerciale.ChargerAsync(_context, _horloge, periode, cancellationToken);
+        var mois = MoisDe(periode).Select(m => (Mois: m, Bilan: activite.Sur(j => MemeMois(j, m)))).ToList();
 
-        var depenses = await _context.Expenses.AsNoTracking()
-            .Where(d => d.ExpenseDate >= du && d.ExpenseDate < au)
-            .Select(d => new { d.ExpenseDate, d.Amount })
-            .ToListAsync(cancellationToken);
+        return new RapportDto(
+            TypeRapport.VentesParMois,
+            "Ventes par mois",
+            periode.Libelle,
+            ColonnesVentes("Mois"),
+            mois.Select(m => LigneVentes(NomDuMois(m.Mois), m.Bilan)).ToList(),
+            LigneVentes("Total", activite.Total),
+            mois.Select(m => new PointGraphiqueDto(
+                m.Mois.ToString("MMM yy", ParametresAtelier.Culture), m.Bilan.ChiffreAffaires)).ToList(),
+            RemarqueChiffreAffaires);
+    }
 
-        var mois = ventes.Select(v => new DateTime(v.SaleDate.Year, v.SaleDate.Month, 1))
-            .Concat(depenses.Select(d => new DateTime(d.ExpenseDate.Year, d.ExpenseDate.Month, 1)))
-            .Distinct().OrderBy(m => m).ToList();
+    private static IReadOnlyList<string> ColonnesVentes(string periode) => new[]
+    {
+        periode, "Ventes", "Montant des ventes", "Commandes livrées", "Chiffre d'affaires", "Encaissé"
+    };
 
-        var lignes = mois.Select(m =>
+    private static IReadOnlyList<string> LigneVentes(string libelle, Bilan bilan) => new[]
+    {
+        libelle,
+        bilan.NombreVentes.ToString(ParametresAtelier.Culture),
+        Formatage.Montant(bilan.MontantVentes),
+        bilan.NombreLivraisons == 0
+            ? "—"
+            : $"{bilan.NombreLivraisons} · {Formatage.Montant(bilan.MontantLivraisons)}",
+        Formatage.Montant(bilan.ChiffreAffaires),
+        Formatage.Montant(bilan.Encaisse)
+    };
+
+    private async Task<RapportDto> BeneficesAsync(PeriodeAtelier periode, CancellationToken cancellationToken)
+    {
+        var activite = await ActiviteCommerciale.ChargerAsync(_context, _horloge, periode, cancellationToken);
+        var mois = MoisDe(periode).Select(m => (Mois: m, Bilan: activite.Sur(j => MemeMois(j, m)))).ToList();
+
+        static IReadOnlyList<string> Ligne(string libelle, Bilan bilan) => new[]
         {
-            var chiffre = ventes.Where(v => v.SaleDate.Year == m.Year && v.SaleDate.Month == m.Month)
-                .Sum(v => v.TotalAmount);
-            var marge = ventes.Where(v => v.SaleDate.Year == m.Year && v.SaleDate.Month == m.Month)
-                .Sum(v => v.TotalAmount - v.TaxAmount - v.TotalCost);
-            var charges = depenses.Where(d => d.ExpenseDate.Year == m.Year && d.ExpenseDate.Month == m.Month)
-                .Sum(d => d.Amount);
-
-            return (IReadOnlyList<string>)new List<string>
-            {
-                m.ToString("MMMM yyyy", ParametresAtelier.Culture),
-                Formatage.Montant(chiffre),
-                Formatage.Montant(marge),
-                Formatage.Montant(charges),
-                Formatage.Montant(marge - charges)
-            };
-        }).ToList();
-
-        var margeTotale = ventes.Sum(v => v.TotalAmount - v.TaxAmount - v.TotalCost);
-        var chargesTotales = depenses.Sum(d => d.Amount);
+            libelle,
+            Formatage.Montant(bilan.ChiffreAffaires),
+            Formatage.Montant(bilan.Tva),
+            Formatage.Montant(bilan.CoutVentes),
+            Formatage.Montant(bilan.Depenses),
+            Formatage.Montant(bilan.Resultat)
+        };
 
         return new RapportDto(
             TypeRapport.Benefices,
             "Bénéfices",
-            periode,
-            new[] { "Mois", "Chiffre d'affaires", "Marge sur ventes", "Dépenses", "Résultat" },
-            lignes,
-            new[]
-            {
-                "Total",
-                Formatage.Montant(ventes.Sum(v => v.TotalAmount)),
-                Formatage.Montant(margeTotale),
-                Formatage.Montant(chargesTotales),
-                Formatage.Montant(margeTotale - chargesTotales)
-            },
-            null);
+            periode.Libelle,
+            new[] { "Mois", "Chiffre d'affaires", "TVA", "Coût des pièces vendues", "Dépenses", "Bénéfice" },
+            mois.Select(m => Ligne(NomDuMois(m.Mois), m.Bilan)).ToList(),
+            Ligne("Total", activite.Total),
+            mois.Select(m => new PointGraphiqueDto(
+                m.Mois.ToString("MMM yy", ParametresAtelier.Culture), m.Bilan.Resultat)).ToList(),
+            "Bénéfice = chiffre d'affaires − TVA − coût des pièces vendues − dépenses. Ce que coûte une " +
+            "commande personnalisée (matières, emballage, transport) se saisit dans les dépenses.");
     }
 
     private async Task<RapportDto> DepensesAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
+        PeriodeAtelier periode, CancellationToken cancellationToken)
     {
         var depenses = await _context.Expenses
             .Include(d => d.ExpenseCategory)
             .AsNoTracking()
-            .Where(d => d.ExpenseDate >= du && d.ExpenseDate < au)
+            .Where(d => d.ExpenseDate >= periode.DebutUtc && d.ExpenseDate < periode.FinUtc)
             .Select(d => new { Categorie = d.ExpenseCategory.Name, d.Amount })
             .ToListAsync(cancellationToken);
 
@@ -194,7 +191,7 @@ public class RapportService : IRapportService
         return new RapportDto(
             TypeRapport.Depenses,
             "Dépenses",
-            periode,
+            periode.Libelle,
             new[] { "Catégorie", "Nombre", "Montant" },
             lignes,
             new[] { "Total", depenses.Count.ToString(), Formatage.Montant(depenses.Sum(d => d.Amount)) },
@@ -203,7 +200,7 @@ public class RapportService : IRapportService
                 .OrderByDescending(p => p.Valeur).ToList());
     }
 
-    private async Task<RapportDto> DettesClientsAsync(string periode, CancellationToken cancellationToken)
+    private async Task<RapportDto> DettesClientsAsync(CancellationToken cancellationToken)
     {
         var clients = await _context.Customers
             .AsNoTracking()
@@ -213,7 +210,7 @@ public class RapportService : IRapportService
                 c.PhoneNumber,
                 Du = (c.Sales.Where(v => v.Status == SaleStatus.Confirmee)
                           .Sum(v => (decimal?)v.TotalAmount) ?? 0m)
-                     + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annule)
+                     + (c.CustomOrders.Where(o => o.Status != CustomOrderStatus.Annulee)
                          .Sum(o => (decimal?)o.TotalAmount) ?? 0m),
                 Paye = c.Payments.Sum(p => (decimal?)p.Amount) ?? 0m
             })
@@ -243,173 +240,13 @@ public class RapportService : IRapportService
             null);
     }
 
-    private async Task<RapportDto> DettesFournisseursAsync(string periode, CancellationToken cancellationToken)
-    {
-        var fournisseurs = await _context.Suppliers
-            .AsNoTracking()
-            .Select(f => new
-            {
-                f.Name,
-                f.PhoneNumber,
-                Du = f.Purchases.Where(a => a.Status != PurchaseStatus.Brouillon
-                                            && a.Status != PurchaseStatus.Annule)
-                    .Sum(a => (decimal?)a.TotalAmount) ?? 0m,
-                Paye = f.SupplierPayments.Sum(r => (decimal?)r.Amount) ?? 0m
-            })
-            .ToListAsync(cancellationToken);
-
-        var dettes = fournisseurs.Where(f => f.Du - f.Paye > 0).OrderByDescending(f => f.Du - f.Paye).ToList();
-
-        return new RapportDto(
-            TypeRapport.DettesFournisseurs,
-            "Dettes fournisseurs",
-            "Situation à ce jour",
-            new[] { "Fournisseur", "Téléphone", "Total acheté", "Payé", "Reste" },
-            dettes.Select(f => (IReadOnlyList<string>)new List<string>
-            {
-                f.Name, f.PhoneNumber ?? "—",
-                Formatage.Montant(f.Du),
-                Formatage.Montant(f.Paye),
-                Formatage.Montant(f.Du - f.Paye)
-            }).ToList(),
-            new[]
-            {
-                "Total", string.Empty,
-                Formatage.Montant(dettes.Sum(f => f.Du)),
-                Formatage.Montant(dettes.Sum(f => f.Paye)),
-                Formatage.Montant(dettes.Sum(f => f.Du - f.Paye))
-            },
-            null);
-    }
-
-    private async Task<RapportDto> ConsommationAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
-    {
-        var mouvements = await _context.InventoryTransactions
-            .AsNoTracking()
-            .Where(t => t.TransactionType == InventoryTransactionType.ConsommationProduction
-                        && t.Material != null && t.OccurredAt >= du && t.OccurredAt < au)
-            .Select(t => new { Nom = t.Material!.Name, Unite = t.Material.Unit.Code, t.Quantity, t.TotalCost })
-            .ToListAsync(cancellationToken);
-
-        var lignes = mouvements
-            .GroupBy(t => new { t.Nom, t.Unite })
-            .OrderByDescending(g => g.Sum(t => t.TotalCost))
-            .Select(g => (IReadOnlyList<string>)new List<string>
-            {
-                g.Key.Nom,
-                Formatage.Quantite(-g.Sum(t => t.Quantity), g.Key.Unite),
-                Formatage.Montant(g.Sum(t => t.TotalCost))
-            })
-            .ToList();
-
-        return new RapportDto(
-            TypeRapport.ConsommationMatieres,
-            "Consommation des matières",
-            periode,
-            new[] { "Matière", "Quantité consommée", "Valeur" },
-            lignes,
-            new[] { "Total", string.Empty, Formatage.Montant(mouvements.Sum(t => t.TotalCost)) },
-            null);
-    }
-
-    private async Task<RapportDto> ProductionAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
-    {
-        var ordres = await _context.ProductionOrders
-            .Include(o => o.Product)
-            .AsNoTracking()
-            .Where(o => o.PlannedStartDate >= du && o.PlannedStartDate < au)
-            .Select(o => new
-            {
-                o.ProductionNumber, Produit = o.Product.Name, o.Status,
-                o.PlannedQuantity, o.CompletedQuantity, o.DamagedQuantity,
-                o.ActualMaterialCost, o.LaborCost, o.FiringCost, o.DecorationCost,
-                o.PackagingCost, o.OtherCost
-            })
-            .ToListAsync(cancellationToken);
-
-        var lignes = ordres.Select(o => (IReadOnlyList<string>)new List<string>
-        {
-            o.ProductionNumber,
-            o.Produit,
-            o.Status.Libelle(),
-            Formatage.Quantite(o.PlannedQuantity),
-            Formatage.Quantite(o.CompletedQuantity),
-            Formatage.Quantite(o.DamagedQuantity),
-            Formatage.Montant(o.ActualMaterialCost + o.LaborCost + o.FiringCost
-                                      + o.DecorationCost + o.PackagingCost + o.OtherCost)
-        }).ToList();
-
-        return new RapportDto(
-            TypeRapport.Production,
-            "Production",
-            periode,
-            new[] { "Numéro", "Produit", "État", "Prévu", "Terminé", "Endommagé", "Coût total" },
-            lignes,
-            new[]
-            {
-                "Total", string.Empty, string.Empty,
-                Formatage.Quantite(ordres.Sum(o => o.PlannedQuantity)),
-                Formatage.Quantite(ordres.Sum(o => o.CompletedQuantity)),
-                Formatage.Quantite(ordres.Sum(o => o.DamagedQuantity)),
-                Formatage.Montant(ordres.Sum(o => o.ActualMaterialCost + o.LaborCost + o.FiringCost
-                                                          + o.DecorationCost + o.PackagingCost + o.OtherCost))
-            },
-            null);
-    }
-
-    private async Task<RapportDto> EndommagesAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
-    {
-        var etapes = await _context.ProductionStageHistory
-            .Include(h => h.ProductionOrder).ThenInclude(o => o.Product)
-            .AsNoTracking()
-            .Where(h => h.DamagedQuantity > 0 && h.StartedAt >= du && h.StartedAt < au)
-            .Select(h => new
-            {
-                h.ProductionOrder.ProductionNumber,
-                Produit = h.ProductionOrder.Product.Name,
-                h.Stage, h.DamagedQuantity, h.StartedAt, h.Notes
-            })
-            .ToListAsync(cancellationToken);
-
-        var lignes = etapes
-            .OrderByDescending(e => e.DamagedQuantity)
-            .Select(e => (IReadOnlyList<string>)new List<string>
-            {
-                Formatage.Date(e.StartedAt),
-                e.ProductionNumber,
-                e.Produit,
-                e.Stage.Libelle(),
-                Formatage.Quantite(e.DamagedQuantity),
-                e.Notes ?? "—"
-            })
-            .ToList();
-
-        return new RapportDto(
-            TypeRapport.ProduitsEndommages,
-            "Produits endommagés",
-            periode,
-            new[] { "Date", "Production", "Produit", "Étape", "Pièces", "Observation" },
-            lignes,
-            new[]
-            {
-                "Total", string.Empty, string.Empty, string.Empty,
-                Formatage.Quantite(etapes.Sum(e => e.DamagedQuantity)), string.Empty
-            },
-            etapes.GroupBy(e => e.Stage)
-                .Select(g => new PointGraphiqueDto(g.Key.Libelle(), g.Sum(e => e.DamagedQuantity)))
-                .OrderByDescending(p => p.Valeur).ToList());
-    }
-
     private async Task<RapportDto> PlusVendusAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
+        PeriodeAtelier periode, CancellationToken cancellationToken)
     {
         var lignesVente = await _context.SaleItems
             .AsNoTracking()
             .Where(i => i.Sale.Status == SaleStatus.Confirmee
-                        && i.Sale.SaleDate >= du && i.Sale.SaleDate < au)
+                        && i.Sale.SaleDate >= periode.DebutUtc && i.Sale.SaleDate < periode.FinUtc)
             .Select(i => new { Produit = i.Product.Name, i.Quantity, i.LineTotal })
             .ToListAsync(cancellationToken);
 
@@ -427,7 +264,7 @@ public class RapportService : IRapportService
         return new RapportDto(
             TypeRapport.ProduitsLesPlusVendus,
             "Produits les plus vendus",
-            periode,
+            periode.Libelle,
             new[] { "Produit", "Quantité vendue", "Chiffre d'affaires" },
             lignes,
             new[]
@@ -442,12 +279,12 @@ public class RapportService : IRapportService
     }
 
     private async Task<RapportDto> PlusRentablesAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
+        PeriodeAtelier periode, CancellationToken cancellationToken)
     {
         var lignesVente = await _context.SaleItems
             .AsNoTracking()
             .Where(i => i.Sale.Status == SaleStatus.Confirmee
-                        && i.Sale.SaleDate >= du && i.Sale.SaleDate < au)
+                        && i.Sale.SaleDate >= periode.DebutUtc && i.Sale.SaleDate < periode.FinUtc)
             .Select(i => new
             {
                 Produit = i.Product.Name, i.Quantity, i.LineTotal,
@@ -471,7 +308,7 @@ public class RapportService : IRapportService
         return new RapportDto(
             TypeRapport.ProduitsLesPlusRentables,
             "Produits les plus rentables",
-            periode,
+            periode.Libelle,
             new[] { "Produit", "Quantité", "Chiffre d'affaires", "Coût de revient", "Bénéfice" },
             lignes,
             new[]
@@ -482,153 +319,103 @@ public class RapportService : IRapportService
                 Formatage.Montant(lignesVente.Sum(i => i.Cout)),
                 Formatage.Montant(lignesVente.Sum(i => i.LineTotal - i.Cout))
             },
-            null);
+            null,
+            "Bénéfice = prix de vente moins le coût de revient de la pièce au moment de la vente.");
     }
 
-    private async Task<RapportDto> ValeurStockAsync(string periode, CancellationToken cancellationToken)
+    /// <summary>
+    /// Tous les produits actifs, avec leur état : c'est le résumé du stock
+    /// que l'on relit avant de relancer une fabrication.
+    /// </summary>
+    private async Task<RapportDto> EtatDuStockAsync(CancellationToken cancellationToken)
     {
-        var matieres = await _context.Materials
-            .Include(m => m.Unit).Include(m => m.MaterialCategory)
-            .AsNoTracking().Where(m => m.IsActive)
-            .Select(m => new
-            {
-                Categorie = m.MaterialCategory.Name, m.Name, Unite = m.Unit.Code,
-                m.CurrentQuantity, m.AverageCost
-            })
-            .ToListAsync(cancellationToken);
-
         var produits = await _context.Products
-            .Include(p => p.ProductCategory)
             .AsNoTracking().Where(p => p.IsActive)
+            .OrderBy(p => p.ProductCategory.Name).ThenBy(p => p.Name)
             .Select(p => new
             {
-                Categorie = p.ProductCategory.Name, p.Name, p.CurrentStock, p.ProductionCost
+                Categorie = p.ProductCategory.Name, p.Name, p.CurrentStock, p.MinimumStock,
+                p.IsUniquePiece, p.ProductionCost, p.SellingPrice
             })
             .ToListAsync(cancellationToken);
 
-        var lignes = new List<IReadOnlyList<string>>();
-
-        foreach (var matiere in matieres.Where(m => m.CurrentQuantity != 0)
-                     .OrderByDescending(m => m.CurrentQuantity * m.AverageCost))
+        string Etat(decimal stock, decimal seuil, bool unique) => (stock, unique) switch
         {
-            lignes.Add(new List<string>
-            {
-                "Matière première", matiere.Categorie, matiere.Name,
-                Formatage.Quantite(matiere.CurrentQuantity, matiere.Unite),
-                Formatage.Montant(matiere.AverageCost),
-                Formatage.Montant(matiere.CurrentQuantity * matiere.AverageCost)
-            });
-        }
+            (<= 0, true) => "Vendue",
+            (> 0, true) => "Pièce unique",
+            (<= 0, false) => "Rupture",
+            _ when stock <= seuil => "Stock faible",
+            _ => "Disponible"
+        };
 
-        foreach (var produit in produits.Where(p => p.CurrentStock != 0)
-                     .OrderByDescending(p => p.CurrentStock * p.ProductionCost))
+        var lignes = produits.Select(p => (IReadOnlyList<string>)new List<string>
         {
-            lignes.Add(new List<string>
-            {
-                "Produit fini", produit.Categorie, produit.Name,
-                Formatage.Quantite(produit.CurrentStock, "pièce"),
-                Formatage.Montant(produit.ProductionCost),
-                Formatage.Montant(produit.CurrentStock * produit.ProductionCost)
-            });
-        }
+            p.Categorie,
+            p.Name,
+            Formatage.Quantite(p.CurrentStock),
+            p.IsUniquePiece ? "—" : Formatage.Quantite(p.MinimumStock),
+            Etat(p.CurrentStock, p.MinimumStock, p.IsUniquePiece),
+            Formatage.Montant(Math.Max(0m, p.CurrentStock) * p.ProductionCost),
+            Formatage.Montant(Math.Max(0m, p.CurrentStock) * p.SellingPrice)
+        }).ToList();
 
-        var valeur = matieres.Sum(m => m.CurrentQuantity * m.AverageCost)
-                     + produits.Sum(p => p.CurrentStock * p.ProductionCost);
+        var aSurveiller = produits.Count(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock);
 
         return new RapportDto(
             TypeRapport.ValeurStock,
-            "Valeur du stock",
-            "Situation à ce jour",
-            new[] { "Type", "Catégorie", "Article", "Quantité", "Coût unitaire", "Valeur" },
-            lignes,
-            new[] { "Total", string.Empty, string.Empty, string.Empty, string.Empty,
-                Formatage.Montant(valeur) },
-            new[]
-            {
-                new PointGraphiqueDto("Matières premières",
-                    Math.Round(matieres.Sum(m => m.CurrentQuantity * m.AverageCost), 2)),
-                new PointGraphiqueDto("Produits finis",
-                    Math.Round(produits.Sum(p => p.CurrentStock * p.ProductionCost), 2))
-            });
-    }
-
-    private async Task<RapportDto> PerformanceProductionAsync(
-        DateTime du, DateTime au, string periode, CancellationToken cancellationToken)
-    {
-        var ordres = await _context.ProductionOrders
-            .Include(o => o.Product)
-            .AsNoTracking()
-            .Where(o => o.Status == ProductionStatus.Termine
-                        && o.ActualEndDate >= du && o.ActualEndDate < au)
-            .Select(o => new
-            {
-                Produit = o.Product.Name, o.PlannedQuantity, o.CompletedQuantity, o.DamagedQuantity,
-                o.ActualStartDate, o.ActualEndDate,
-                Cout = o.ActualMaterialCost + o.LaborCost + o.FiringCost
-                       + o.DecorationCost + o.PackagingCost + o.OtherCost
-            })
-            .ToListAsync(cancellationToken);
-
-        var lignes = ordres
-            .GroupBy(o => o.Produit)
-            .OrderByDescending(g => g.Sum(o => o.CompletedQuantity))
-            .Select(g =>
-            {
-                var prevu = g.Sum(o => o.PlannedQuantity);
-                var termine = g.Sum(o => o.CompletedQuantity);
-                var casse = g.Sum(o => o.DamagedQuantity);
-                var duree = g.Where(o => o.ActualStartDate is not null && o.ActualEndDate is not null)
-                    .Select(o => (o.ActualEndDate!.Value - o.ActualStartDate!.Value).TotalDays)
-                    .DefaultIfEmpty(0).Average();
-
-                return (IReadOnlyList<string>)new List<string>
-                {
-                    g.Key,
-                    g.Count().ToString(),
-                    Formatage.Quantite(prevu),
-                    Formatage.Quantite(termine),
-                    Formatage.Quantite(casse),
-                    prevu > 0 ? $"{Math.Round(termine / prevu * 100m, 1)} %" : "—",
-                    $"{Math.Round((decimal)duree, 1)} j",
-                    Formatage.Montant(termine > 0 ? g.Sum(o => o.Cout) / termine : 0m)
-                };
-            })
-            .ToList();
-
-        var totalPrevu = ordres.Sum(o => o.PlannedQuantity);
-        var totalTermine = ordres.Sum(o => o.CompletedQuantity);
-
-        return new RapportDto(
-            TypeRapport.PerformanceProduction,
-            "Performance de production",
-            periode,
-            new[]
-            {
-                "Produit", "Séries", "Prévu", "Terminé", "Endommagé",
-                "Taux de réussite", "Durée moyenne", "Coût par pièce"
-            },
+            "État du stock",
+            $"Situation au {Formatage.Date(_horloge.Aujourdhui)}",
+            new[] { "Catégorie", "Produit", "En stock", "Seuil", "État", "Valeur au coût", "Valeur à la vente" },
             lignes,
             new[]
             {
-                "Total", ordres.Count.ToString(),
-                Formatage.Quantite(totalPrevu),
-                Formatage.Quantite(totalTermine),
-                Formatage.Quantite(ordres.Sum(o => o.DamagedQuantity)),
-                totalPrevu > 0 ? $"{Math.Round(totalTermine / totalPrevu * 100m, 1)} %" : "—",
-                string.Empty, string.Empty
+                "Total", $"{produits.Count} produit(s)",
+                Formatage.Quantite(produits.Sum(p => Math.Max(0m, p.CurrentStock))),
+                string.Empty, $"{aSurveiller} à surveiller",
+                Formatage.Montant(produits.Sum(p => Math.Max(0m, p.CurrentStock) * p.ProductionCost)),
+                Formatage.Montant(produits.Sum(p => Math.Max(0m, p.CurrentStock) * p.SellingPrice))
             },
-            null);
+            null,
+            "« Stock faible » : quantité égale ou inférieure au seuil d'alerte. " +
+            "Une pièce unique vendue n'est pas une rupture : elle n'est pas refabriquée.");
     }
 
-    /// <summary>Période retenue : par défaut le mois en cours.</summary>
-    private (DateTime Du, DateTime Au) Periode(RapportRequete requete)
+    // ------------------------------------------------------------- Outils
+
+    /// <summary>
+    /// Période retenue. Par défaut : le mois en cours, ou l'année en cours
+    /// pour les rapports qui se lisent mois par mois.
+    /// </summary>
+    private PeriodeAtelier Periode(RapportRequete requete)
     {
         var aujourdhui = _horloge.Aujourdhui;
+        var parMois = requete.Type is TypeRapport.VentesParMois or TypeRapport.Benefices;
 
-        var du = requete.Du?.Date ?? new DateTime(aujourdhui.Year, aujourdhui.Month, 1);
-        var au = (requete.Au?.Date ?? aujourdhui).AddDays(1);
+        var premier = requete.Du?.Date
+                      ?? (parMois ? new DateTime(aujourdhui.Year, 1, 1) : new DateTime(aujourdhui.Year, aujourdhui.Month, 1));
+        var dernier = requete.Au?.Date ?? aujourdhui;
 
-        return (DateTime.SpecifyKind(du, DateTimeKind.Utc), DateTime.SpecifyKind(au, DateTimeKind.Utc));
+        return PeriodeAtelier.Jours(_horloge, premier, dernier);
+    }
+
+    /// <summary>Premier jour de chacun des mois couverts par la période.</summary>
+    private static IEnumerable<DateTime> MoisDe(PeriodeAtelier periode)
+    {
+        for (var mois = new DateTime(periode.PremierJour.Year, periode.PremierJour.Month, 1);
+             mois <= periode.DernierJour;
+             mois = mois.AddMonths(1))
+        {
+            yield return mois;
+        }
+    }
+
+    private static bool MemeMois(DateTime jour, DateTime mois) => jour.Year == mois.Year && jour.Month == mois.Month;
+
+    /// <summary>« Novembre 2026 ».</summary>
+    private static string NomDuMois(DateTime mois)
+    {
+        var nom = mois.ToString("MMMM yyyy", ParametresAtelier.Culture);
+        return char.ToUpper(nom[0], ParametresAtelier.Culture) + nom[1..];
     }
 
     /// <summary>Protège les valeurs contenant un point-virgule ou un guillemet.</summary>

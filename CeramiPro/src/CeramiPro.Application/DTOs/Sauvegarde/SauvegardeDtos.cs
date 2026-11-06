@@ -18,3 +18,32 @@ public record EtatSauvegardeDto(
     int Nombre,
     DateTime? DerniereSauvegarde,
     IReadOnlyList<SauvegardeDto> Sauvegardes);
+
+/// <summary>Ce qu'une restauration a réellement remis en place.</summary>
+/// <param name="AncienneVersion">
+/// La sauvegarde venait de la version d'avant la simplification : ses données
+/// ont été converties au nouveau schéma.
+/// </param>
+/// <param name="TablesNonReprises">
+/// Tables des modules retirés présentes dans le fichier mais pas remises en
+/// place. Elles restent lisibles dans le fichier de sauvegarde.
+/// </param>
+public record RestaurationDto(
+    string NomFichier,
+    DateTime DateSauvegarde,
+    int NombreTables,
+    int NombreLignes,
+    bool AncienneVersion = false,
+    int TablesNonReprises = 0,
+    int PhotosRestaurees = 0);
+
+/// <summary>Réglage de la sauvegarde quotidienne.</summary>
+public class ReglageSauvegardeRequete
+{
+    public bool Active { get; set; }
+
+    /// <summary>Heure de l'atelier, au format « HH:mm ».</summary>
+    public string Heure { get; set; } = "13:00";
+
+    public int ConservationJours { get; set; } = 30;
+}

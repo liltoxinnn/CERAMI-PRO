@@ -24,3 +24,4 @@ src/CeramicWorkshop.API/wwwroot/fichiers/
 .DS_Store
 Thumbs.db
 *.log
+__pycache__/

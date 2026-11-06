@@ -1,5 +1,4 @@
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -13,13 +12,9 @@ namespace CeramiPro.Presentation.ViewModels;
 /// ne concerne que la saisie elle-même — un champ laissé vide, un nombre
 /// négatif — afin d'éviter un aller-retour inutile jusqu'à la base.
 /// </summary>
-public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
+public abstract partial class FormulaireVueModele<TRequete> : ObservableObject, IFormulaire
     where TRequete : class, new()
 {
-    protected readonly IServiceLangue Langue;
-
-    protected FormulaireVueModele(IServiceLangue langue) => Langue = langue;
-
     /// <summary>Objet renseigné par les contrôles du formulaire.</summary>
     public TRequete Requete { get; protected set; } = new();
 
@@ -43,11 +38,17 @@ public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
     /// <summary>Champs affichés, dans l'ordre de saisie.</summary>
     public abstract IReadOnlyList<ChampFormulaire> Champs { get; }
 
-    public string LibelleEnregistrer => Langue["action.enregistrer"];
-    public string LibelleAnnuler => Langue["action.annuler"];
+    public string LibelleEnregistrer => "Enregistrer";
+    public string LibelleAnnuler => "Annuler";
 
     /// <summary>Enregistre auprès du service métier.</summary>
     protected abstract Task EnregistrerAsync();
+
+    /// <summary>
+    /// Charge les listes déroulantes du formulaire. Les formulaires qui
+    /// n'en ont pas gardent le comportement par défaut : ne rien faire.
+    /// </summary>
+    public virtual Task PreparerAsync() => Task.CompletedTask;
 
     /// <summary>Charge les valeurs d'une fiche existante.</summary>
     public virtual Task PreparerModificationAsync(int id) => Task.CompletedTask;
@@ -79,9 +80,11 @@ public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
         {
             MessageErreur = erreur.Message;
         }
-        catch (Exception)
+        catch (Exception erreur)
         {
-            MessageErreur = Langue["message.erreurEnregistrement"];
+            VueModeleBase.SignalerErreur?.Invoke(erreur);
+            MessageErreur = "L'enregistrement n'a pas abouti. Vérifiez la saisie et recommencez ; " +
+                            "si le problème persiste, le détail est noté dans le journal du logiciel.";
         }
         finally
         {
@@ -110,7 +113,7 @@ public abstract partial class FormulaireVueModele<TRequete> : ObservableObject
 
             if (vide)
             {
-                return $"« {champ.Libelle} » : {Langue["etat.obligatoire"].ToLowerInvariant()}.";
+                return $"« {champ.Libelle} » : champ obligatoire.";
             }
         }
 
