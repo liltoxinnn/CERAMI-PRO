@@ -1,15 +1,12 @@
 using CeramiPro.Domain.Common;
-using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Application.DTOs.Referentiels;
 
 /// <summary>Listes simples que l'atelier gère lui-même.</summary>
 public enum TypeReferentiel
 {
-    [Libelle("Catégories de matières")] CategorieMatiere,
     [Libelle("Catégories de produits")] CategorieProduit,
-    [Libelle("Catégories de dépenses")] CategorieDepense,
-    [Libelle("Types de décoration")] TypeDecoration
+    [Libelle("Catégories de dépenses")] CategorieDepense
 }
 
 /// <summary>Élément d'une liste : catégorie, type de décoration…</summary>
@@ -25,27 +22,6 @@ public class ElementReferentielRequete
 {
     public string Nom { get; set; } = string.Empty;
     public string? Description { get; set; }
-    public bool Actif { get; set; } = true;
-}
-
-/// <summary>Unité de mesure de l'atelier.</summary>
-public record UniteDto(
-    int Id,
-    string Code,
-    string Nom,
-    UnitType Type,
-    string TypeLibelle,
-    decimal FacteurConversion,
-    bool Systeme,
-    bool Actif,
-    int NombreUtilisations);
-
-public class UniteRequete
-{
-    public string Code { get; set; } = string.Empty;
-    public string Nom { get; set; } = string.Empty;
-    public UnitType Type { get; set; } = UnitType.Quantite;
-    public decimal FacteurConversion { get; set; } = 1m;
     public bool Actif { get; set; } = true;
 }
 

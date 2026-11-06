@@ -1,8 +1,11 @@
+using CeramiPro.Domain.Enums;
+
 namespace CeramiPro.Application.Interfaces;
 
 /// <summary>
 /// Personne connectée au logiciel. Sert à tracer les opérations et à
-/// vérifier les droits dans la couche métier — jamais uniquement dans l'écran.
+/// vérifier les droits dans la couche métier — jamais uniquement dans
+/// l'écran, qui ne fait que masquer un bouton.
 /// </summary>
 public interface IUtilisateurCourant
 {
@@ -10,15 +13,19 @@ public interface IUtilisateurCourant
 
     string? NomUtilisateur { get; }
 
-    string? CodeRole { get; }
-
-    /// <summary>Nom du rôle tel qu'il est affiché : « Administrateur », « Caissier ».</summary>
-    string? NomRole { get; }
-
     /// <summary>Nom complet de la personne, affiché dans l'en-tête.</summary>
     string? NomComplet { get; }
 
+    RoleUtilisateur? Role { get; }
+
+    /// <summary>Nom du rôle tel qu'il s'affiche : « Administrateur », « Employé ».</summary>
+    string? NomRole { get; }
+
     bool EstConnecte { get; }
 
-    bool PossedeDroit(string codeDroit);
+    /// <summary>
+    /// Vrai pour un administrateur. C'est la seule distinction que fait le
+    /// logiciel : elle ouvre les rapports, les dépenses et les paramètres.
+    /// </summary>
+    bool EstAdministrateur { get; }
 }

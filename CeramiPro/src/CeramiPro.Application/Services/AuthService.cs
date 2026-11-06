@@ -1,6 +1,7 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Auth;
 using CeramiPro.Application.Interfaces;
+using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Identity;
 using CeramiPro.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -94,8 +95,6 @@ public class AuthService : IAuthService
             throw new RegleMetierException(MessageIdentifiantsInvalides);
         }
 
-        var droits = await DroitsDuRoleAsync(utilisateur.RoleId, cancellationToken);
-
         utilisateur.FailedLoginAttempts = 0;
         utilisateur.LockedUntil = null;
         utilisateur.LastLoginAt = maintenant;
@@ -103,12 +102,7 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync(cancellationToken);
 
         _session.Ouvrir(
-            utilisateur.Id,
-            utilisateur.UserName,
-            utilisateur.FullName,
-            utilisateur.Role!.Code,
-            utilisateur.Role.Name,
-            droits);
+            utilisateur.Id, utilisateur.UserName, utilisateur.FullName, utilisateur.Role);
 
         await _audit.EnregistrerAsync(AuditAction.Connexion, nameof(User), utilisateur.Id.ToString(),
             $"Connexion de « {utilisateur.UserName} ».", null, cancellationToken);
@@ -118,9 +112,8 @@ public class AuthService : IAuthService
             utilisateur.UserName,
             utilisateur.FullName,
             utilisateur.Email,
-            utilisateur.Role.Code,
-            utilisateur.Role.Name,
-            droits,
+            utilisateur.Role,
+            utilisateur.Role.Libelle(),
             utilisateur.MustChangePassword));
     }
 
@@ -189,11 +182,4 @@ public class AuthService : IAuthService
             utilisateur.Id.ToString(),
             $"Mot de passe incorrect pour « {utilisateur.UserName} ».", null, cancellationToken);
     }
-
-    private async Task<IReadOnlyList<string>> DroitsDuRoleAsync(
-        int roleId, CancellationToken cancellationToken)
-        => await _context.RolePermissions
-            .Where(rp => rp.RoleId == roleId)
-            .Select(rp => rp.Permission!.Code)
-            .ToListAsync(cancellationToken);
 }

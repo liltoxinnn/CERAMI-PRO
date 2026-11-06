@@ -1,6 +1,5 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Finances;
-using CeramiPro.Application.DTOs.Alertes;
 using CeramiPro.Application.DTOs.Sauvegarde;
 
 namespace CeramiPro.Application.Interfaces;
@@ -32,39 +31,6 @@ public interface IRapportService
     /// <summary>Export du rapport au format CSV, lisible par Excel.</summary>
     Task<(string NomFichier, byte[] Contenu)> ExporterCsvAsync(
         RapportRequete requete, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Calculs d'aide à la préparation d'une production : surface à couvrir et
-/// nombre d'unités à prévoir, perte comprise.
-/// </summary>
-public interface ICalculateurService
-{
-    CalculSurfaceDto Surface(CalculSurfaceRequete requete);
-
-    CalculQuantiteDto Quantite(CalculQuantiteRequete requete);
-}
-
-/// <summary>
-/// Centre d'alertes : stock faible, échéances de commandes, retards de
-/// production, dettes en attente. Les alertes sont recalculées à la demande.
-/// </summary>
-public interface IAlerteService
-{
-    /// <summary>Recalcule les alertes puis renvoie celles qui sont ouvertes.</summary>
-    Task<IReadOnlyList<AlerteDto>> ListerAsync(
-        FiltreAlertesRequete requete, CancellationToken cancellationToken = default);
-
-    Task<ResumeAlertesDto> ResumeAsync(CancellationToken cancellationToken = default);
-
-    Task MarquerLueAsync(int id, CancellationToken cancellationToken = default);
-
-    Task ToutMarquerLuAsync(CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<ReglageAlerteDto>> ListerReglagesAsync(CancellationToken cancellationToken = default);
-
-    Task<ReglageAlerteDto> ModifierReglageAsync(
-        int id, ReglageAlerteDto reglage, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

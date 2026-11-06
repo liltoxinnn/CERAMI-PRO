@@ -1,8 +1,11 @@
 using CeramiPro.Domain.Common;
-using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Domain.Entities.Catalog;
 
+/// <summary>
+/// Photographie d'un produit. Une pièce faite à la main se vend d'abord par
+/// son image : la fiche en accepte plusieurs, dont une principale.
+/// </summary>
 public class ProductImage : AuditableEntity
 {
     public int ProductId { get; set; }
@@ -10,7 +13,6 @@ public class ProductImage : AuditableEntity
 
     public string FilePath { get; set; } = null!;
     public string? Caption { get; set; }
-    public ProductImageKind Kind { get; set; } = ProductImageKind.Supplementaire;
     public bool IsPrimary { get; set; }
     public int SortOrder { get; set; }
 }

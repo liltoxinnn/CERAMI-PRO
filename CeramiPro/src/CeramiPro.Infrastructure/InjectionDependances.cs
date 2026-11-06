@@ -46,7 +46,6 @@ public static class InjectionDependances
 
         services.AddScoped<IServiceEtatBaseDeDonnees, ServiceEtatBaseDeDonnees>();
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
-        services.AddSingleton<ICodeGraphiqueService, CodeGraphiqueService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<ISauvegardeService, SauvegardeService>();

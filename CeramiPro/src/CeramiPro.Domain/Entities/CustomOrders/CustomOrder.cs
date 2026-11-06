@@ -1,9 +1,7 @@
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Customers;
 using CeramiPro.Domain.Entities.Identity;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Payments;
-using CeramiPro.Domain.Entities.Production;
 using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Domain.Entities.CustomOrders;
@@ -58,6 +56,4 @@ public class CustomOrder : AuditableEntity, ISoftDeletable
     public ICollection<CustomOrderImage> Images { get; set; } = new List<CustomOrderImage>();
     public ICollection<CustomOrderNote> OrderNotes { get; set; } = new List<CustomOrderNote>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
-    public ICollection<ProductionOrder> ProductionOrders { get; set; } = new List<ProductionOrder>();
-    public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
 }

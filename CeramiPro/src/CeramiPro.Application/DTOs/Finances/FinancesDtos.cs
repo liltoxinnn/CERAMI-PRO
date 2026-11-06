@@ -1,4 +1,5 @@
 using CeramiPro.Application.Common;
+using CeramiPro.Domain.Common;
 
 namespace CeramiPro.Application.DTOs.Finances;
 
@@ -40,17 +41,13 @@ public class FiltreDepensesRequete : PagedRequest
 public record TableauDeBordDto(
     ActiviteDuJourDto Aujourdhui,
     ActivitePeriodeDto Mois,
-    ProductionResumeDto Production,
     CommandesResumeDto Commandes,
     StockResumeDto Stock,
     FinancesResumeDto Finances,
     IReadOnlyList<PointGraphiqueDto> VentesParJour,
     IReadOnlyList<PointGraphiqueDto> VentesParMois,
-    IReadOnlyList<PointGraphiqueDto> BeneficesParMois,
-    IReadOnlyList<PointGraphiqueDto> ProductionParMois,
     IReadOnlyList<ClassementDto> ProduitsLesPlusVendus,
-    IReadOnlyList<ClassementDto> ProduitsLesPlusRentables,
-    IReadOnlyList<ClassementDto> MatieresLesPlusConsommees);
+    IReadOnlyList<ProduitAlerteDto> StockFaible);
 
 public record ActiviteDuJourDto(
     decimal ChiffreAffaires, decimal Benefice, int NombreVentes, decimal PaiementsRecus);
@@ -58,19 +55,17 @@ public record ActiviteDuJourDto(
 public record ActivitePeriodeDto(
     decimal ChiffreAffaires, decimal Benefice, decimal Depenses, decimal Resultat, int NombreVentes);
 
-public record ProductionResumeDto(
-    int EnCours, int EnSechage, int EnAttenteCuisson, int EnDecoration,
-    int EnControleQualite, int Terminees, int EnRetard);
-
 public record CommandesResumeDto(
     int EnAttente, int EnCours, int ProchesEcheance, int EnRetard, int PretesALivrer);
 
 public record StockResumeDto(
-    int MatieresFaibles, int ProduitsFaibles, decimal ValeurMatieres,
-    decimal ValeurProduits, decimal ValeurTotale);
+    int NombreProduits, int ProduitsFaibles, decimal ValeurStock);
 
 public record FinancesResumeDto(
-    decimal ArgentRecu, decimal CreancesClients, decimal DettesFournisseurs, decimal DepensesMois);
+    decimal ArgentRecu, decimal CreancesClients, decimal DepensesMois);
+
+/// <summary>Produit passé sous son seuil, montré directement sur le tableau de bord.</summary>
+public record ProduitAlerteDto(int Id, string Nom, decimal Stock, decimal Seuil);
 
 /// <summary>Point d'un graphique : une étiquette et une valeur.</summary>
 public record PointGraphiqueDto(string Etiquette, decimal Valeur);
@@ -83,18 +78,13 @@ public record ClassementDto(string Nom, decimal Quantite, decimal Montant, strin
 /// <summary>Rapports disponibles dans l'écran « Rapports ».</summary>
 public enum TypeRapport
 {
-    ChiffreAffaires,
-    Benefices,
-    Depenses,
-    DettesClients,
-    DettesFournisseurs,
-    ConsommationMatieres,
-    Production,
-    ProduitsEndommages,
-    ProduitsLesPlusVendus,
-    ProduitsLesPlusRentables,
-    ValeurStock,
-    PerformanceProduction
+    [Libelle("Chiffre d'affaires")] ChiffreAffaires,
+    [Libelle("Bénéfices")] Benefices,
+    [Libelle("Dépenses")] Depenses,
+    [Libelle("Dettes clients")] DettesClients,
+    [Libelle("Produits les plus vendus")] ProduitsLesPlusVendus,
+    [Libelle("Produits les plus rentables")] ProduitsLesPlusRentables,
+    [Libelle("Valeur du stock")] ValeurStock
 }
 
 /// <summary>Rapport prêt à afficher, à imprimer ou à exporter.</summary>

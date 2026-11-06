@@ -1,3 +1,5 @@
+using CeramiPro.Domain.Enums;
+
 namespace CeramiPro.Application.Interfaces;
 
 /// <summary>
@@ -7,13 +9,7 @@ namespace CeramiPro.Application.Interfaces;
 /// </summary>
 public interface ISessionAtelier : IUtilisateurCourant
 {
-    void Ouvrir(
-        int utilisateurId,
-        string nomUtilisateur,
-        string nomComplet,
-        string codeRole,
-        string nomRole,
-        IEnumerable<string> droits);
+    void Ouvrir(int utilisateurId, string nomUtilisateur, string nomComplet, RoleUtilisateur role);
 
     void Fermer();
 }

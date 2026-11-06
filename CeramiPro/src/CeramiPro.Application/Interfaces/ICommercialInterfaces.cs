@@ -54,23 +54,11 @@ public interface IVenteService
 
     Task<VenteDto> ObtenirAsync(int id, CancellationToken cancellationToken = default);
 
-    /// <summary>Enregistre une vente : le stock diminue et la facture est émise.</summary>
+    /// <summary>Enregistre une vente : le stock diminue et le reçu peut être imprimé.</summary>
     Task<VenteDto> EnregistrerAsync(VenteRequete requete, CancellationToken cancellationToken = default);
 
     /// <summary>Annule une vente et remet les produits en stock.</summary>
     Task<VenteDto> AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default);
-}
-
-public interface IFactureService
-{
-    Task<PagedResult<FactureDto>> ListerAsync(
-        FiltreFacturesRequete requete, CancellationToken cancellationToken = default);
-
-    Task<FactureDto> ObtenirAsync(int id, CancellationToken cancellationToken = default);
-
-    /// <summary>Émet une facture pour une commande personnalisée.</summary>
-    Task<FactureDto> EmettrePourCommandeAsync(
-        FactureCommandeRequete requete, CancellationToken cancellationToken = default);
 }
 
 public interface IPaiementService

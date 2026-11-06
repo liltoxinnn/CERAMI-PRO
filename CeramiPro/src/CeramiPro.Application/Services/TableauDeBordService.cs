@@ -75,39 +75,13 @@ public class TableauDeBordService : ITableauDeBordService
                 depensesDuMois,
                 beneficeMois - depensesDuMois,
                 ventesDuMois.Count),
-            await ProductionAsync(maintenant, cancellationToken),
             await CommandesAsync(maintenant, cancellationToken),
             await StockAsync(cancellationToken),
             await FinancesAsync(depensesDuMois, cancellationToken),
             ConstruireParJour(ventes, debutGraphiqueJours),
             ConstruireParMois(ventes, debutGraphiqueMois, v => v.Total),
-            ConstruireParMois(ventes, debutGraphiqueMois, v => v.Benefice),
-            await ProductionParMoisAsync(debutGraphiqueMois, cancellationToken),
             await ProduitsLesPlusVendusAsync(cancellationToken),
-            await ProduitsLesPlusRentablesAsync(cancellationToken),
-            await MatieresLesPlusConsommeesAsync(cancellationToken));
-    }
-
-    private async Task<ProductionResumeDto> ProductionAsync(
-        DateTime maintenant, CancellationToken cancellationToken)
-    {
-        var ordres = await _context.ProductionOrders
-            .AsNoTracking()
-            .Select(o => new { o.Status, o.PlannedEndDate })
-            .ToListAsync(cancellationToken);
-
-        var actifs = ordres
-            .Where(o => o.Status != ProductionStatus.Termine && o.Status != ProductionStatus.Annule)
-            .ToList();
-
-        return new ProductionResumeDto(
-            actifs.Count,
-            actifs.Count(o => o.Status == ProductionStatus.Sechage),
-            actifs.Count(o => o.Status is ProductionStatus.PremiereCuisson or ProductionStatus.CuissonFinale),
-            actifs.Count(o => o.Status == ProductionStatus.Decoration),
-            actifs.Count(o => o.Status == ProductionStatus.ControleQualite),
-            ordres.Count(o => o.Status == ProductionStatus.Termine),
-            actifs.Count(o => o.PlannedEndDate is not null && o.PlannedEndDate < maintenant));
+            await StockFaibleAsync(cancellationToken));
     }
 
     private async Task<CommandesResumeDto> CommandesAsync(
@@ -134,26 +108,31 @@ public class TableauDeBordService : ITableauDeBordService
 
     private async Task<StockResumeDto> StockAsync(CancellationToken cancellationToken)
     {
-        var matieres = await _context.Materials
-            .AsNoTracking().Where(m => m.IsActive)
-            .Select(m => new { m.CurrentQuantity, m.MinimumStock, m.AverageCost })
-            .ToListAsync(cancellationToken);
-
         var produits = await _context.Products
             .AsNoTracking().Where(p => p.IsActive)
             .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost })
             .ToListAsync(cancellationToken);
 
-        var valeurMatieres = Math.Round(matieres.Sum(m => m.CurrentQuantity * m.AverageCost), 2);
-        var valeurProduits = Math.Round(produits.Sum(p => p.CurrentStock * p.ProductionCost), 2);
-
         return new StockResumeDto(
-            matieres.Count(m => m.CurrentQuantity <= m.MinimumStock),
+            produits.Count,
             produits.Count(p => p.CurrentStock <= p.MinimumStock),
-            valeurMatieres,
-            valeurProduits,
-            valeurMatieres + valeurProduits);
+            Math.Round(produits.Sum(p => p.CurrentStock * p.ProductionCost), 2));
     }
+
+    /// <summary>
+    /// Les produits passés sous leur seuil, montrés directement sur le
+    /// tableau de bord : c'est le seul rappel dont l'atelier a besoin, et il
+    /// évite tout un centre de notifications.
+    /// </summary>
+    private async Task<IReadOnlyList<ProduitAlerteDto>> StockFaibleAsync(
+        CancellationToken cancellationToken)
+        => await _context.Products
+            .AsNoTracking()
+            .Where(p => p.IsActive && p.CurrentStock <= p.MinimumStock)
+            .OrderBy(p => p.CurrentStock)
+            .Take(NombreClassement)
+            .Select(p => new ProduitAlerteDto(p.Id, p.Name, p.CurrentStock, p.MinimumStock))
+            .ToListAsync(cancellationToken);
 
     private async Task<FinancesResumeDto> FinancesAsync(
         decimal depensesDuMois, CancellationToken cancellationToken)
@@ -169,14 +148,9 @@ public class TableauDeBordService : ITableauDeBordService
             .Where(c => c.Status != CustomOrderStatus.Annule)
             .SumAsync(c => (decimal?)(c.TotalAmount - c.PaidAmount), cancellationToken) ?? 0m;
 
-        var achatsDus = await _context.Purchases.AsNoTracking()
-            .Where(a => a.Status != PurchaseStatus.Brouillon && a.Status != PurchaseStatus.Annule)
-            .SumAsync(a => (decimal?)(a.TotalAmount - a.PaidAmount), cancellationToken) ?? 0m;
-
         return new FinancesResumeDto(
             encaisse,
             Math.Max(0m, ventesDues + commandesDues),
-            Math.Max(0m, achatsDus),
             depensesDuMois);
     }
 
@@ -218,32 +192,6 @@ public class TableauDeBordService : ITableauDeBordService
         return points;
     }
 
-    private async Task<IReadOnlyList<PointGraphiqueDto>> ProductionParMoisAsync(
-        DateTime debut, CancellationToken cancellationToken)
-    {
-        var productions = await _context.ProductionOrders
-            .AsNoTracking()
-            .Where(o => o.Status == ProductionStatus.Termine && o.ActualEndDate >= debut)
-            .Select(o => new { o.ActualEndDate, o.CompletedQuantity })
-            .ToListAsync(cancellationToken);
-
-        var points = new List<PointGraphiqueDto>();
-
-        for (var mois = 0; mois < MoisGraphique; mois++)
-        {
-            var date = debut.AddMonths(mois);
-            var total = productions
-                .Where(p => p.ActualEndDate!.Value.Year == date.Year
-                            && p.ActualEndDate.Value.Month == date.Month)
-                .Sum(p => p.CompletedQuantity);
-
-            points.Add(new PointGraphiqueDto(
-                date.ToString("MMM yy", ParametresAtelier.Culture), total));
-        }
-
-        return points;
-    }
-
     /// <summary>Ligne de vente réduite aux valeurs nécessaires aux classements.</summary>
     private sealed record LigneClassement(string Nom, decimal Quantite, decimal Montant, decimal Benefice);
 
@@ -272,44 +220,4 @@ public class TableauDeBordService : ITableauDeBordService
     private async Task<IReadOnlyList<ClassementDto>> ProduitsLesPlusVendusAsync(
         CancellationToken cancellationToken)
         => Classer(await LignesVenduesAsync(cancellationToken), c => c.Quantite);
-
-    private async Task<IReadOnlyList<ClassementDto>> ProduitsLesPlusRentablesAsync(
-        CancellationToken cancellationToken)
-    {
-        var lignes = await LignesVenduesAsync(cancellationToken);
-
-        return lignes
-            .GroupBy(l => l.Nom)
-            .Select(g => new ClassementDto(
-                g.Key, g.Sum(l => l.Quantite), g.Sum(l => l.Benefice), "pièce"))
-            .OrderByDescending(c => c.Montant)
-            .Take(NombreClassement)
-            .ToList();
-    }
-
-    private async Task<IReadOnlyList<ClassementDto>> MatieresLesPlusConsommeesAsync(
-        CancellationToken cancellationToken)
-    {
-        var mouvements = await _context.InventoryTransactions
-            .AsNoTracking()
-            .Where(t => t.TransactionType == InventoryTransactionType.ConsommationProduction
-                        && t.Material != null)
-            .Select(t => new
-            {
-                Nom = t.Material!.Name,
-                Unite = t.Material.Unit.Code,
-                t.Quantity,
-                t.TotalCost
-            })
-            .ToListAsync(cancellationToken);
-
-        return mouvements
-            .GroupBy(t => new { t.Nom, t.Unite })
-            // Les consommations sont enregistrées en négatif : on les affiche en positif.
-            .Select(g => new ClassementDto(
-                g.Key.Nom, -g.Sum(t => t.Quantity), g.Sum(t => t.TotalCost), g.Key.Unite))
-            .OrderByDescending(c => c.Montant)
-            .Take(NombreClassement)
-            .ToList();
-    }
 }

@@ -237,7 +237,7 @@ public class SauvegardeService : ISauvegardeService
 
         using var archive = ZipFile.OpenRead(chemin);
 
-        var tables = TablesDuModele().ToList();
+        IReadOnlyList<string> tables = TablesDuModele().ToList();
         var connues = tables.ToHashSet(StringComparer.Ordinal);
 
         var contenus = archive.Entries
@@ -255,9 +255,16 @@ public class SauvegardeService : ISauvegardeService
                 + "ce n'est pas une sauvegarde CeramiPro.");
         }
 
+        // L'ancienne version, d'avant la simplification, se reconnaît à ses
+        // tables retirées : ses données sont converties au nouveau schéma.
+        var ancienFormat = RepriseAncienneVersion.EstAncienFormat(contenus.Keys);
+
         // Une archive qui parle de tables que ce logiciel ne connaît pas vient
         // d'une autre version : la restaurer laisserait la base incohérente.
-        var etrangeres = contenus.Keys.Where(nom => !connues.Contains(nom)).ToList();
+        var etrangeres = contenus.Keys
+            .Where(nom => !connues.Contains(nom))
+            .Where(nom => !(ancienFormat && RepriseAncienneVersion.TablesRetirees.Contains(nom)))
+            .ToList();
 
         if (etrangeres.Count > 0)
         {
@@ -302,13 +309,21 @@ public class SauvegardeService : ISauvegardeService
                     connexion, transaction, $"TRUNCATE TABLE \"{table}\" CASCADE", cancellationToken);
             }
 
-            foreach (var table in tables.Where(contenus.ContainsKey))
+            if (ancienFormat)
             {
-                var lignes = await RemplirTableAsync(
-                    connexion, transaction, table, contenus[table], cancellationToken);
+                (tablesRestaurees, lignesRestaurees) = await ReprendreAncienneVersionAsync(
+                    connexion, transaction, tables, contenus, cancellationToken);
+            }
+            else
+            {
+                foreach (var table in tables.Where(contenus.ContainsKey))
+                {
+                    var lignes = await RemplirTableAsync(
+                        connexion, transaction, table, contenus[table], cancellationToken);
 
-                lignesRestaurees += lignes;
-                tablesRestaurees++;
+                    lignesRestaurees += lignes;
+                    tablesRestaurees++;
+                }
             }
 
             // Les compteurs d'identifiants doivent repartir après la dernière
@@ -343,7 +358,149 @@ public class SauvegardeService : ISauvegardeService
             Path.GetFileName(chemin),
             File.GetLastWriteTime(chemin),
             tablesRestaurees,
-            lignesRestaurees);
+            lignesRestaurees,
+            ancienFormat,
+            ancienFormat ? contenus.Keys.Count(RepriseAncienneVersion.TablesRetirees.Contains) : 0);
+    }
+
+    /// <summary>
+    /// Restaure une sauvegarde de l'ancienne version : chaque fichier est
+    /// chargé tel quel dans une table temporaire, puis recopié dans la table
+    /// actuelle avec les conversions de la simplification.
+    /// </summary>
+    private static async Task<(int Tables, int Lignes)> ReprendreAncienneVersionAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        IReadOnlyList<string> tables,
+        IReadOnlyDictionary<string, ZipArchiveEntry> contenus,
+        CancellationToken cancellationToken)
+    {
+        var colonnesAnciennes = new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
+
+        foreach (var (table, entree) in contenus)
+        {
+            colonnesAnciennes[table] = await ChargerEnTemporaireAsync(
+                connexion, transaction, table, entree, cancellationToken);
+        }
+
+        // Les tables dont les conversions ont besoin existent toujours, même
+        // vides, pour que les requêtes restent valides.
+        foreach (var (table, colonnes) in RepriseAncienneVersion.TablesDeReference
+                     .Where(t => !colonnesAnciennes.ContainsKey(t.Key)))
+        {
+            await ExecuterAsync(connexion, transaction,
+                $"CREATE TEMP TABLE \"{RepriseAncienneVersion.TableTemporaire(table)}\" ("
+                + string.Join(", ", colonnes.Select(c => $"\"{c}\" text")) + ") ON COMMIT DROP",
+                cancellationToken);
+        }
+
+        var tablesReprises = 0;
+        var lignes = 0;
+
+        foreach (var table in tables.Where(colonnesAnciennes.ContainsKey))
+        {
+            var cibles = await ColonnesAsync(connexion, transaction, table, cancellationToken);
+
+            await using var commande = connexion.CreateCommand();
+            commande.Transaction = transaction;
+            commande.CommandText = RepriseAncienneVersion.RequeteDeReprise(
+                table, cibles, colonnesAnciennes[table]);
+
+            lignes += await commande.ExecuteNonQueryAsync(cancellationToken);
+            tablesReprises++;
+        }
+
+        await ExecuterAsync(
+            connexion, transaction, RepriseAncienneVersion.GarantirUnAdministrateur, cancellationToken);
+
+        return (tablesReprises, lignes);
+    }
+
+    /// <summary>
+    /// Charge le fichier d'une table dans une table temporaire dont toutes
+    /// les colonnes sont du texte, et renvoie le nom de ces colonnes.
+    /// </summary>
+    private static async Task<IReadOnlySet<string>> ChargerEnTemporaireAsync(
+        DbConnection connexion,
+        DbTransaction transaction,
+        string table,
+        ZipArchiveEntry entree,
+        CancellationToken cancellationToken)
+    {
+        var colonnes = await LireEnTeteAsync(entree, table, cancellationToken);
+
+        if (colonnes.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var temporaire = RepriseAncienneVersion.TableTemporaire(table);
+
+        await ExecuterAsync(connexion, transaction,
+            $"CREATE TEMP TABLE \"{temporaire}\" ("
+            + string.Join(", ", colonnes.Select(c => $"\"{c}\" text")) + ") ON COMMIT DROP",
+            cancellationToken);
+
+        await RemplirTableAsync(connexion, transaction, temporaire, entree, cancellationToken);
+
+        return colonnes.ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>Colonnes d'une table actuelle, avec leur type SQL exact.</summary>
+    private static async Task<IReadOnlyList<(string Nom, string Type)>> ColonnesAsync(
+        DbConnection connexion, DbTransaction transaction, string table,
+        CancellationToken cancellationToken)
+    {
+        await using var commande = connexion.CreateCommand();
+        commande.Transaction = transaction;
+        commande.CommandText = """
+            SELECT attribut.attname, format_type(attribut.atttypid, attribut.atttypmod)
+            FROM pg_attribute attribut
+            JOIN pg_class classe ON classe.oid = attribut.attrelid
+            JOIN pg_namespace ns ON ns.oid = classe.relnamespace
+            WHERE ns.nspname = 'public' AND classe.relname = @table
+              AND attribut.attnum > 0 AND NOT attribut.attisdropped
+            ORDER BY attribut.attnum
+            """;
+
+        var parametre = commande.CreateParameter();
+        parametre.ParameterName = "@table";
+        parametre.Value = table;
+        commande.Parameters.Add(parametre);
+
+        var colonnes = new List<(string, string)>();
+
+        await using var lecteur = await commande.ExecuteReaderAsync(cancellationToken);
+
+        while (await lecteur.ReadAsync(cancellationToken))
+        {
+            colonnes.Add((lecteur.GetString(0), lecteur.GetString(1)));
+        }
+
+        return colonnes;
+    }
+
+    /// <summary>Noms des colonnes d'un fichier de sauvegarde, vérifiés.</summary>
+    private static async Task<IReadOnlyList<string>> LireEnTeteAsync(
+        ZipArchiveEntry entree, string table, CancellationToken cancellationToken)
+    {
+        await using var flux = entree.Open();
+        using var lecture = new StreamReader(flux, new UTF8Encoding(true));
+
+        if (await lecture.ReadLineAsync(cancellationToken) is not { } enTete)
+        {
+            return Array.Empty<string>();
+        }
+
+        var colonnes = DecouperLigne(enTete).Select(c => c.Valeur ?? string.Empty).ToList();
+
+        if (colonnes.Count == 0 || colonnes.Any(c => !NomDeTableValide(c)))
+        {
+            throw new RegleMetierException(
+                $"Les colonnes de la table « {table} » ne sont pas lisibles dans cette sauvegarde.");
+        }
+
+        return colonnes;
     }
 
     private static async Task ExecuterAsync(
@@ -656,7 +813,7 @@ public class SauvegardeService : ISauvegardeService
             différent de l'ordinateur de l'atelier (clé USB, disque externe).
 
             Pour remettre ces données en place, ouvrez CeramiPro, allez dans
-            « Administration », puis « Sauvegarde », choisissez cette archive
+            « Paramètres », onglet « Sauvegarde », choisissez cette archive
             dans la liste et cliquez sur « Restaurer ».
 
             La restauration remplace TOUTES les données actuelles par celles de

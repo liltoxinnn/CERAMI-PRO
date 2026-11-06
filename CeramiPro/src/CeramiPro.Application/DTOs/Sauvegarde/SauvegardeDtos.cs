@@ -20,8 +20,18 @@ public record EtatSauvegardeDto(
     IReadOnlyList<SauvegardeDto> Sauvegardes);
 
 /// <summary>Ce qu'une restauration a réellement remis en place.</summary>
+/// <param name="AncienneVersion">
+/// La sauvegarde venait de la version d'avant la simplification : ses données
+/// ont été converties au nouveau schéma.
+/// </param>
+/// <param name="TablesNonReprises">
+/// Tables des modules retirés présentes dans le fichier mais pas remises en
+/// place. Elles restent lisibles dans le fichier de sauvegarde.
+/// </param>
 public record RestaurationDto(
     string NomFichier,
     DateTime DateSauvegarde,
     int NombreTables,
-    int NombreLignes);
+    int NombreLignes,
+    bool AncienneVersion = false,
+    int TablesNonReprises = 0);

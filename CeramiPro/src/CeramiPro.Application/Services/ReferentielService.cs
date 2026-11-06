@@ -3,18 +3,18 @@ using CeramiPro.Application.DTOs.Referentiels;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Catalog;
-using CeramiPro.Domain.Entities.Decoration;
 using CeramiPro.Domain.Entities.Expenses;
-using CeramiPro.Domain.Entities.Materials;
-using CeramiPro.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace CeramiPro.Application.Services;
 
 /// <summary>
-/// Gère d'une manière uniforme les listes simples de l'atelier : catégories de
-/// matières, de produits, de dépenses et types de décoration. Une entrée déjà
-/// utilisée ne peut pas être supprimée ; elle se désactive.
+/// Gère d'une manière uniforme les deux listes simples de l'atelier : les
+/// catégories de produits et les catégories de dépenses.
+///
+/// Une catégorie déjà employée ne se supprime pas : elle se désactive. Sans
+/// cela, un produit ou une dépense se retrouverait rattaché à une catégorie
+/// qui n'existe plus, et les rapports cesseraient d'être justes.
 /// </summary>
 public class ReferentielService : IReferentielService
 {
@@ -29,199 +29,180 @@ public class ReferentielService : IReferentielService
 
     public async Task<IReadOnlyList<ElementReferentielDto>> ListerAsync(
         TypeReferentiel type, bool inclureInactifs = true, CancellationToken cancellationToken = default)
-        => type switch
-        {
-            TypeReferentiel.CategorieMatiere => await _context.MaterialCategories
+    {
+        var elements = type == TypeReferentiel.CategorieProduit
+            ? await _context.ProductCategories
                 .AsNoTracking()
-                .Where(c => inclureInactifs || c.IsActive)
-                .OrderBy(c => c.Name)
-                .Select(c => new ElementReferentielDto(c.Id, c.Name, c.Description, c.IsActive, false,
-                    c.Materials.Count))
-                .ToListAsync(cancellationToken),
-
-            TypeReferentiel.CategorieProduit => await _context.ProductCategories
-                .AsNoTracking()
-                .Where(c => inclureInactifs || c.IsActive)
-                .OrderBy(c => c.Name)
-                .Select(c => new ElementReferentielDto(c.Id, c.Name, c.Description, c.IsActive, false,
-                    c.Products.Count))
-                .ToListAsync(cancellationToken),
-
-            TypeReferentiel.CategorieDepense => await _context.ExpenseCategories
-                .AsNoTracking()
-                .Where(c => inclureInactifs || c.IsActive)
-                .OrderBy(c => c.Name)
-                .Select(c => new ElementReferentielDto(c.Id, c.Name, c.Description, c.IsActive, c.IsSystem,
-                    c.Expenses.Count))
-                .ToListAsync(cancellationToken),
-
-            _ => await _context.DecorationTypes
-                .AsNoTracking()
-                .Where(t => inclureInactifs || t.IsActive)
-                .OrderBy(t => t.Name)
-                .Select(t => new ElementReferentielDto(t.Id, t.Name, t.Description, t.IsActive, false,
-                    t.DecorationOrders.Count))
+                .Select(c => new ElementReferentielDto(
+                    c.Id, c.Name, c.Description, c.IsActive, c.IsSystem, c.Products.Count))
                 .ToListAsync(cancellationToken)
-        };
+            : await _context.ExpenseCategories
+                .AsNoTracking()
+                .Select(c => new ElementReferentielDto(
+                    c.Id, c.Name, c.Description, c.IsActive, c.IsSystem, c.Expenses.Count))
+                .ToListAsync(cancellationToken);
+
+        return elements
+            .Where(e => inclureInactifs || e.Actif)
+            .OrderBy(e => e.Nom, StringComparer.CurrentCulture)
+            .ToList();
+    }
 
     public async Task<ElementReferentielDto> CreerAsync(
         TypeReferentiel type, ElementReferentielRequete requete, CancellationToken cancellationToken = default)
     {
         var nom = requete.Nom.Trim();
-        await VerifierNomLibreAsync(type, nom, null, cancellationToken);
 
-        switch (type)
+        if (string.IsNullOrWhiteSpace(nom))
         {
-            case TypeReferentiel.CategorieMatiere:
-                _context.MaterialCategories.Add(new MaterialCategory
-                {
-                    Name = nom, Description = requete.Description?.Trim(), IsActive = requete.Actif
-                });
-                break;
-            case TypeReferentiel.CategorieProduit:
-                _context.ProductCategories.Add(new ProductCategory
-                {
-                    Name = nom, Description = requete.Description?.Trim(), IsActive = requete.Actif
-                });
-                break;
-            case TypeReferentiel.CategorieDepense:
-                _context.ExpenseCategories.Add(new ExpenseCategory
-                {
-                    Name = nom, Description = requete.Description?.Trim(), IsActive = requete.Actif
-                });
-                break;
-            default:
-                _context.DecorationTypes.Add(new DecorationType
-                {
-                    Name = nom, Description = requete.Description?.Trim(), IsActive = requete.Actif
-                });
-                break;
+            throw new RegleMetierException("Le nom de la catégorie est obligatoire.");
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
-        await _audit.EnregistrerAsync(AuditAction.Creation, type.ToString(), null,
-            $"Ajout de « {nom} » dans « {type.Libelle()} ».", null, cancellationToken);
+        await VerifierNomLibreAsync(type, nom, null, cancellationToken);
 
-        var liste = await ListerAsync(type, true, cancellationToken);
-        return liste.First(e => e.Nom == nom);
+        int identifiant;
+
+        if (type == TypeReferentiel.CategorieProduit)
+        {
+            var categorie = new ProductCategory
+            {
+                Name = nom,
+                Description = Nettoyer(requete.Description),
+                IsActive = requete.Actif
+            };
+
+            _context.ProductCategories.Add(categorie);
+            await _context.SaveChangesAsync(cancellationToken);
+            identifiant = categorie.Id;
+        }
+        else
+        {
+            var categorie = new ExpenseCategory
+            {
+                Name = nom,
+                Description = Nettoyer(requete.Description),
+                IsActive = requete.Actif
+            };
+
+            _context.ExpenseCategories.Add(categorie);
+            await _context.SaveChangesAsync(cancellationToken);
+            identifiant = categorie.Id;
+        }
+
+        await _audit.EnregistrerAsync(
+            Domain.Enums.AuditAction.Creation, type.Libelle(), identifiant.ToString(), nom,
+            cancellationToken: cancellationToken);
+
+        return (await ListerAsync(type, true, cancellationToken)).First(e => e.Id == identifiant);
     }
 
     public async Task<ElementReferentielDto> ModifierAsync(
-        TypeReferentiel type, int id, ElementReferentielRequete requete, CancellationToken cancellationToken = default)
+        TypeReferentiel type, int id, ElementReferentielRequete requete,
+        CancellationToken cancellationToken = default)
     {
         var nom = requete.Nom.Trim();
+
+        if (string.IsNullOrWhiteSpace(nom))
+        {
+            throw new RegleMetierException("Le nom de la catégorie est obligatoire.");
+        }
+
         await VerifierNomLibreAsync(type, nom, id, cancellationToken);
 
-        switch (type)
+        if (type == TypeReferentiel.CategorieProduit)
         {
-            case TypeReferentiel.CategorieMatiere:
-            {
-                var element = await Trouver(_context.MaterialCategories, id, type, cancellationToken);
-                element.Name = nom;
-                element.Description = requete.Description?.Trim();
-                element.IsActive = requete.Actif;
-                break;
-            }
-            case TypeReferentiel.CategorieProduit:
-            {
-                var element = await Trouver(_context.ProductCategories, id, type, cancellationToken);
-                element.Name = nom;
-                element.Description = requete.Description?.Trim();
-                element.IsActive = requete.Actif;
-                break;
-            }
-            case TypeReferentiel.CategorieDepense:
-            {
-                var element = await Trouver(_context.ExpenseCategories, id, type, cancellationToken);
-                element.Name = nom;
-                element.Description = requete.Description?.Trim();
-                element.IsActive = requete.Actif;
-                break;
-            }
-            default:
-            {
-                var element = await Trouver(_context.DecorationTypes, id, type, cancellationToken);
-                element.Name = nom;
-                element.Description = requete.Description?.Trim();
-                element.IsActive = requete.Actif;
-                break;
-            }
+            var categorie = await _context.ProductCategories
+                                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+                            ?? throw IntrouvableException.Pour(type.Libelle(), id);
+
+            categorie.Name = nom;
+            categorie.Description = Nettoyer(requete.Description);
+            categorie.IsActive = requete.Actif;
+        }
+        else
+        {
+            var categorie = await _context.ExpenseCategories
+                                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+                            ?? throw IntrouvableException.Pour(type.Libelle(), id);
+
+            categorie.Name = nom;
+            categorie.Description = Nettoyer(requete.Description);
+            categorie.IsActive = requete.Actif;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        await _audit.EnregistrerAsync(AuditAction.Modification, type.ToString(), id.ToString(),
-            $"Modification de « {nom} » dans « {type.Libelle()} ».", null, cancellationToken);
+
+        await _audit.EnregistrerAsync(
+            Domain.Enums.AuditAction.Modification, type.Libelle(), id.ToString(), nom,
+            cancellationToken: cancellationToken);
 
         return (await ListerAsync(type, true, cancellationToken)).First(e => e.Id == id);
     }
 
-    public async Task SupprimerAsync(TypeReferentiel type, int id, CancellationToken cancellationToken = default)
+    public async Task SupprimerAsync(
+        TypeReferentiel type, int id, CancellationToken cancellationToken = default)
     {
         var element = (await ListerAsync(type, true, cancellationToken)).FirstOrDefault(e => e.Id == id)
                       ?? throw IntrouvableException.Pour(type.Libelle(), id);
 
-        if (element.NombreUtilisations > 0)
-        {
-            throw new RegleMetierException(
-                $"« {element.Nom} » est utilisé par {element.NombreUtilisations} enregistrement(s). " +
-                "Désactivez-le au lieu de le supprimer, afin de conserver l'historique.");
-        }
-
         if (element.Systeme)
         {
             throw new RegleMetierException(
-                $"« {element.Nom} » est livré avec le logiciel : il peut être désactivé mais pas supprimé.");
+                $"« {element.Nom} » est fournie avec le logiciel et ne peut pas être supprimée. " +
+                "Vous pouvez la désactiver.");
         }
 
-        switch (type)
+        if (element.NombreUtilisations > 0)
         {
-            case TypeReferentiel.CategorieMatiere:
-                _context.MaterialCategories.Remove(
-                    await Trouver(_context.MaterialCategories, id, type, cancellationToken));
-                break;
-            case TypeReferentiel.CategorieProduit:
-                _context.ProductCategories.Remove(
-                    await Trouver(_context.ProductCategories, id, type, cancellationToken));
-                break;
-            case TypeReferentiel.CategorieDepense:
-                _context.ExpenseCategories.Remove(
-                    await Trouver(_context.ExpenseCategories, id, type, cancellationToken));
-                break;
-            default:
-                _context.DecorationTypes.Remove(
-                    await Trouver(_context.DecorationTypes, id, type, cancellationToken));
-                break;
+            throw new RegleMetierException(
+                $"« {element.Nom} » est employée par {element.NombreUtilisations} fiche(s) et ne peut " +
+                "pas être supprimée. Désactivez-la : elle disparaîtra des listes de choix sans " +
+                "rompre les fiches existantes.");
+        }
+
+        if (type == TypeReferentiel.CategorieProduit)
+        {
+            _context.ProductCategories.Remove(
+                await _context.ProductCategories.FirstAsync(c => c.Id == id, cancellationToken));
+        }
+        else
+        {
+            _context.ExpenseCategories.Remove(
+                await _context.ExpenseCategories.FirstAsync(c => c.Id == id, cancellationToken));
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        await _audit.EnregistrerAsync(AuditAction.Suppression, type.ToString(), id.ToString(),
-            $"Suppression de « {element.Nom} » dans « {type.Libelle()} ».", null, cancellationToken);
+
+        await _audit.EnregistrerAsync(
+            Domain.Enums.AuditAction.Suppression, type.Libelle(), id.ToString(), element.Nom,
+            cancellationToken: cancellationToken);
     }
 
     public async Task<IReadOnlyList<ModeReglementDto>> ListerModesReglementAsync(
         CancellationToken cancellationToken = default)
         => await _context.PaymentMethods
             .AsNoTracking()
-            .Where(m => m.IsActive)
             .OrderBy(m => m.Name)
-            .Select(m => new ModeReglementDto(m.Id, m.Code, m.Name, m.RequiresReference, m.IsActive))
+            .Select(m => new ModeReglementDto(
+                m.Id, m.Code, m.Name, m.RequiresReference, m.IsActive))
             .ToListAsync(cancellationToken);
 
-    private static async Task<TEntite> Trouver<TEntite>(
-        DbSet<TEntite> ensemble, int id, TypeReferentiel type, CancellationToken cancellationToken)
-        where TEntite : Domain.Common.BaseEntity
-        => await ensemble.FirstOrDefaultAsync(e => e.Id == id, cancellationToken)
-           ?? throw IntrouvableException.Pour(type.Libelle(), id);
-
+    /// <summary>
+    /// Deux catégories du même nom rendraient les listes de choix illisibles
+    /// et fausseraient les totaux par catégorie dans les rapports.
+    /// </summary>
     private async Task VerifierNomLibreAsync(
-        TypeReferentiel type, string nom, int? idExclu, CancellationToken cancellationToken)
+        TypeReferentiel type, string nom, int? saufId, CancellationToken cancellationToken)
     {
         var existe = (await ListerAsync(type, true, cancellationToken))
-            .Any(e => e.Id != idExclu && string.Equals(e.Nom, nom, StringComparison.OrdinalIgnoreCase));
+            .Any(e => e.Id != saufId && string.Equals(e.Nom, nom, StringComparison.CurrentCultureIgnoreCase));
 
         if (existe)
         {
-            throw new RegleMetierException($"« {nom} » existe déjà dans cette liste.");
+            throw new RegleMetierException($"Une catégorie « {nom} » existe déjà.");
         }
     }
+
+    private static string? Nettoyer(string? valeur)
+        => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 }

@@ -37,13 +37,14 @@ public class BusinessSettings : AuditableEntity
     public decimal DefaultTaxRate { get; set; } = 19m;
     public bool TaxEnabled { get; set; }
 
-    public string InvoicePrefix { get; set; } = "FAC";
-    public string SalePrefix { get; set; } = "VTE";
-    public string PurchasePrefix { get; set; } = "ACH";
-    public string ProductionPrefix { get; set; } = "PROD";
+    // Préfixes de numérotation : un par type de document numéroté.
+    public string CustomerPrefix { get; set; } = "CLI";
+    public string ProductPrefix { get; set; } = "PRD";
     public string CustomOrderPrefix { get; set; } = "CMD";
+    public string SalePrefix { get; set; } = "VTE";
     public string PaymentPrefix { get; set; } = "PAI";
-    public string FiringPrefix { get; set; } = "CUIS";
+    public string ExpensePrefix { get; set; } = "DEP";
 
-    public string? InvoiceFooter { get; set; }
+    /// <summary>Mention imprimée en bas des reçus et des rapports.</summary>
+    public string? ReceiptFooter { get; set; }
 }

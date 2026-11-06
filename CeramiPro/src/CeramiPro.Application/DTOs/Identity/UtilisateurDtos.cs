@@ -1,3 +1,5 @@
+using CeramiPro.Domain.Enums;
+
 namespace CeramiPro.Application.DTOs.Identity;
 
 /// <summary>Utilisateur affiché dans la liste et la fiche.</summary>
@@ -7,7 +9,7 @@ public record UtilisateurDto(
     string NomComplet,
     string? Email,
     string? Telephone,
-    int RoleId,
+    RoleUtilisateur Role,
     string RoleNom,
     bool Actif,
     bool DoitChangerMotDePasse,
@@ -21,7 +23,7 @@ public class CreerUtilisateurRequete
     public string? Email { get; set; }
     public string? Telephone { get; set; }
     public string MotDePasse { get; set; } = string.Empty;
-    public int RoleId { get; set; }
+    public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Employe;
     public bool Actif { get; set; } = true;
     public bool DoitChangerMotDePasse { get; set; } = true;
 }
@@ -31,7 +33,7 @@ public class ModifierUtilisateurRequete
     public string NomComplet { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? Telephone { get; set; }
-    public int RoleId { get; set; }
+    public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Employe;
     public bool Actif { get; set; } = true;
 }
 

@@ -1,6 +1,5 @@
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.CustomOrders;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Payments;
 using CeramiPro.Domain.Entities.Sales;
 
@@ -21,5 +20,4 @@ public class Customer : AuditableEntity
     public ICollection<CustomOrder> CustomOrders { get; set; } = new List<CustomOrder>();
     public ICollection<Sale> Sales { get; set; } = new List<Sale>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
-    public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
 }

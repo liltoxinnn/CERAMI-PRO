@@ -3,22 +3,12 @@ using CeramiPro.Domain.Entities.Audit;
 using CeramiPro.Domain.Entities.Catalog;
 using CeramiPro.Domain.Entities.CustomOrders;
 using CeramiPro.Domain.Entities.Customers;
-using CeramiPro.Domain.Entities.Decoration;
 using CeramiPro.Domain.Entities.Expenses;
-using CeramiPro.Domain.Entities.Firing;
 using CeramiPro.Domain.Entities.Identity;
 using CeramiPro.Domain.Entities.Inventory;
-using CeramiPro.Domain.Entities.Invoicing;
-using CeramiPro.Domain.Entities.Materials;
-using CeramiPro.Domain.Entities.Notifications;
 using CeramiPro.Domain.Entities.Payments;
-using CeramiPro.Domain.Entities.Production;
-using CeramiPro.Domain.Entities.Purchasing;
-using CeramiPro.Domain.Entities.Quality;
-using CeramiPro.Domain.Entities.Recipes;
 using CeramiPro.Domain.Entities.Sales;
 using CeramiPro.Domain.Entities.Settings;
-using CeramiPro.Domain.Entities.Suppliers;
 using CeramiPro.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -49,46 +39,13 @@ public class CeramiProDbContext : DbContext, IApplicationDbContext
     }
 
     public DbSet<User> Users => Set<User>();
-    public DbSet<Role> Roles => Set<Role>();
-    public DbSet<Permission> Permissions => Set<Permission>();
-    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<CustomerNote> CustomerNotes => Set<CustomerNote>();
 
-    public DbSet<Supplier> Suppliers => Set<Supplier>();
-    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
-
-    public DbSet<MaterialCategory> MaterialCategories => Set<MaterialCategory>();
-    public DbSet<Unit> Units => Set<Unit>();
-    public DbSet<Material> Materials => Set<Material>();
-    public DbSet<MaterialBatch> MaterialBatches => Set<MaterialBatch>();
-
-    public DbSet<Purchase> Purchases => Set<Purchase>();
-    public DbSet<PurchaseItem> PurchaseItems => Set<PurchaseItem>();
-
     public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
-    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
-
-    public DbSet<ProductRecipe> ProductRecipes => Set<ProductRecipe>();
-    public DbSet<ProductRecipeItem> ProductRecipeItems => Set<ProductRecipeItem>();
-
-    public DbSet<ProductionOrder> ProductionOrders => Set<ProductionOrder>();
-    public DbSet<ProductionMaterial> ProductionMaterials => Set<ProductionMaterial>();
-    public DbSet<ProductionStageHistory> ProductionStageHistory => Set<ProductionStageHistory>();
-
-    public DbSet<Kiln> Kilns => Set<Kiln>();
-    public DbSet<FiringBatch> FiringBatches => Set<FiringBatch>();
-    public DbSet<FiringBatchItem> FiringBatchItems => Set<FiringBatchItem>();
-
-    public DbSet<DecorationType> DecorationTypes => Set<DecorationType>();
-    public DbSet<DecorationOrder> DecorationOrders => Set<DecorationOrder>();
-    public DbSet<DecorationImage> DecorationImages => Set<DecorationImage>();
-
-    public DbSet<QualityCheck> QualityChecks => Set<QualityCheck>();
-    public DbSet<QualityIssue> QualityIssues => Set<QualityIssue>();
 
     public DbSet<CustomOrder> CustomOrders => Set<CustomOrder>();
     public DbSet<CustomOrderImage> CustomOrderImages => Set<CustomOrderImage>();
@@ -100,17 +57,10 @@ public class CeramiProDbContext : DbContext, IApplicationDbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
 
-    public DbSet<Invoice> Invoices => Set<Invoice>();
-    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
-
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
-    public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>();
 
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
     public DbSet<Expense> Expenses => Set<Expense>();
-
-    public DbSet<Notification> Notifications => Set<Notification>();
-    public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 

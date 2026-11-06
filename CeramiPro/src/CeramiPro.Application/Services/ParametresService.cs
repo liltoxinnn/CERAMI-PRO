@@ -55,15 +55,14 @@ public class ParametresService : IParametresService
         parametres.DefaultTaxRate = requete.TauxTvaParDefaut;
         parametres.TaxEnabled = requete.TvaActivee;
 
-        parametres.InvoicePrefix = requete.PrefixeFacture.Trim().ToUpperInvariant();
-        parametres.SalePrefix = requete.PrefixeVente.Trim().ToUpperInvariant();
-        parametres.PurchasePrefix = requete.PrefixeAchat.Trim().ToUpperInvariant();
-        parametres.ProductionPrefix = requete.PrefixeProduction.Trim().ToUpperInvariant();
+        parametres.CustomerPrefix = requete.PrefixeClient.Trim().ToUpperInvariant();
+        parametres.ProductPrefix = requete.PrefixeProduit.Trim().ToUpperInvariant();
         parametres.CustomOrderPrefix = requete.PrefixeCommande.Trim().ToUpperInvariant();
+        parametres.SalePrefix = requete.PrefixeVente.Trim().ToUpperInvariant();
         parametres.PaymentPrefix = requete.PrefixePaiement.Trim().ToUpperInvariant();
-        parametres.FiringPrefix = requete.PrefixeCuisson.Trim().ToUpperInvariant();
+        parametres.ExpensePrefix = requete.PrefixeDepense.Trim().ToUpperInvariant();
 
-        parametres.InvoiceFooter = Nettoyer(requete.PiedDePageFacture);
+        parametres.ReceiptFooter = Nettoyer(requete.PiedDePageRecu);
 
         await _context.SaveChangesAsync(cancellationToken);
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(BusinessSettings), parametres.Id.ToString(),
@@ -109,13 +108,12 @@ public class ParametresService : IParametresService
         DecimalesDevise = p.CurrencyDecimals,
         TauxTvaParDefaut = p.DefaultTaxRate,
         TvaActivee = p.TaxEnabled,
-        PrefixeFacture = p.InvoicePrefix,
-        PrefixeVente = p.SalePrefix,
-        PrefixeAchat = p.PurchasePrefix,
-        PrefixeProduction = p.ProductionPrefix,
+        PrefixeClient = p.CustomerPrefix,
+        PrefixeProduit = p.ProductPrefix,
         PrefixeCommande = p.CustomOrderPrefix,
+        PrefixeVente = p.SalePrefix,
         PrefixePaiement = p.PaymentPrefix,
-        PrefixeCuisson = p.FiringPrefix,
-        PiedDePageFacture = p.InvoiceFooter
+        PrefixeDepense = p.ExpensePrefix,
+        PiedDePageRecu = p.ReceiptFooter
     };
 }

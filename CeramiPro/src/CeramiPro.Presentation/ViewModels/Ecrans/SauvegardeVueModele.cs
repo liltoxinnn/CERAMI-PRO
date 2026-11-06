@@ -208,10 +208,20 @@ public partial class SauvegardeVueModele : VueModeleBase
 
             await ChargerAsync();
 
+            var ancienneVersion = resultat.AncienneVersion
+                ? "Cette sauvegarde venait de l'ancienne version du logiciel : ses données ont "
+                  + "été converties. "
+                  + (resultat.TablesNonReprises > 0
+                      ? $"{resultat.TablesNonReprises} table(s) des modules retirés n'ont pas été "
+                        + "reprises ; elles restent lisibles dans le fichier de sauvegarde.\n\n"
+                      : "\n\n")
+                : string.Empty;
+
             _dialogue.Succes(
                 $"La base a été restaurée depuis « {resultat.NomFichier} ».\n\n"
                 + $"{resultat.NombreTables} table(s) et {resultat.NombreLignes} ligne(s) "
                 + "remises en place.\n\n"
+                + ancienneVersion
                 + "Fermez puis rouvrez CeramiPro pour travailler sur les données restaurées.",
                 "Restauration terminée");
         });

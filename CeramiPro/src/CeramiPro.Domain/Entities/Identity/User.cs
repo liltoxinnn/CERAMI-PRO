@@ -1,6 +1,6 @@
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Audit;
-using CeramiPro.Domain.Entities.Production;
+using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Domain.Entities.Identity;
 
@@ -15,8 +15,11 @@ public class User : AuditableEntity
     /// <summary>Empreinte du mot de passe (algorithme PBKDF2 avec sel aléatoire).</summary>
     public string PasswordHash { get; set; } = null!;
 
-    public int RoleId { get; set; }
-    public Role Role { get; set; } = null!;
+    /// <summary>
+    /// Rôle, porté par l'utilisateur lui-même : l'atelier n'a pas assez de
+    /// monde pour qu'une table de rôles et une table de droits se justifient.
+    /// </summary>
+    public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Employe;
 
     public bool IsActive { get; set; } = true;
     public DateTime? LastLoginAt { get; set; }
@@ -24,9 +27,5 @@ public class User : AuditableEntity
     public DateTime? LockedUntil { get; set; }
     public bool MustChangePassword { get; set; }
 
-    public string? RefreshToken { get; set; }
-    public DateTime? RefreshTokenExpiresAt { get; set; }
-
-    public ICollection<ProductionOrder> AssignedProductionOrders { get; set; } = new List<ProductionOrder>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
 }

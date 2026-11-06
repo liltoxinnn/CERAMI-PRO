@@ -1,7 +1,6 @@
 using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Entities.Customers;
 using CeramiPro.Domain.Entities.Identity;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Payments;
 using CeramiPro.Domain.Enums;
 
@@ -44,5 +43,4 @@ public class Sale : AuditableEntity, ISoftDeletable
 
     public ICollection<SaleItem> Items { get; set; } = new List<SaleItem>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
-    public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
 }

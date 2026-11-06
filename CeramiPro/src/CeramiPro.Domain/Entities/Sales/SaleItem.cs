@@ -11,9 +11,6 @@ public class SaleItem : BaseEntity
     public int ProductId { get; set; }
     public Product Product { get; set; } = null!;
 
-    public int? ProductVariantId { get; set; }
-    public ProductVariant? ProductVariant { get; set; }
-
     public string Description { get; set; } = null!;
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }

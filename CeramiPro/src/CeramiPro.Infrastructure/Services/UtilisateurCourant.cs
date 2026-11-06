@@ -1,4 +1,6 @@
 using CeramiPro.Application.Interfaces;
+using CeramiPro.Domain.Common;
+using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Infrastructure.Services;
 
@@ -8,56 +10,41 @@ namespace CeramiPro.Infrastructure.Services;
 /// Contrairement à un site web, une application Windows n'a qu'un utilisateur
 /// à la fois : sa session est donc conservée pour toute la durée d'exécution
 /// et renseignée à la connexion.
+///
+/// Les droits ne sont plus une liste : l'atelier n'a que deux rôles, et c'est
+/// le rôle lui-même qui dit ce qui est permis.
 /// </summary>
 public class UtilisateurCourant : ISessionAtelier
 {
-    private readonly HashSet<string> _droits = new(StringComparer.OrdinalIgnoreCase);
-
     public int? UtilisateurId { get; private set; }
 
     public string? NomUtilisateur { get; private set; }
 
     public string? NomComplet { get; private set; }
 
-    public string? CodeRole { get; private set; }
+    public RoleUtilisateur? Role { get; private set; }
 
-    public string? NomRole { get; private set; }
+    public string? NomRole => Role?.Libelle();
 
     public bool EstConnecte => UtilisateurId is not null;
 
-    public bool PossedeDroit(string codeDroit)
-        => !string.IsNullOrWhiteSpace(codeDroit) && _droits.Contains(codeDroit);
+    public bool EstAdministrateur => Role == RoleUtilisateur.Administrateur;
 
     /// <summary>Ouvre la session après une authentification réussie.</summary>
-    public void Ouvrir(
-        int utilisateurId,
-        string nomUtilisateur,
-        string nomComplet,
-        string codeRole,
-        string nomRole,
-        IEnumerable<string> droits)
+    public void Ouvrir(int utilisateurId, string nomUtilisateur, string nomComplet, RoleUtilisateur role)
     {
         UtilisateurId = utilisateurId;
         NomUtilisateur = nomUtilisateur;
         NomComplet = nomComplet;
-        CodeRole = codeRole;
-        NomRole = nomRole;
-
-        _droits.Clear();
-        foreach (var droit in droits)
-        {
-            _droits.Add(droit);
-        }
+        Role = role;
     }
 
-    /// <summary>Ferme la session : plus aucun droit n'est accordé.</summary>
+    /// <summary>Ferme la session : plus aucune action n'est autorisée.</summary>
     public void Fermer()
     {
         UtilisateurId = null;
         NomUtilisateur = null;
         NomComplet = null;
-        CodeRole = null;
-        NomRole = null;
-        _droits.Clear();
+        Role = null;
     }
 }

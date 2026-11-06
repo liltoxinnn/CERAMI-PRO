@@ -21,7 +21,6 @@ public record VenteDto(
     decimal Benefice,
     string? Notes,
     string? Utilisateur,
-    string? FactureNumero,
     IReadOnlyList<LigneVenteDto> Lignes);
 
 public record LigneVenteDto(
@@ -29,7 +28,6 @@ public record LigneVenteDto(
     int ProduitId,
     string ProduitNom,
     string ProduitReference,
-    int? VarianteId,
     string Description,
     decimal Quantite,
     decimal PrixUnitaire,
@@ -49,14 +47,11 @@ public class VenteRequete
 
     public int? ModeReglementId { get; set; }
 
-    /// <summary>Émet la facture dans la foulée.</summary>
-    public bool EmettreFacture { get; set; } = true;
 }
 
 public class LigneVenteRequete
 {
     public int ProduitId { get; set; }
-    public int? VarianteId { get; set; }
     public decimal Quantite { get; set; }
     public decimal PrixUnitaire { get; set; }
     public decimal Remise { get; set; }
@@ -71,50 +66,6 @@ public class FiltreVentesRequete : PagedRequest
     public DateTime? Au { get; set; }
 }
 
-// ------------------------------------------------------------------ Factures
-
-public record FactureDto(
-    int Id,
-    string Numero,
-    int? ClientId,
-    string ClientNom,
-    int? VenteId,
-    string? VenteNumero,
-    int? CommandeId,
-    string? CommandeNumero,
-    DateTime DateEmission,
-    DateTime? DateEcheance,
-    decimal SousTotal,
-    decimal Remise,
-    decimal TauxTva,
-    decimal Tva,
-    decimal Total,
-    decimal Paye,
-    decimal Reste,
-    InvoiceStatus Statut,
-    string StatutLibelle,
-    string? Notes,
-    IReadOnlyList<LigneFactureDto> Lignes);
-
-public record LigneFactureDto(
-    int Id, int? ProduitId, string Description, decimal Quantite,
-    decimal PrixUnitaire, decimal Remise, decimal Total);
-
-public class FiltreFacturesRequete : PagedRequest
-{
-    public int? ClientId { get; set; }
-    public InvoiceStatus? Statut { get; set; }
-    public bool SeulementImpayees { get; set; }
-}
-
-/// <summary>Facture destinée à une commande personnalisée.</summary>
-public class FactureCommandeRequete
-{
-    public int CommandeId { get; set; }
-    public DateTime? DateEcheance { get; set; }
-    public string? Notes { get; set; }
-}
-
 // ----------------------------------------------------------------- Paiements
 
 public record PaiementDto(
@@ -126,8 +77,6 @@ public record PaiementDto(
     string? VenteNumero,
     int? CommandeId,
     string? CommandeNumero,
-    int? FactureId,
-    string? FactureNumero,
     decimal Montant,
     DateTime Date,
     int ModeReglementId,
@@ -142,7 +91,6 @@ public class PaiementRequete
     public int? ClientId { get; set; }
     public int? VenteId { get; set; }
     public int? CommandeId { get; set; }
-    public int? FactureId { get; set; }
     public decimal Montant { get; set; }
     public DateTime? Date { get; set; }
     public int ModeReglementId { get; set; }
@@ -154,6 +102,8 @@ public class PaiementRequete
 public class FiltrePaiementsRequete : PagedRequest
 {
     public int? ClientId { get; set; }
+    public int? VenteId { get; set; }
+    public int? CommandeId { get; set; }
     public DateTime? Du { get; set; }
     public DateTime? Au { get; set; }
 }

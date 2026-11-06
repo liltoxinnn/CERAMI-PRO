@@ -82,10 +82,6 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Barcode")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
                     b.Property<string>("Color")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
@@ -142,10 +138,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("QrCode")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
                     b.Property<string>("Reference")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -170,8 +162,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasColumnType("numeric(10,2)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Barcode");
 
                     b.HasIndex("Name");
 
@@ -202,6 +192,9 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystem")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -249,9 +242,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<bool>("IsPrimary")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("Kind")
-                        .HasColumnType("integer");
-
                     b.Property<int>("ProductId")
                         .HasColumnType("integer");
 
@@ -269,76 +259,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("ProductImages", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Catalog.ProductVariant", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Barcode")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<string>("Color")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("CurrentStock")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("MinimumStock")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<decimal>("PriceAdjustment")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("Size")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.ToTable("ProductVariants", (string)null);
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", b =>
@@ -655,186 +575,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.ToTable("CustomerNotes", (string)null);
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationImage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Caption")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DecorationOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FilePath")
-                        .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("character varying(400)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DecorationOrderId");
-
-                    b.ToTable("DecorationImages", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationOrder", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("AssignedUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Colors")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<decimal>("Cost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("CustomOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DecorationTypeId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("EndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Glaze")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<decimal?>("GoldQuantity")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<string>("MaterialsUsed")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Paint")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<int?>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<decimal?>("SilverQuantity")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<DateTime?>("StartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedUserId");
-
-                    b.HasIndex("CustomOrderId");
-
-                    b.HasIndex("DecorationTypeId");
-
-                    b.HasIndex("ProductionOrderId");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.ToTable("DecorationOrders", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationType", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("DecorationTypes", (string)null);
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Expenses.Expense", b =>
                 {
                     b.Property<int>("Id")
@@ -956,288 +696,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.ToTable("ExpenseCategories", (string)null);
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.FiringBatch", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BatchNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("DamagedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime?>("EndTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("EnergyCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("FiringType")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("KilnId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Observations")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("StartTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Temperature")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BatchNumber")
-                        .IsUnique();
-
-                    b.HasIndex("KilnId");
-
-                    b.HasIndex("StartTime");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("FiringBatches", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.FiringBatchItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AcceptedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("AllocatedEnergyCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("DamagedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<int>("FiringBatchId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FiringBatchId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductionOrderId");
-
-                    b.ToTable("FiringBatchItems", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.Kiln", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Capacity")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<decimal>("MaxTemperature")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)");
-
-                    b.Property<decimal>("MinTemperature")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.ToTable("Kilns", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.Permission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("Module")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("Module");
-
-                    b.ToTable("Permissions", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.Role", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<bool>("IsSystem")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("Roles", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.RolePermission", b =>
-                {
-                    b.Property<int>("RoleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("PermissionId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("RoleId", "PermissionId");
-
-                    b.HasIndex("PermissionId");
-
-                    b.ToTable("RolePermissions", (string)null);
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.User", b =>
                 {
                     b.Property<int>("Id")
@@ -1285,15 +743,10 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<string>("RefreshToken")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTime?>("RefreshTokenExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RoleId")
-                        .HasColumnType("integer");
+                    b.Property<int>("Role")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1307,10 +760,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasColumnType("character varying(60)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("RefreshToken");
-
-                    b.HasIndex("RoleId");
 
                     b.HasIndex("UserName")
                         .IsUnique();
@@ -1332,13 +781,7 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("ItemType")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaterialBatchId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaterialId")
+                    b.Property<int?>("CustomOrderId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Notes")
@@ -1348,16 +791,7 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<DateTime>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ProductVariantId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("PurchaseId")
+                    b.Property<int>("ProductId")
                         .HasColumnType("integer");
 
                     b.Property<decimal>("Quantity")
@@ -1373,16 +807,13 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Reference")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<int?>("ReversedTransactionId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("SaleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("StockAdjustmentId")
                         .HasColumnType("integer");
 
                     b.Property<decimal>("TotalCost")
@@ -1407,619 +838,19 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MaterialBatchId");
-
-                    b.HasIndex("MaterialId");
+                    b.HasIndex("CustomOrderId");
 
                     b.HasIndex("OccurredAt");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("ProductionOrderId");
-
-                    b.HasIndex("PurchaseId");
 
                     b.HasIndex("ReversedTransactionId");
 
                     b.HasIndex("SaleId");
 
-                    b.HasIndex("StockAdjustmentId");
-
                     b.HasIndex("UserId");
 
-                    b.HasIndex("ItemType", "MaterialId");
-
-                    b.HasIndex("ItemType", "ProductId");
+                    b.HasIndex("ProductId", "OccurredAt");
 
                     b.ToTable("InventoryTransactions", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Inventory.StockAdjustment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("AdjustmentDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("CountedQuantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Difference")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("ItemType")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int?>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("QuantityBefore")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("Reason")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("StockAdjustments", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Invoicing.Invoice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("CustomOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("CustomerId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DeletedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeletionReason")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("InvoiceNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("IssueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<decimal>("PaidAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("SaleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Subtotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("TaxAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("TaxRate")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomOrderId");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("InvoiceNumber")
-                        .IsUnique();
-
-                    b.HasIndex("IssueDate");
-
-                    b.HasIndex("SaleId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Invoices", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Invoicing.InvoiceItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("InvoiceId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("LineTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.HasIndex("ProductId");
-
-                    b.ToTable("InvoiceItems", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.Material", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AverageCost")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("CurrentQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("ImagePath")
-                        .HasMaxLength(400)
-                        .HasColumnType("character varying(400)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("LastPurchasePrice")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("MaterialCategoryId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("MaximumStock")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("MinimumStock")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int?>("SupplierId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UnitId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialCategoryId");
-
-                    b.HasIndex("Name");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("UnitId");
-
-                    b.ToTable("Materials", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.MaterialBatch", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BatchNumber")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ExpiryDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int?>("PurchaseItemId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime>("ReceivedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("RemainingQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BatchNumber")
-                        .IsUnique();
-
-                    b.HasIndex("MaterialId");
-
-                    b.HasIndex("PurchaseItemId");
-
-                    b.ToTable("MaterialBatches", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.MaterialCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("MaterialCategories", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.Unit", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("ConversionFactor")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("numeric(18,6)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsSystem")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("Units", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Notifications.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("EntityId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EntityName")
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Link")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Severity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("IsRead", "CreatedAt");
-
-                    b.HasIndex("Type", "EntityName", "EntityId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Notifications_Type_Entite");
-
-                    b.ToTable("Notifications", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Notifications.NotificationSetting", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("NotifyRoleId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ThresholdDays")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("ThresholdValue")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NotifyRoleId");
-
-                    b.HasIndex("Type")
-                        .IsUnique();
-
-                    b.ToTable("NotificationSettings", (string)null);
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Payments.Payment", b =>
@@ -2054,12 +885,6 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Property<string>("DeletionReason")
                         .HasColumnType("text");
-
-                    b.Property<int>("Direction")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("InvoiceId")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -2103,8 +928,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.HasIndex("CustomOrderId");
 
                     b.HasIndex("CustomerId");
-
-                    b.HasIndex("InvoiceId");
 
                     b.HasIndex("PaymentDate");
 
@@ -2165,641 +988,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("PaymentMethods", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionMaterial", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("ConsumedQuantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<decimal>("PlannedQuantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("TotalCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("UnitId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialId");
-
-                    b.HasIndex("ProductionOrderId");
-
-                    b.HasIndex("UnitId");
-
-                    b.ToTable("ProductionMaterials", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionOrder", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("ActualEndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("ActualMaterialCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("ActualStartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("AssignedUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("CompletedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("CustomOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("DamagedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("DecorationCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DeletedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeletionReason")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("EstimatedMaterialCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("FiringCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("LaborCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<bool>("MaterialsConsumed")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<decimal>("OtherCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("OverriddenByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("OverrideReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<decimal>("PackagingCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("PlannedEndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("PlannedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime>("PlannedStartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ProductRecipeId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ProductionNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("StockCheckOverridden")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssignedUserId");
-
-                    b.HasIndex("CustomOrderId");
-
-                    b.HasIndex("PlannedEndDate");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductRecipeId");
-
-                    b.HasIndex("ProductionNumber")
-                        .IsUnique();
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("ProductionOrders", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionStageHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AcceptedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("DamagedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Stage")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("ProductionOrderId", "Stage");
-
-                    b.ToTable("ProductionStageHistory", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.Purchase", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DeletedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeletionReason")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("InvoiceReference")
-                        .HasMaxLength(60)
-                        .HasColumnType("character varying(60)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<decimal>("PaidAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("PurchaseDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PurchaseNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<decimal>("ShippingCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Subtotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("SupplierId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PurchaseDate");
-
-                    b.HasIndex("PurchaseNumber")
-                        .IsUnique();
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Purchases", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.PurchaseItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("LineTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("PurchaseId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<decimal>("ReceivedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<int>("UnitId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialId");
-
-                    b.HasIndex("PurchaseId");
-
-                    b.HasIndex("UnitId");
-
-                    b.ToTable("PurchaseItems", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Quality.QualityCheck", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AcceptedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<DateTime>("CheckedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CheckedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("ColorOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CracksOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("CustomOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("DecorationOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("DimensionsOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("FiringBatchId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("FiringOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("GlazeOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("InspectedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<int?>("ProductionOrderId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<decimal>("RejectedQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<int>("Result")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("ReworkQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<bool>("ShapeOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("SurfaceOk")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CheckedByUserId");
-
-                    b.HasIndex("CustomOrderId");
-
-                    b.HasIndex("FiringBatchId");
-
-                    b.HasIndex("ProductionOrderId");
-
-                    b.HasIndex("Reference")
-                        .IsUnique();
-
-                    b.ToTable("QualityChecks", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Quality.QualityIssue", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CheckPoint")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int>("QualityCheckId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<int>("Resolution")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Severity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Solution")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("QualityCheckId");
-
-                    b.ToTable("QualityIssues", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Recipes.ProductRecipe", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("DecorationCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("FiringCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("LaborCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<decimal>("OtherCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("PackagingCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("YieldQuantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId", "Version")
-                        .IsUnique();
-
-                    b.ToTable("ProductRecipes", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Recipes.ProductRecipeItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("ProductRecipeId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<int>("UnitId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("WastePercentage")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialId");
-
-                    b.HasIndex("ProductRecipeId");
-
-                    b.HasIndex("UnitId");
-
-                    b.ToTable("ProductRecipeItems", (string)null);
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Sales.Sale", b =>
@@ -2888,6 +1076,8 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.HasIndex("SaleNumber")
                         .IsUnique();
 
+                    b.HasIndex("Status");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Sales", (string)null);
@@ -2917,9 +1107,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("ProductVariantId")
-                        .HasColumnType("integer");
-
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
@@ -2938,8 +1125,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
-
-                    b.HasIndex("ProductVariantId");
 
                     b.HasIndex("SaleId");
 
@@ -2991,6 +1176,13 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<string>("CustomerPrefix")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("CLI");
+
                     b.Property<string>("DateFormat")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -3004,19 +1196,12 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<string>("FiringPrefix")
+                    b.Property<string>("ExpensePrefix")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("InvoiceFooter")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("InvoicePrefix")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("DEP");
 
                     b.Property<string>("LegalName")
                         .HasMaxLength(150)
@@ -3035,15 +1220,16 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<string>("ProductionPrefix")
+                    b.Property<string>("ProductPrefix")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("PRD");
 
-                    b.Property<string>("PurchasePrefix")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
+                    b.Property<string>("ReceiptFooter")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("SalePrefix")
                         .IsRequired()
@@ -3144,155 +1330,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.ToTable("SystemSettings", (string)null);
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Suppliers.Supplier", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Address")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("City")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CompanyName")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("SupplierNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name");
-
-                    b.HasIndex("SupplierNumber")
-                        .IsUnique();
-
-                    b.ToTable("Suppliers", (string)null);
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Suppliers.SupplierPayment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DeletedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DeletionReason")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime>("PaymentDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("PaymentMethodId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PaymentNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<int?>("PurchaseId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reference")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("SupplierId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PaymentDate");
-
-                    b.HasIndex("PaymentMethodId");
-
-                    b.HasIndex("PaymentNumber")
-                        .IsUnique();
-
-                    b.HasIndex("PurchaseId");
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("SupplierPayments", (string)null);
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Audit.AuditLog", b =>
                 {
                     b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
@@ -3318,17 +1355,6 @@ namespace CeramiPro.Infrastructure.Migrations
                 {
                     b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
                         .WithMany("Images")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Catalog.ProductVariant", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany("Variants")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -3401,49 +1427,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationImage", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Decoration.DecorationOrder", "DecorationOrder")
-                        .WithMany("Images")
-                        .HasForeignKey("DecorationOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DecorationOrder");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationOrder", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "AssignedUser")
-                        .WithMany()
-                        .HasForeignKey("AssignedUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", "CustomOrder")
-                        .WithMany()
-                        .HasForeignKey("CustomOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Decoration.DecorationType", "DecorationType")
-                        .WithMany("DecorationOrders")
-                        .HasForeignKey("DecorationTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("DecorationOrders")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("AssignedUser");
-
-                    b.Navigation("CustomOrder");
-
-                    b.Navigation("DecorationType");
-
-                    b.Navigation("ProductionOrder");
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Expenses.Expense", b =>
                 {
                     b.HasOne("CeramiPro.Domain.Entities.Expenses.ExpenseCategory", "ExpenseCategory")
@@ -3469,111 +1452,18 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.FiringBatch", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Firing.Kiln", "Kiln")
-                        .WithMany("FiringBatches")
-                        .HasForeignKey("KilnId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Kiln");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.FiringBatchItem", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Firing.FiringBatch", "FiringBatch")
-                        .WithMany("Items")
-                        .HasForeignKey("FiringBatchId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("FiringBatchItems")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("FiringBatch");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductionOrder");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.RolePermission", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.Permission", "Permission")
-                        .WithMany("RolePermissions")
-                        .HasForeignKey("PermissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.Role", "Role")
-                        .WithMany("RolePermissions")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Permission");
-
-                    b.Navigation("Role");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.User", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.Role", "Role")
-                        .WithMany("Users")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Role");
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Inventory.InventoryTransaction", b =>
                 {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.MaterialBatch", "MaterialBatch")
+                    b.HasOne("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", "CustomOrder")
                         .WithMany()
-                        .HasForeignKey("MaterialBatchId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany("InventoryTransactions")
-                        .HasForeignKey("MaterialId")
+                        .HasForeignKey("CustomOrderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
                         .WithMany("InventoryTransactions")
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.ProductVariant", "ProductVariant")
-                        .WithMany()
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("InventoryTransactions")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Purchasing.Purchase", "Purchase")
-                        .WithMany()
-                        .HasForeignKey("PurchaseId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("CeramiPro.Domain.Entities.Inventory.InventoryTransaction", "ReversedTransaction")
                         .WithMany()
@@ -3585,78 +1475,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .HasForeignKey("SaleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("CeramiPro.Domain.Entities.Inventory.StockAdjustment", "StockAdjustment")
-                        .WithMany("Transactions")
-                        .HasForeignKey("StockAdjustmentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Material");
-
-                    b.Navigation("MaterialBatch");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductVariant");
-
-                    b.Navigation("ProductionOrder");
-
-                    b.Navigation("Purchase");
-
-                    b.Navigation("ReversedTransaction");
-
-                    b.Navigation("Sale");
-
-                    b.Navigation("StockAdjustment");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Inventory.StockAdjustment", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany()
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Material");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Invoicing.Invoice", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", "CustomOrder")
-                        .WithMany("Invoices")
-                        .HasForeignKey("CustomOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Customers.Customer", "Customer")
-                        .WithMany("Invoices")
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Sales.Sale", "Sale")
-                        .WithMany("Invoices")
-                        .HasForeignKey("SaleId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -3664,93 +1482,13 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Navigation("CustomOrder");
 
-                    b.Navigation("Customer");
+                    b.Navigation("Product");
+
+                    b.Navigation("ReversedTransaction");
 
                     b.Navigation("Sale");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Invoicing.InvoiceItem", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Invoicing.Invoice", "Invoice")
-                        .WithMany("Items")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Invoice");
-
-                    b.Navigation("Product");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.Material", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.MaterialCategory", "MaterialCategory")
-                        .WithMany("Materials")
-                        .HasForeignKey("MaterialCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Suppliers.Supplier", "Supplier")
-                        .WithMany("Materials")
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Unit", "Unit")
-                        .WithMany("Materials")
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("MaterialCategory");
-
-                    b.Navigation("Supplier");
-
-                    b.Navigation("Unit");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.MaterialBatch", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany("Batches")
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Purchasing.PurchaseItem", "PurchaseItem")
-                        .WithMany("Batches")
-                        .HasForeignKey("PurchaseItemId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Material");
-
-                    b.Navigation("PurchaseItem");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Notifications.Notification", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Notifications.NotificationSetting", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.Role", "NotifyRole")
-                        .WithMany()
-                        .HasForeignKey("NotifyRoleId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("NotifyRole");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Payments.Payment", b =>
@@ -3763,11 +1501,6 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.HasOne("CeramiPro.Domain.Entities.Customers.Customer", "Customer")
                         .WithMany("Payments")
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Invoicing.Invoice", "Invoice")
-                        .WithMany("Payments")
-                        .HasForeignKey("InvoiceId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("CeramiPro.Domain.Entities.Payments.PaymentMethod", "PaymentMethod")
@@ -3790,215 +1523,11 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Navigation("Customer");
 
-                    b.Navigation("Invoice");
-
                     b.Navigation("PaymentMethod");
 
                     b.Navigation("Sale");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionMaterial", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany("ProductionMaterials")
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("Materials")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Unit", "Unit")
-                        .WithMany()
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Material");
-
-                    b.Navigation("ProductionOrder");
-
-                    b.Navigation("Unit");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionOrder", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "AssignedUser")
-                        .WithMany("AssignedProductionOrders")
-                        .HasForeignKey("AssignedUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", "CustomOrder")
-                        .WithMany("ProductionOrders")
-                        .HasForeignKey("CustomOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany("ProductionOrders")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Recipes.ProductRecipe", "ProductRecipe")
-                        .WithMany()
-                        .HasForeignKey("ProductRecipeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("AssignedUser");
-
-                    b.Navigation("CustomOrder");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ProductRecipe");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionStageHistory", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("StageHistory")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("ProductionOrder");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.Purchase", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Suppliers.Supplier", "Supplier")
-                        .WithMany("Purchases")
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Supplier");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.PurchaseItem", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany("PurchaseItems")
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Purchasing.Purchase", "Purchase")
-                        .WithMany("Items")
-                        .HasForeignKey("PurchaseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Unit", "Unit")
-                        .WithMany()
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Material");
-
-                    b.Navigation("Purchase");
-
-                    b.Navigation("Unit");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Quality.QualityCheck", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "CheckedByUser")
-                        .WithMany()
-                        .HasForeignKey("CheckedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("CeramiPro.Domain.Entities.CustomOrders.CustomOrder", "CustomOrder")
-                        .WithMany()
-                        .HasForeignKey("CustomOrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Firing.FiringBatch", "FiringBatch")
-                        .WithMany()
-                        .HasForeignKey("FiringBatchId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Production.ProductionOrder", "ProductionOrder")
-                        .WithMany("QualityChecks")
-                        .HasForeignKey("ProductionOrderId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("CheckedByUser");
-
-                    b.Navigation("CustomOrder");
-
-                    b.Navigation("FiringBatch");
-
-                    b.Navigation("ProductionOrder");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Quality.QualityIssue", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Quality.QualityCheck", "QualityCheck")
-                        .WithMany("Issues")
-                        .HasForeignKey("QualityCheckId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("QualityCheck");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Recipes.ProductRecipe", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.Product", "Product")
-                        .WithMany("Recipes")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Recipes.ProductRecipeItem", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Material", "Material")
-                        .WithMany("RecipeItems")
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Recipes.ProductRecipe", "ProductRecipe")
-                        .WithMany("Items")
-                        .HasForeignKey("ProductRecipeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Materials.Unit", "Unit")
-                        .WithMany()
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Material");
-
-                    b.Navigation("ProductRecipe");
-
-                    b.Navigation("Unit");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Sales.Sale", b =>
@@ -4026,11 +1555,6 @@ namespace CeramiPro.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CeramiPro.Domain.Entities.Catalog.ProductVariant", "ProductVariant")
-                        .WithMany()
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("CeramiPro.Domain.Entities.Sales.Sale", "Sale")
                         .WithMany("Items")
                         .HasForeignKey("SaleId")
@@ -4039,42 +1563,7 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Navigation("Product");
 
-                    b.Navigation("ProductVariant");
-
                     b.Navigation("Sale");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Suppliers.SupplierPayment", b =>
-                {
-                    b.HasOne("CeramiPro.Domain.Entities.Payments.PaymentMethod", "PaymentMethod")
-                        .WithMany()
-                        .HasForeignKey("PaymentMethodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Purchasing.Purchase", "Purchase")
-                        .WithMany("Payments")
-                        .HasForeignKey("PurchaseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CeramiPro.Domain.Entities.Suppliers.Supplier", "Supplier")
-                        .WithMany("SupplierPayments")
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("CeramiPro.Domain.Entities.Identity.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("PaymentMethod");
-
-                    b.Navigation("Purchase");
-
-                    b.Navigation("Supplier");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Catalog.Product", b =>
@@ -4083,13 +1572,7 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Navigation("InventoryTransactions");
 
-                    b.Navigation("ProductionOrders");
-
-                    b.Navigation("Recipes");
-
                     b.Navigation("SaleItems");
-
-                    b.Navigation("Variants");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Catalog.ProductCategory", b =>
@@ -4101,13 +1584,9 @@ namespace CeramiPro.Infrastructure.Migrations
                 {
                     b.Navigation("Images");
 
-                    b.Navigation("Invoices");
-
                     b.Navigation("OrderNotes");
 
                     b.Navigation("Payments");
-
-                    b.Navigation("ProductionOrders");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Customers.Customer", b =>
@@ -4116,21 +1595,9 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Navigation("CustomerNotes");
 
-                    b.Navigation("Invoices");
-
                     b.Navigation("Payments");
 
                     b.Navigation("Sales");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationOrder", b =>
-                {
-                    b.Navigation("Images");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Decoration.DecorationType", b =>
-                {
-                    b.Navigation("DecorationOrders");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Expenses.ExpenseCategory", b =>
@@ -4138,68 +1605,9 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Navigation("Expenses");
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.FiringBatch", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Firing.Kiln", b =>
-                {
-                    b.Navigation("FiringBatches");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.Permission", b =>
-                {
-                    b.Navigation("RolePermissions");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.Role", b =>
-                {
-                    b.Navigation("RolePermissions");
-
-                    b.Navigation("Users");
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Identity.User", b =>
                 {
-                    b.Navigation("AssignedProductionOrders");
-
                     b.Navigation("AuditLogs");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Inventory.StockAdjustment", b =>
-                {
-                    b.Navigation("Transactions");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Invoicing.Invoice", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("Payments");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.Material", b =>
-                {
-                    b.Navigation("Batches");
-
-                    b.Navigation("InventoryTransactions");
-
-                    b.Navigation("ProductionMaterials");
-
-                    b.Navigation("PurchaseItems");
-
-                    b.Navigation("RecipeItems");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.MaterialCategory", b =>
-                {
-                    b.Navigation("Materials");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Materials.Unit", b =>
-                {
-                    b.Navigation("Materials");
                 });
 
             modelBuilder.Entity("CeramiPro.Domain.Entities.Payments.PaymentMethod", b =>
@@ -4207,59 +1615,11 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Navigation("Payments");
                 });
 
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Production.ProductionOrder", b =>
-                {
-                    b.Navigation("DecorationOrders");
-
-                    b.Navigation("FiringBatchItems");
-
-                    b.Navigation("InventoryTransactions");
-
-                    b.Navigation("Materials");
-
-                    b.Navigation("QualityChecks");
-
-                    b.Navigation("StageHistory");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.Purchase", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("Payments");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Purchasing.PurchaseItem", b =>
-                {
-                    b.Navigation("Batches");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Quality.QualityCheck", b =>
-                {
-                    b.Navigation("Issues");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Recipes.ProductRecipe", b =>
-                {
-                    b.Navigation("Items");
-                });
-
             modelBuilder.Entity("CeramiPro.Domain.Entities.Sales.Sale", b =>
                 {
-                    b.Navigation("Invoices");
-
                     b.Navigation("Items");
 
                     b.Navigation("Payments");
-                });
-
-            modelBuilder.Entity("CeramiPro.Domain.Entities.Suppliers.Supplier", b =>
-                {
-                    b.Navigation("Materials");
-
-                    b.Navigation("Purchases");
-
-                    b.Navigation("SupplierPayments");
                 });
 #pragma warning restore 612, 618
         }

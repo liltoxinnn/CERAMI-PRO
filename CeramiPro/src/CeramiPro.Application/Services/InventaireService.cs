@@ -9,9 +9,15 @@ using Microsoft.EntityFrameworkCore;
 namespace CeramiPro.Application.Services;
 
 /// <summary>
-/// Gère toutes les entrées et sorties de stock, matières comme produits finis.
-/// Chaque variation laisse une trace indiquant le stock avant et après (règle n°2)
-/// et le stock ne peut pas devenir négatif sans dérogation (règle n°1).
+/// Point de passage unique de toute variation de stock.
+///
+/// Aucun autre service ne touche à une quantité : c'est ce qui garantit que
+/// chaque mouvement laisse une trace, avec le stock avant et après, et que
+/// l'on peut toujours expliquer un écart d'inventaire.
+///
+/// Le stock ne devient pas négatif : vendre une pièce que l'on n'a pas est
+/// presque toujours une erreur de saisie, et la refuser au moment où elle se
+/// produit coûte bien moins cher que de la découvrir au comptage.
 /// </summary>
 public class InventaireService : IInventaireService
 {
@@ -21,23 +27,25 @@ public class InventaireService : IInventaireService
     private readonly IApplicationDbContext _context;
     private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly IServiceDateHeure _horloge;
-    private readonly IReferenceNumberService _numerotation;
     private readonly IAuditService _audit;
 
     public InventaireService(
         IApplicationDbContext context,
         IUtilisateurCourant utilisateurCourant,
         IServiceDateHeure horloge,
-        IReferenceNumberService numerotation,
         IAuditService audit)
     {
         _context = context;
         _utilisateurCourant = utilisateurCourant;
         _horloge = horloge;
-        _numerotation = numerotation;
         _audit = audit;
     }
 
+    /// <summary>
+    /// Enregistre un mouvement et met à jour la quantité du produit.
+    /// L'enregistrement en base est laissé à l'appelant, afin qu'une vente et
+    /// ses mouvements de stock soient écrits dans la même transaction.
+    /// </summary>
     public async Task<InventoryTransaction> EnregistrerAsync(
         MouvementStockRequete requete, CancellationToken cancellationToken = default)
     {
@@ -46,37 +54,48 @@ public class InventaireService : IInventaireService
             throw new RegleMetierException("La quantité d'un mouvement de stock ne peut pas être nulle.");
         }
 
-        var (nomArticle, stockAvant, appliquer) = await ChargerArticleAsync(requete, cancellationToken);
+        var produit = await _context.Products
+                          .FirstOrDefaultAsync(p => p.Id == requete.ProduitId, cancellationToken)
+                      ?? throw IntrouvableException.Pour("Produit", requete.ProduitId);
+
+        var stockAvant = produit.CurrentStock;
         var stockApres = stockAvant + requete.Quantite;
 
-        if (stockApres < 0 && !requete.AutoriserStockNegatif && !await StockNegatifAutoriseAsync(cancellationToken))
+        if (stockApres < 0 && !requete.AutoriserStockNegatif
+            && !await StockNegatifAutoriseAsync(cancellationToken))
         {
             throw new RegleMetierException(
-                $"Stock insuffisant pour « {nomArticle} ». " +
+                $"Stock insuffisant pour « {produit.Name} ». " +
                 $"Disponible : {Formatage.Quantite(stockAvant)} · " +
                 $"Demandé : {Formatage.Quantite(Math.Abs(requete.Quantite))}.");
         }
 
-        appliquer(stockApres);
+        produit.CurrentStock = stockApres;
+
+        // Le coût de revient suit la moyenne pondérée : une entrée au prix du
+        // jour ne doit pas effacer ce que les pièces déjà en stock ont coûté.
+        if (requete.Quantite > 0 && requete.CoutUnitaire > 0)
+        {
+            var valeurAvant = stockAvant * produit.ProductionCost;
+            var valeurEntree = requete.Quantite * requete.CoutUnitaire;
+
+            produit.ProductionCost = stockApres > 0
+                ? Math.Round((valeurAvant + valeurEntree) / stockApres, 2)
+                : requete.CoutUnitaire;
+        }
 
         var mouvement = new InventoryTransaction
         {
-            ItemType = requete.TypeArticle,
             TransactionType = requete.TypeMouvement,
-            MaterialId = requete.MatiereId,
-            ProductId = requete.ProduitId,
-            ProductVariantId = requete.VarianteId,
-            MaterialBatchId = requete.LotId,
+            ProductId = produit.Id,
             Quantity = requete.Quantite,
             QuantityBefore = stockAvant,
             QuantityAfter = stockApres,
             UnitCost = requete.CoutUnitaire,
             TotalCost = Math.Round(Math.Abs(requete.Quantite) * requete.CoutUnitaire, 2),
             OccurredAt = requete.Date ?? _horloge.MaintenantUtc,
-            PurchaseId = requete.AchatId,
             SaleId = requete.VenteId,
-            ProductionOrderId = requete.ProductionId,
-            StockAdjustmentId = requete.AjustementId,
+            CustomOrderId = requete.CommandeId,
             ReversedTransactionId = requete.MouvementAnnuleId,
             Reference = requete.Reference,
             Notes = requete.Notes,
@@ -88,77 +107,17 @@ public class InventaireService : IInventaireService
     }
 
     /// <summary>
-    /// Charge l'article concerné, renvoie son nom, son stock actuel et la façon
-    /// d'y appliquer le nouveau stock. Le coût moyen est recalculé à la réception.
+    /// Annule les mouvements d'un document en créant les mouvements inverses,
+    /// plutôt qu'en effaçant les originaux : l'historique garde la trace de
+    /// ce qui a eu lieu, et de son annulation.
     /// </summary>
-    private async Task<(string Nom, decimal Stock, Action<decimal> Appliquer)> ChargerArticleAsync(
-        MouvementStockRequete requete, CancellationToken cancellationToken)
-    {
-        if (requete.TypeArticle == InventoryItemType.MatierePremiere)
-        {
-            if (requete.MatiereId is null)
-            {
-                throw new RegleMetierException("La matière première concernée par le mouvement est obligatoire.");
-            }
-
-            var matiere = await _context.Materials
-                .Include(m => m.Unit)
-                .FirstOrDefaultAsync(m => m.Id == requete.MatiereId, cancellationToken)
-                ?? throw IntrouvableException.Pour("Matière première", requete.MatiereId);
-
-            var stock = matiere.CurrentQuantity;
-
-            return (matiere.Name, stock, nouveau =>
-            {
-                // À la réception, le coût moyen est recalculé au prorata des quantités.
-                if (requete.Quantite > 0 && requete.CoutUnitaire > 0 && stock + requete.Quantite > 0)
-                {
-                    var valeurExistante = Math.Max(stock, 0) * matiere.AverageCost;
-                    var valeurEntrante = requete.Quantite * requete.CoutUnitaire;
-                    matiere.AverageCost = Math.Round(
-                        (valeurExistante + valeurEntrante) / (Math.Max(stock, 0) + requete.Quantite), 4);
-                }
-
-                if (requete.TypeMouvement == InventoryTransactionType.Achat && requete.CoutUnitaire > 0)
-                {
-                    matiere.LastPurchasePrice = requete.CoutUnitaire;
-                }
-
-                matiere.CurrentQuantity = nouveau;
-            }
-            );
-        }
-
-        if (requete.VarianteId is not null)
-        {
-            var variante = await _context.ProductVariants
-                .FirstOrDefaultAsync(v => v.Id == requete.VarianteId, cancellationToken)
-                ?? throw IntrouvableException.Pour("Variante de produit", requete.VarianteId);
-
-            return (variante.Name, variante.CurrentStock, nouveau => variante.CurrentStock = nouveau);
-        }
-
-        if (requete.ProduitId is null)
-        {
-            throw new RegleMetierException("Le produit concerné par le mouvement est obligatoire.");
-        }
-
-        var produit = await _context.Products
-            .FirstOrDefaultAsync(p => p.Id == requete.ProduitId, cancellationToken)
-            ?? throw IntrouvableException.Pour("Produit", requete.ProduitId);
-
-        return (produit.Name, produit.CurrentStock, nouveau => produit.CurrentStock = nouveau);
-    }
-
     public async Task<IReadOnlyList<InventoryTransaction>> AnnulerDocumentAsync(
-        int? achatId, int? venteId, int? productionId, string motif,
-        CancellationToken cancellationToken = default)
+        int? venteId, int? commandeId, string motif, CancellationToken cancellationToken = default)
     {
         var mouvements = await _context.InventoryTransactions
             .Where(t =>
-                (achatId != null && t.PurchaseId == achatId) ||
                 (venteId != null && t.SaleId == venteId) ||
-                (productionId != null && t.ProductionOrderId == productionId))
+                (commandeId != null && t.CustomOrderId == commandeId))
             .Where(t => t.TransactionType != InventoryTransactionType.Annulation)
             .ToListAsync(cancellationToken);
 
@@ -174,20 +133,17 @@ public class InventaireService : IInventaireService
         {
             inverses.Add(await EnregistrerAsync(new MouvementStockRequete
             {
-                TypeArticle = origine.ItemType,
                 TypeMouvement = InventoryTransactionType.Annulation,
-                MatiereId = origine.MaterialId,
                 ProduitId = origine.ProductId,
-                VarianteId = origine.ProductVariantId,
                 Quantite = -origine.Quantity,
                 CoutUnitaire = origine.UnitCost,
-                AchatId = origine.PurchaseId,
                 VenteId = origine.SaleId,
-                ProductionId = origine.ProductionOrderId,
+                CommandeId = origine.CustomOrderId,
                 MouvementAnnuleId = origine.Id,
                 Reference = origine.Reference,
                 Notes = motif,
-                // L'inversion doit toujours aboutir, même si elle ramène le stock à zéro.
+                // L'inversion doit toujours aboutir, même si elle ramène le
+                // stock à zéro : refuser laisserait le document à moitié annulé.
                 AutoriserStockNegatif = true
             }, cancellationToken));
         }
@@ -199,25 +155,14 @@ public class InventaireService : IInventaireService
         FiltreMouvementsRequete requete, CancellationToken cancellationToken = default)
     {
         var requeteBase = _context.InventoryTransactions
-            .Include(t => t.Material).ThenInclude(m => m!.Unit)
             .Include(t => t.Product)
             .Include(t => t.User)
             .AsNoTracking()
             .AsQueryable();
 
-        if (requete.TypeArticle is not null)
-        {
-            requeteBase = requeteBase.Where(t => t.ItemType == requete.TypeArticle);
-        }
-
         if (requete.TypeMouvement is not null)
         {
             requeteBase = requeteBase.Where(t => t.TransactionType == requete.TypeMouvement);
-        }
-
-        if (requete.MatiereId is not null)
-        {
-            requeteBase = requeteBase.Where(t => t.MaterialId == requete.MatiereId);
         }
 
         if (requete.ProduitId is not null)
@@ -241,11 +186,9 @@ public class InventaireService : IInventaireService
         {
             var recherche = requete.Recherche.Trim().ToLower();
             requeteBase = requeteBase.Where(t =>
-                (t.Material != null && (t.Material.Name.ToLower().Contains(recherche)
-                                        || t.Material.Reference.ToLower().Contains(recherche))) ||
-                (t.Product != null && (t.Product.Name.ToLower().Contains(recherche)
-                                       || t.Product.Reference.ToLower().Contains(recherche))) ||
-                (t.Reference != null && t.Reference.ToLower().Contains(recherche)));
+                t.Product.Name.ToLower().Contains(recherche)
+                || t.Product.Reference.ToLower().Contains(recherche)
+                || (t.Reference != null && t.Reference.ToLower().Contains(recherche)));
         }
 
         var total = await requeteBase.CountAsync(cancellationToken);
@@ -258,12 +201,10 @@ public class InventaireService : IInventaireService
 
         var elements = lignes.Select(t => new MouvementStockDto(
             t.Id,
-            t.OccurredAt,
-            t.ItemType.Libelle(),
+            _horloge.VersHeureAtelier(t.OccurredAt),
             t.TransactionType.Libelle(),
-            t.Material?.Name ?? t.Product?.Name ?? "Article supprimé",
-            t.Material?.Reference ?? t.Product?.Reference,
-            t.Material?.Unit.Code ?? "pièce",
+            t.Product.Name,
+            t.Product.Reference,
             t.Quantity,
             t.QuantityBefore,
             t.QuantityAfter,
@@ -276,84 +217,74 @@ public class InventaireService : IInventaireService
         return new PagedResult<MouvementStockDto>(elements, total, requete.Page, requete.TaillePage);
     }
 
+    /// <summary>
+    /// Enregistre une régularisation après comptage physique. Le motif est
+    /// obligatoire : un écart corrigé sans explication ne s'analyse plus.
+    /// </summary>
     public async Task<MouvementStockDto> RegulariserAsync(
         RegularisationRequete requete, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(requete.Motif))
+        {
+            throw new RegleMetierException(
+                "Indiquez le motif de la régularisation : casse, perte, erreur de comptage…");
+        }
+
         if (requete.QuantiteComptee < 0)
         {
             throw new RegleMetierException("La quantité comptée ne peut pas être négative.");
         }
 
-        var stockActuel = requete.TypeArticle == InventoryItemType.MatierePremiere
-            ? (await _context.Materials.FirstOrDefaultAsync(m => m.Id == requete.MatiereId, cancellationToken)
-               ?? throw IntrouvableException.Pour("Matière première", requete.MatiereId ?? 0)).CurrentQuantity
-            : (await _context.Products.FirstOrDefaultAsync(p => p.Id == requete.ProduitId, cancellationToken)
-               ?? throw IntrouvableException.Pour("Produit", requete.ProduitId ?? 0)).CurrentStock;
+        var produit = await _context.Products
+                          .FirstOrDefaultAsync(p => p.Id == requete.ProduitId, cancellationToken)
+                      ?? throw IntrouvableException.Pour("Produit", requete.ProduitId);
 
-        var ecart = requete.QuantiteComptee - stockActuel;
+        var ecart = requete.QuantiteComptee - produit.CurrentStock;
 
         if (ecart == 0)
         {
             throw new RegleMetierException(
-                "La quantité comptée est identique au stock enregistré : aucune régularisation n'est nécessaire.");
+                $"Le stock de « {produit.Name} » correspond déjà au comptage : " +
+                $"{Formatage.Quantite(produit.CurrentStock)}.");
         }
-
-        var regularisation = new StockAdjustment
-        {
-            Reference = await _numerotation.GenererAsync(TypeDocument.Ajustement, cancellationToken),
-            ItemType = requete.TypeArticle,
-            MaterialId = requete.MatiereId,
-            ProductId = requete.ProduitId,
-            Reason = requete.Motif,
-            QuantityBefore = stockActuel,
-            CountedQuantity = requete.QuantiteComptee,
-            Difference = ecart,
-            AdjustmentDate = _horloge.MaintenantUtc,
-            Notes = requete.Notes,
-            UserId = _utilisateurCourant.UtilisateurId
-        };
-
-        _context.StockAdjustments.Add(regularisation);
-        await _context.SaveChangesAsync(cancellationToken);
 
         var mouvement = await EnregistrerAsync(new MouvementStockRequete
         {
-            TypeArticle = requete.TypeArticle,
-            TypeMouvement = requete.Motif == StockAdjustmentReason.Casse
-                            || requete.Motif == StockAdjustmentReason.Perte
-                ? InventoryTransactionType.Endommage
-                : InventoryTransactionType.Ajustement,
-            MatiereId = requete.MatiereId,
-            ProduitId = requete.ProduitId,
+            TypeMouvement = InventoryTransactionType.Regularisation,
+            ProduitId = produit.Id,
             Quantite = ecart,
-            AjustementId = regularisation.Id,
-            Reference = regularisation.Reference,
-            Notes = requete.Notes ?? requete.Motif.Libelle(),
+            CoutUnitaire = produit.ProductionCost,
+            Reference = requete.Motif.Trim(),
+            Notes = requete.Notes,
             AutoriserStockNegatif = true
         }, cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        await _audit.EnregistrerAsync(AuditAction.Modification, nameof(StockAdjustment),
-            regularisation.Id.ToString(),
-            $"Régularisation {regularisation.Reference} : écart de {Formatage.Quantite(ecart)}.",
-            null, cancellationToken);
+        await _audit.EnregistrerAsync(
+            AuditAction.Modification, "Stock", produit.Id.ToString(),
+            $"Régularisation de « {produit.Name} » : {Formatage.Quantite(ecart)} " +
+            $"({requete.Motif.Trim()}).",
+            cancellationToken: cancellationToken);
 
-        var page = await ListerAsync(new FiltreMouvementsRequete { TaillePage = 1 }, cancellationToken);
-        return page.Elements.FirstOrDefault()
-               ?? new MouvementStockDto(mouvement.Id, mouvement.OccurredAt,
-                   mouvement.ItemType.Libelle(), mouvement.TransactionType.Libelle(),
-                   string.Empty, null, string.Empty, mouvement.Quantity,
-                   mouvement.QuantityBefore, mouvement.QuantityAfter, 0, 0,
-                   regularisation.Reference, null, requete.Notes);
+        return (await ListerAsync(
+                new FiltreMouvementsRequete { ProduitId = produit.Id, TaillePage = 1 },
+                cancellationToken))
+            .Elements.First();
     }
 
+    /// <summary>
+    /// Indique si l'atelier accepte un stock négatif. Déconseillé, mais
+    /// parfois nécessaire le temps de rattraper une saisie en retard.
+    /// </summary>
     public async Task<bool> StockNegatifAutoriseAsync(CancellationToken cancellationToken = default)
     {
         var reglage = await _context.SystemSettings
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Key == CleStockNegatif, cancellationToken);
 
-        return bool.TryParse(reglage?.Value, out var autorise) && autorise;
+        return reglage is not null
+               && bool.TryParse(reglage.Value, out var autorise)
+               && autorise;
     }
 }

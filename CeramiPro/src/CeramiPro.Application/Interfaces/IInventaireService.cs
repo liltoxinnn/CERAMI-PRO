@@ -19,7 +19,7 @@ public interface IInventaireService
 
     /// <summary>Annule les mouvements d'un document en créant les mouvements inverses.</summary>
     Task<IReadOnlyList<InventoryTransaction>> AnnulerDocumentAsync(
-        int? achatId, int? venteId, int? productionId, string motif,
+        int? venteId, int? commandeId, string motif,
         CancellationToken cancellationToken = default);
 
     Task<PagedResult<MouvementStockDto>> ListerAsync(

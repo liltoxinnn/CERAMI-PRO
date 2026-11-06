@@ -1,3 +1,5 @@
+using CeramiPro.Domain.Enums;
+
 namespace CeramiPro.Application.DTOs.Auth;
 
 /// <summary>Identifiants saisis dans l'écran de connexion.</summary>
@@ -13,15 +15,14 @@ public class ConnexionRequete
 /// </summary>
 public record ConnexionReponse(UtilisateurConnecteDto Utilisateur);
 
-/// <summary>Profil de l'utilisateur connecté, avec la liste de ses droits.</summary>
+/// <summary>Profil de l'utilisateur connecté.</summary>
 public record UtilisateurConnecteDto(
     int Id,
     string NomUtilisateur,
     string NomComplet,
     string? Email,
-    string RoleCode,
+    RoleUtilisateur Role,
     string RoleNom,
-    IReadOnlyList<string> Droits,
     bool DoitChangerMotDePasse);
 
 /// <summary>Changement de mot de passe par l'utilisateur lui-même.</summary>

@@ -3,7 +3,6 @@ using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.DTOs.Stock;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Domain.Common;
-using CeramiPro.Domain.Entities.Invoicing;
 using CeramiPro.Domain.Entities.Sales;
 using CeramiPro.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -147,7 +146,6 @@ public class VenteService : IVenteService
             vente.Items.Add(new SaleItem
             {
                 ProductId = produit.Id,
-                ProductVariantId = ligne.VarianteId,
                 Description = produit.Name,
                 Quantity = ligne.Quantite,
                 UnitPrice = prix,
@@ -179,10 +177,8 @@ public class VenteService : IVenteService
         {
             await _inventaire.EnregistrerAsync(new MouvementStockRequete
             {
-                TypeArticle = InventoryItemType.ProduitFini,
                 TypeMouvement = InventoryTransactionType.Vente,
                 ProduitId = ligne.ProductId,
-                VarianteId = ligne.ProductVariantId,
                 Quantite = -ligne.Quantity,
                 CoutUnitaire = ligne.UnitCost,
                 VenteId = vente.Id,
@@ -191,11 +187,6 @@ public class VenteService : IVenteService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-
-        if (requete.EmettreFacture)
-        {
-            await CreerFactureAsync(vente, parametres.DefaultTaxRate, cancellationToken);
-        }
 
         if (requete.MontantPaye > 0)
         {
@@ -222,40 +213,6 @@ public class VenteService : IVenteService
     }
 
     /// <summary>Crée la facture correspondant à la vente.</summary>
-    private async Task CreerFactureAsync(Sale vente, decimal tauxTva, CancellationToken cancellationToken)
-    {
-        var facture = new Invoice
-        {
-            InvoiceNumber = await _numerotation.GenererAsync(TypeDocument.Facture, cancellationToken),
-            CustomerId = vente.CustomerId,
-            SaleId = vente.Id,
-            IssueDate = vente.SaleDate,
-            Subtotal = vente.Subtotal,
-            DiscountAmount = vente.DiscountAmount,
-            TaxRate = vente.TaxAmount > 0 ? tauxTva : 0m,
-            TaxAmount = vente.TaxAmount,
-            TotalAmount = vente.TotalAmount,
-            Status = InvoiceStatus.Emise,
-            UserId = _utilisateurCourant.UtilisateurId
-        };
-
-        foreach (var ligne in vente.Items)
-        {
-            facture.Items.Add(new InvoiceItem
-            {
-                ProductId = ligne.ProductId,
-                Description = ligne.Description,
-                Quantity = ligne.Quantity,
-                UnitPrice = ligne.UnitPrice,
-                DiscountAmount = ligne.DiscountAmount,
-                LineTotal = ligne.LineTotal
-            });
-        }
-
-        _context.Invoices.Add(facture);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
     public async Task<VenteDto> AnnulerAsync(
         int id, string motif, CancellationToken cancellationToken = default)
     {
@@ -280,14 +237,8 @@ public class VenteService : IVenteService
         }
 
         // Les produits reviennent en stock (règle métier n°6).
-        await _inventaire.AnnulerDocumentAsync(null, vente.Id, null,
+        await _inventaire.AnnulerDocumentAsync(vente.Id, null,
             $"Annulation de la vente {vente.SaleNumber} : {motif.Trim()}", cancellationToken);
-
-        foreach (var facture in await _context.Invoices
-                     .Where(f => f.SaleId == vente.Id).ToListAsync(cancellationToken))
-        {
-            facture.Status = InvoiceStatus.Annulee;
-        }
 
         vente.Status = SaleStatus.Annulee;
         vente.Notes = string.IsNullOrWhiteSpace(vente.Notes)
@@ -306,7 +257,6 @@ public class VenteService : IVenteService
         => _context.Sales
             .Include(v => v.Customer)
             .Include(v => v.User)
-            .Include(v => v.Invoices)
             .Include(v => v.Items).ThenInclude(i => i.Product);
 
     private static string? Nettoyer(string? valeur)
@@ -330,8 +280,7 @@ public class VenteService : IVenteService
         Math.Round(v.TotalAmount - v.TaxAmount - v.TotalCost, 2),
         v.Notes,
         v.User?.FullName,
-        v.Invoices.FirstOrDefault(f => f.Status != InvoiceStatus.Annulee)?.InvoiceNumber,
         v.Items.Select(i => new LigneVenteDto(
-            i.Id, i.ProductId, i.Product.Name, i.Product.Reference, i.ProductVariantId,
+            i.Id, i.ProductId, i.Product.Name, i.Product.Reference,
             i.Description, i.Quantity, i.UnitPrice, i.DiscountAmount, i.LineTotal)).ToList());
 }
