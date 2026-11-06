@@ -54,19 +54,26 @@ automatiques sur n'importe quelle machine.
 ## Règles d'architecture
 
 1. **Aucune logique métier dans les vues.** Un fichier `.xaml.cs` ne contient
-   que `InitializeComponent()`.
+   que `InitializeComponent()` et, au plus, du code d'affichage.
 2. **Aucun accès direct à la base depuis une vue-modèle.** Elle appelle un
    service de la couche Application.
-3. **Toute modification de stock passe par le service de stock.** Aucune
-   vue-modèle ne touche une quantité.
-4. **Les droits sont vérifiés dans les services**, pas seulement en masquant
-   des boutons.
-5. **Les opérations qui touchent plusieurs tables sont transactionnelles.**
-   Une vente crée la vente, ses lignes, le paiement, les mouvements de stock et
-   la facture : tout réussit, ou rien.
-6. **Les entités sont nommées en anglais, l'interface est en français.** Les
+3. **Toute modification de stock passe par le service de stock**, qui écrit
+   un mouvement à chaque fois. Aucune vue-modèle ne touche une quantité.
+4. **Ce qui est réservé à l'administrateur est vérifié dans les services**
+   (`Autorisation.ExigerAdministrateur`), pas seulement en masquant le menu.
+5. **Les opérations qui touchent plusieurs tables sont transactionnelles**
+   (`TransactionMetier.EnTransactionAsync`). Une vente crée la vente, ses
+   lignes, ses mouvements de stock et son règlement : tout réussit, ou rien,
+   et le suivi des entités est vidé après un échec pour que l'opération
+   suivante ne réécrive pas ce qui vient d'être refusé.
+6. **Rien ne s'efface** : ventes, commandes, paiements et dépenses sont
+   annulés avec un motif, pas supprimés.
+7. **Les entités sont nommées en anglais, l'interface est en français.** Les
    libellés affichés viennent d'attributs `[Libelle("…")]`, jamais du nom
    technique.
+8. **Dates en UTC dans la base, heure d'Alger à l'écran** (`DatesAtelier`,
+   `PeriodeAtelier`) : une journée de l'atelier va de minuit à minuit, heure
+   locale.
 
 ---
 
@@ -87,15 +94,13 @@ français expliquant ce qui n'a pas fonctionné. Le détail part dans le journal
 
 ```
 %LOCALAPPDATA%\CeramiPro\
-├── journaux\        Fichiers de journalisation
-├── images\          Photos produits, commandes, production, qualité
-│   ├── produits\
-│   ├── commandes\
-│   ├── production\
-│   └── qualite\
-├── documents\       Factures et reçus générés
-└── sauvegardes\     Archives de la base
+├── appsettings.Local.json   Mot de passe de la base (jamais versionné)
+├── journaux\                Un fichier de journalisation par jour
+├── photos\                  Photos des produits et des commandes
+└── sauvegardes\             Archives ZIP de la base et des photos
 ```
 
-Les fichiers sont sur le disque, leurs références en base : une base de
-données n'est pas faite pour stocker des photos.
+Les photos sont sur le disque, leur chemin relatif en base : une base de
+données n'est pas faite pour stocker des images, et le dossier entier part
+dans chaque sauvegarde. Les reçus PDF sont enregistrés là où l'utilisateur le
+choisit.

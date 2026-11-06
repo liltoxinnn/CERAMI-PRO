@@ -10,7 +10,7 @@
 ; ====================================================================
 
 #define NomApplication    "CeramiPro"
-#define VersionApplication "1.0.0"
+#define VersionApplication "2.0.0"
 #define Editeur           "Atelier de céramique"
 #define Executable        "CeramiPro.exe"
 

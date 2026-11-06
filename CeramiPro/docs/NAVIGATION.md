@@ -1,144 +1,94 @@
 # Navigation de l'application
 
-Le menu latéral suit le chemin réel de la matière dans l'atelier : de l'achat
-de l'argile jusqu'à la facture remise au client.
-
-Chaque entrée ouvre un écran ou déplie un groupe : aucune n'est sans effet.
-Une entrée n'apparaît que si la personne connectée possède le droit qui lui
-est attaché — et le service métier vérifie de son côté, l'écran n'étant jamais
-la seule barrière.
+Sept sections, pas une de plus. Chaque entrée ouvre un écran ou déplie une
+section : aucune n'est sans effet, et aucun écran n'est atteignable par deux
+entrées différentes (des tests le vérifient).
 
 ```
 🏠 Tableau de bord
-🧾 Caisse
-
-📦 Stock
-   ├── Vue générale
-   ├── Matières premières
-   ├── Produits finis
-   ├── Mouvements
-   └── Alertes
 
 🏺 Produits
-   ├── Catalogue
-   ├── Catégories
-   ├── Recettes
-   └── Étiquettes
+   ├── 📖 Catalogue
+   ├── 📦 Stock
+   ├── 🔄 Historique du stock
+   └── 🗂️ Catégories
 
-🏭 Production
-   ├── Tableau de production
-   ├── Ordres de production
-   ├── Production en cours
-   └── Historique
+📋 Commandes
 
-🔥 Cuisson
-   ├── Fours
-   ├── Lots de cuisson
-   └── Enfourner
-
-🎨 Décoration
-   ├── Travaux de décoration
-   └── Types de décoration
-
-🔍 Contrôle qualité
 👥 Clients
-📋 Commandes personnalisées
-
-🚚 Fournisseurs
-   ├── Fiches fournisseurs
-   ├── Achats
-   └── Nouvel achat
 
 🛒 Ventes
-📄 Factures
-💳 Paiements
-💸 Dépenses
-📊 Rapports
-🧮 Calculateurs
+   ├── 🧾 Nouvelle vente
+   ├── 📜 Historique des ventes
+   └── 💳 Paiements
 
-🛠️ Administration
-   ├── Utilisateurs
-   ├── Unités de mesure
-   ├── Catégories de matières
-   ├── Catégories de dépenses
-   └── Sauvegarde
+📊 Rapports
+   ├── 📈 Rapports
+   └── 💸 Dépenses
 
 ⚙️ Paramètres
+   ├── 🏛️ Atelier
+   ├── 🗂️ Catégories de dépenses
+   ├── 👤 Utilisateurs          administrateur seulement
+   └── 💾 Sauvegarde            administrateur seulement
 ```
+
+Le bas du menu affiche la personne connectée et son rôle, avec *Changer mon
+mot de passe* et *Se déconnecter*. Le menu se réduit à ses icônes.
 
 ---
 
-## Trois écrans pour trente-huit destinations
+## Les écrans de liste
 
-Écrire un fichier XAML par module aurait donné trente-huit variantes
-légèrement différentes, à corriger une par une. Trois écrans suffisent, parce
-que ce sont les vues-modèles qui décrivent ce qu'il faut afficher.
+Catalogue, Stock, Historique du stock, Commandes, Clients, Historique des
+ventes, Paiements, Dépenses, Catégories et Utilisateurs suivent le même
+modèle :
 
-| Écran | Sert à | Ce que la vue-modèle déclare |
-|-------|--------|------------------------------|
-| `VueListe` | 26 écrans de liste | `Colonnes`, `TypeFormulaire`, `Actions` |
-| `VueDocument` | Caisse, nouvel achat, enfournement | `Champs`, `NomArticle`, `AfficherPrix`, `GereReglement` |
-| `FenetreFormulaire` | 15 formulaires de saisie | `Champs`, `Requete` |
+| Élément | Rôle |
+|---------|------|
+| Recherche | Filtre sur le nom, la référence, le numéro, le téléphone… |
+| Filtres | Propres à l'écran : stock faible, ventes à crédit, étape et canal des commandes |
+| Tableau | Colonnes alignées : montants et quantités à droite |
+| Ajouter / Modifier | Ouvre le formulaire de saisie, quand l'écran en a un |
+| Actions | Les gestes du métier sur la ligne choisie (voir ci-dessous) |
+| Exporter | Excel ou PDF de ce qui est affiché |
+| Pagination | 25 lignes par page |
 
-Les écrans qui ne ressemblent à aucun autre — tableau de bord, tableau de
-production, alertes, rapports, étiquettes, sauvegarde, paramètres,
-calculateurs, vue générale du stock — ont leur propre fichier.
+Une action sans ligne choisie le dit au lieu d'échouer. Une action qui défait
+quelque chose (annuler une vente, une commande, un paiement, supprimer une
+dépense) demande un motif, conservé dans l'historique.
 
-### Une colonne
+### Actions par écran
 
-```csharp
-new("Prix de vente", "PrixVente", ColonneAlignement.Droite, FormatColonne.Montant)
-```
-
-La colonne connaît sa mise en forme : un montant s'écrit `4 200,00 DA` à
-l'écran, dans le classeur exporté et sur le document imprimé, sans que trois
-codes différents aient à s'accorder.
-
-### Un champ de saisie
-
-```csharp
-new("Catégorie", nameof(MatiereRequete.CategorieId), TypeChamp.Liste,
-    Obligatoire: true, Options: categories)
-```
-
-Le champ est lié directement à l'objet de requête envoyé au service : il n'y a
-pas de recopie intermédiaire où une valeur pourrait se perdre.
-
-### Une action du métier
-
-```csharp
-new("Enregistrer la réception", ReceptionnerCommand,
-    Aide: "Les matières commandées entrent en stock.")
-```
-
-Réceptionner un achat, défourner une fournée, annuler une vente : ces gestes
-n'ont rien de commun, mais tous s'appliquent à la ligne choisie dans le
-tableau. Les décrire ainsi permet à l'écran générique de les présenter sans
-rien savoir du métier.
+| Écran | Actions |
+|-------|---------|
+| Catalogue | Photos (ajouter, choisir la principale, retirer) |
+| Stock | Entrée en stock, Casse ou perte, Corriger après comptage |
+| Commandes | Encaisser un acompte, Étape suivante, Marquer comme livrée, Reçu, Photos, Nouveau client, Annuler |
+| Clients | Fiche du client (achats, commandes, paiements, notes) |
+| Historique des ventes | Réimprimer le reçu, Encaisser le reste, Annuler la vente |
+| Paiements | Reçu, Annuler le paiement |
+| Dépenses | Supprimer la dépense |
+| Utilisateurs | Désactiver ou réactiver, Nouveau mot de passe |
 
 ---
 
-## Ce que chaque écran de liste sait faire
+## Les écrans particuliers
 
-| Bouton | Présent quand |
-|--------|---------------|
-| Rechercher, Actualiser | toujours |
-| Ajouter, Modifier | l'écran déclare un `TypeFormulaire` |
-| Supprimer | l'écran redéfinit `PeutSupprimer` |
-| Exporter vers Excel, Imprimer en PDF | toujours |
-| Actions du métier | l'écran en déclare |
-
-Un double-clic sur une ligne ouvre sa fiche. L'export porte sur la liste
-entière, et non sur la seule page affichée : c'est ce que l'on attend d'un
-export, et cela évite de parcourir les pages une par une.
+| Écran | Fonctionnement |
+|-------|----------------|
+| **Tableau de bord** | Indicateurs du jour et du mois, commandes à surveiller, produits à refabriquer, graphiques des ventes sur 30 jours et 12 mois ; raccourcis *Nouvelle vente*, *Nouvelle commande*, *Nouveau produit*, et liens vers les commandes, le stock et les rapports |
+| **Nouvelle vente** | On tape le début du nom ou de la référence, la quantité vaut 1, le prix du catalogue est proposé ; le rendu de monnaie s'affiche pendant la saisie du montant reçu ; le reçu s'imprime à la validation. Une pièce unique vendue n'est plus proposée |
+| **Rapports** | Choix du rapport et de la période (aujourd'hui, ce mois, le mois dernier, cette année, ou dates libres), tableau, graphique, totaux, export |
+| **Atelier** (Paramètres) | Identité et mentions légales imprimées sur les reçus, monnaie, TVA, préfixes de numérotation, état de la base de données |
+| **Sauvegarde** | Sauvegarder maintenant, copier sur une clé USB, restaurer, supprimer, purger ; réglage de la sauvegarde quotidienne |
 
 ---
 
-## Deux langues
+## Formulaires
 
-L'interface bascule du français à l'arabe sans redémarrer. Les entrées du menu
-ne retiennent qu'une clé de traduction, jamais un texte figé, et la fenêtre
-entière s'inverse : le menu passe à droite, les colonnes et les champs suivent.
-
-Une clé sans traduction arabe retombe sur le français, ce qui vaut mieux qu'un
-écran vide ou qu'un nom technique affiché tel quel.
+Une seule fenêtre de saisie sert à tous les formulaires : produit, client,
+commande, encaissement, dépense, mouvement de stock, correction, catégorie,
+compte. Un champ obligatoire resté vide est nommé dans le message ; une règle
+métier refusée s'affiche telle que le service l'a rédigée, en français, sans
+détail technique.

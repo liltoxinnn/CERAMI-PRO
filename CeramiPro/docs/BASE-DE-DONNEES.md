@@ -1,160 +1,104 @@
 # Base de données CeramiProDB
 
-PostgreSQL. 49 tables réparties en 20 groupes, plus la table technique des
-migrations d'Entity Framework.
+PostgreSQL. **19 tables** dans le schéma `public`, plus la table technique des
+migrations d'Entity Framework (`__EFMigrationsHistory`). Sur une base venue de
+l'ancienne version, un schéma `archives` garde en plus, en lecture seule, les
+données des modules retirés (voir [MISE-A-JOUR.md](MISE-A-JOUR.md)).
 
 ## Arbre des tables
 
 ```
-CeramiProDB
+CeramiProDB (schéma public)
 │
-├── Sécurité et comptes
-│   ├── Users                    comptes, mot de passe haché, état
-│   ├── Roles                    Administrateur, Responsable, Employé, Caissier
-│   ├── Permissions              droits élémentaires
-│   └── RolePermissions          droits accordés à chaque rôle
+├── Comptes
+│   └── Users                    compte, mot de passe haché, rôle (0 Employé, 1 Administrateur)
 │
 ├── Clients
-│   ├── Customers                fiche client
+│   ├── Customers                fiche : téléphone, Instagram, adresse
 │   └── CustomerNotes            historique des échanges
 │
-├── Fournisseurs
-│   ├── Suppliers                fiche fournisseur
-│   └── SupplierPayments         règlements versés
-│
-├── Matières premières
-│   ├── MaterialCategories       argile, émail, pigment, emballage…
-│   ├── Units                    kg, g, L, ml, pièce, boîte
-│   ├── Materials                fiche matière, stock, coût moyen
-│   └── MaterialBatches          lots reçus, avec leur prix d'achat
-│
-├── Achats
-│   ├── Purchases                commande fournisseur
-│   └── PurchaseItems            lignes de la commande
-│
-├── Catalogue
+├── Produits
 │   ├── ProductCategories        vases, assiettes, sculptures…
-│   ├── Products                 fiche produit, prix, coût, stock
-│   ├── ProductVariants          couleur, taille, finition
-│   └── ProductImages            photos du produit
-│
-├── Recettes
-│   ├── ProductRecipes           recette de fabrication d'un produit
-│   └── ProductRecipeItems       matières et quantités par pièce
-│
-├── Production
-│   ├── ProductionOrders         ordre de fabrication
-│   ├── ProductionMaterials      matières réellement consommées
-│   └── ProductionStageHistory   passage d'une étape à l'autre
-│
-├── Cuisson
-│   ├── Kilns                    fours, capacité, plage de température
-│   ├── FiringBatches            lot de cuisson, durée, coût d'énergie
-│   └── FiringBatchItems         pièces enfournées
-│
-├── Décoration
-│   ├── DecorationTypes          peinture, émail, dorure, gravure…
-│   ├── DecorationOrders         travail de décoration
-│   └── DecorationImages         photos du décor
-│
-├── Qualité
-│   ├── QualityChecks            contrôle d'une production
-│   └── QualityIssues            défauts relevés
+│   ├── Products                 prix, coût, stock, seuil, pièce unique
+│   └── ProductImages            photos (chemin du fichier, photo principale)
 │
 ├── Commandes personnalisées
-│   ├── CustomOrders             demande sur mesure d'un client
-│   ├── CustomOrderImages        croquis, références, photos d'avancement
-│   └── CustomOrderNotes         échanges avec le client
+│   ├── CustomOrders             canal, total, versé, reste, étape, date limite
+│   ├── CustomOrderImages        modèle envoyé, croquis, photo de la pièce
+│   └── CustomOrderNotes         suivi de la commande
 │
-├── Ventes
-│   ├── Sales                    vente au comptoir
-│   └── SaleItems                lignes vendues
-│
-├── Paiements
-│   ├── PaymentMethods           espèces, carte, virement, autre
-│   └── Payments                 encaissements et acomptes
-│
-├── Facturation
-│   ├── Invoices                 facture
-│   └── InvoiceItems             lignes facturées
+├── Ventes et règlements
+│   ├── Sales                    en-tête de la vente, total, payé, statut
+│   ├── SaleItems                lignes : produit, quantité, prix, coût de revient
+│   ├── Payments                 encaissements (vente ou commande), acomptes
+│   └── PaymentMethods           espèces, virement, carte, chèque, autre
 │
 ├── Stock
-│   ├── InventoryTransactions    tout mouvement, sans exception
-│   └── StockAdjustments         régularisation, avec son motif
+│   └── InventoryTransactions    chaque entrée, vente, casse, correction, annulation
 │
 ├── Dépenses
-│   ├── ExpenseCategories        électricité, gaz, transport, salaires…
-│   └── Expenses                 dépense enregistrée
+│   ├── ExpenseCategories        électricité, gaz, transport, emballage…
+│   └── Expenses                 date, montant, catégorie, mode de règlement
 │
-├── Alertes
-│   ├── Notifications            alertes ouvertes
-│   └── NotificationSettings     réglage de chaque type d'alerte
-│
-├── Traçabilité
-│   └── AuditLogs                journal des opérations importantes
-│
-└── Paramètres
-    ├── BusinessSettings         identité de l'atelier, devise, préfixes
-    └── SystemSettings           réglages techniques
+└── Réglages et journal
+    ├── BusinessSettings         identité de l'atelier, mentions légales, préfixes
+    ├── SystemSettings           sauvegarde automatique, stock négatif…
+    └── AuditLogs                qui a fait quoi, quand
 ```
 
----
+## Relations
 
-## Relations principales
+| Table | Colonne | Vers | À la suppression |
+|-------|---------|------|------------------|
+| Products | ProductCategoryId | ProductCategories | refusée |
+| ProductImages | ProductId | Products | supprimées avec le produit |
+| CustomerNotes | CustomerId | Customers | supprimées avec le client |
+| CustomOrders | CustomerId | Customers | refusée |
+| CustomOrders | AssignedUserId | Users | mise à vide |
+| CustomOrderImages, CustomOrderNotes | CustomOrderId | CustomOrders | supprimées avec la commande |
+| Sales | CustomerId | Customers (facultatif) | refusée |
+| SaleItems | SaleId | Sales | supprimées avec la vente |
+| SaleItems | ProductId | Products | refusée |
+| Payments | SaleId / CustomOrderId / CustomerId | Sales / CustomOrders / Customers | refusée |
+| Payments | PaymentMethodId | PaymentMethods | refusée |
+| InventoryTransactions | ProductId | Products | refusée |
+| InventoryTransactions | SaleId / CustomOrderId | Sales / CustomOrders | refusée |
+| InventoryTransactions | ReversedTransactionId | InventoryTransactions | refusée |
+| Expenses | ExpenseCategoryId / PaymentMethodId | ExpenseCategories / PaymentMethods | refusée |
+| Sales, Payments, Expenses, InventoryTransactions, AuditLogs, CustomerNotes, CustomOrderNotes | UserId | Users | mise à vide |
 
-```
-Customer ────┬──< Sales ──────< SaleItems
-             ├──< Payments
-             ├──< Invoices ────< InvoiceItems
-             ├──< CustomOrders ─< CustomOrderImages
-             │                  └< CustomOrderNotes
-             └──< CustomerNotes
+« Refusée » : la base empêche de supprimer une fiche encore utilisée. Le
+logiciel propose alors de la désactiver.
 
-Supplier ────┬──< Purchases ───< PurchaseItems
-             └──< SupplierPayments
+## Règles de cohérence
 
-Material ────┬──< MaterialBatches
-             ├──< PurchaseItems
-             ├──< ProductRecipeItems
-             ├──< ProductionMaterials
-             └──< InventoryTransactions
+* **Rien ne s'efface vraiment.** Ventes, commandes, paiements et dépenses
+  portent `IsDeleted`, `DeletedAt` et `DeletionReason` : une annulation les
+  retire des listes et des totaux, pas de la base.
+* **Le stock ne change que par un mouvement.** `Products.CurrentStock` est
+  toujours égal au dernier `QuantityAfter` de ses mouvements ; une annulation
+  crée le mouvement inverse et pointe vers l'original
+  (`ReversedTransactionId`).
+* **Une opération, une transaction.** Une vente écrit son en-tête, ses lignes
+  et ses sorties de stock en une seule écriture, puis son règlement, dans la
+  même transaction : tout réussit ou rien.
+* **Deux postes, pas d'écrasement silencieux.** Produits, ventes et commandes
+  portent un jeton de version (`xmin` de PostgreSQL) : si une fiche a changé
+  sur un autre poste entre la lecture et l'enregistrement, l'enregistrement
+  est refusé avec un message clair.
+* **Montants** en `numeric(18,2)`, **quantités** en `numeric(18,3)`, **dates**
+  en UTC dans la base, affichées à l'heure d'Alger.
+* **Pièce unique** : `Products.IsUniquePiece` limite le stock à 0 ou 1 ; elle
+  ne peut pas être vendue deux fois, même si le stock négatif est autorisé.
 
-Product ─────┬──< ProductVariants
-             ├──< ProductImages
-             ├──< ProductRecipes ──< ProductRecipeItems
-             ├──< ProductionOrders
-             ├──< SaleItems
-             └──< InventoryTransactions
+## Migrations
 
-ProductionOrder ─┬──< ProductionMaterials
-                 ├──< ProductionStageHistory
-                 ├──< FiringBatchItems
-                 ├──< DecorationOrders
-                 └──< QualityChecks ──< QualityIssues
+| Migration | Rôle |
+|-----------|------|
+| `20260831052649_MigrationInitiale` | Schéma de l'ancienne version (49 tables) |
+| `20261106111722_SimplificationDuSchema` | Passage à 19 tables, données conservées ou archivées |
+| `20261106113933_PiecesUniquesEtCanauxDeCommande` | Pièce unique, canal de la commande, compte Instagram du client |
 
-Kiln ────────────< FiringBatches ────< FiringBatchItems
-
-Sale ────────────┬──< SaleItems
-                 ├──< Payments
-                 └──── Invoice   (une facture par vente)
-
-Role ────────────< RolePermissions >──── Permission
-User ────────────> Role
-```
-
-Lecture : `A ──< B` signifie « un A possède plusieurs B ».
-
----
-
-## Conventions
-
-- **Clé primaire** : `Id`, entier auto-incrémenté.
-- **Traçabilité** : toute table métier porte `CreatedAt`, `CreatedByUserId`,
-  `UpdatedAt`, `UpdatedByUserId`, remplis automatiquement.
-- **Suppression logique** : les pièces comptables — ventes, factures,
-  paiements, dépenses, achats — ne sont jamais effacées. Elles portent
-  `IsDeleted`, `DeletedAt`, `DeletedByUserId` et `DeletionReason`, et
-  disparaissent des écrans sans quitter la base.
-- **Dates** : stockées en temps universel, affichées à l'heure d'Alger.
-- **Montants** : `decimal(18,4)`, pour que les coûts de revient ne dérivent pas.
-- **Numérotation** : `PRÉFIXE-ANNÉE-0000`, par exemple `CMD-2026-0042`.
+Elles s'appliquent toutes seules au démarrage du logiciel. Une installation
+neuve les enchaîne ; une base de l'ancienne version ne reçoit que les deux
+dernières.

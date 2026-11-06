@@ -10,8 +10,10 @@ dotnet run --project src\CeramiPro.App
 ```
 
 Tout est expliqué dans [`CeramiPro/README.md`](CeramiPro/README.md) :
-installation, premier démarrage, sauvegarde, et construction de
-l'installateur Windows.
+installation, premier démarrage, mise à jour d'une installation existante,
+sauvegarde, et construction de l'installateur Windows. Le remaniement en sept
+sections est décrit dans
+[`CeramiPro/docs/REMANIEMENT.md`](CeramiPro/docs/REMANIEMENT.md).
 
 ---
 

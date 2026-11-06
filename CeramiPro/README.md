@@ -1,137 +1,115 @@
-# CeramiPro — Logiciel de gestion d'atelier de céramique
+# CeramiPro — gestion d'un atelier de céramique
 
-Application **Windows native** pour un atelier de céramique et de décoration :
-matières premières, production, séchage, cuisson, décoration, contrôle qualité,
-produits finis, commandes sur mesure, ventes, paiements et facturation.
-
-Interface entièrement en français, avec l'arabe en seconde langue. Configurée
-pour l'Algérie : dinar algérien (`45 000,00 DA`), dates `31/08/2026`, fuseau
-`Africa/Algiers`.
+Application **Windows** (WPF, .NET) pour un atelier de céramique artisanale :
+produits et stock, commandes personnalisées reçues sur Instagram ou WhatsApp,
+clients, ventes avec reçu, dépenses et rapports. Interface entièrement en
+français, configurée pour l'Algérie : dinar (`45 000,00 DA`), dates
+`31/08/2026`, heure d'Alger.
 
 ```
-Bureau  →  CeramiPro.exe  →  Fenêtre Windows
+Bureau  →  CeramiPro.exe  →  Fenêtre Windows  →  PostgreSQL (sur le poste)
 ```
 
-Pas de navigateur, pas de serveur web, pas d'adresse `localhost`.
+Pas de navigateur, pas de site web, pas d'adresse `localhost`.
 
 ---
 
-## Ce que le logiciel sait faire
+## Les sept sections
 
-| Module | Contenu |
-|--------|---------|
-| **Caisse** | Vente au comptoir, douchette, rendu de monnaie, reçu imprimé |
-| **Stock** | Matières, produits finis, mouvements, alertes, valeur immobilisée |
-| **Produits** | Catalogue, catégories, recettes de fabrication, étiquettes |
-| **Production** | Ordres, tableau par étape, lancement des matières, historique |
-| **Cuisson** | Fours, enfournement, défournement, coût d'énergie réparti |
-| **Décoration** | Travaux, types, suivi |
-| **Qualité** | Contrôles avant emballage, pièces acceptées, refusées, à retoucher |
-| **Clients** | Fiches, historique, commandes sur mesure, dettes |
-| **Fournisseurs** | Fiches, achats, réceptions, règlements |
-| **Finances** | Ventes, factures, paiements, dépenses, douze rapports |
-| **Administration** | Comptes, rôles et droits, unités, catégories, sauvegarde |
+| Section | Ce qu'on y fait |
+|---------|-----------------|
+| **Tableau de bord** | Ventes et encaissements du jour, chiffre d'affaires et bénéfice du mois, commandes en retard ou prêtes, produits à refabriquer, graphiques des ventes |
+| **Produits** | Catalogue avec photos, prix, coût, description ; pièces uniques ; stock, entrées, casses, corrections après comptage ; historique de chaque mouvement ; catégories |
+| **Commandes** | Commandes sur mesure (atelier, Instagram, WhatsApp, Facebook, téléphone), acomptes, reste à payer calculé, étapes Reçue → En fabrication → Prête → Livrée, photos du modèle, reçu |
+| **Clients** | Fiche (téléphone, Instagram, adresse), historique des achats, des commandes et des paiements, reste dû |
+| **Ventes** | Nouvelle vente (caisse), historique, encaissement du reste d'une vente à crédit, annulation avec retour en stock, paiements, reçu 80 mm |
+| **Rapports** | Ventes par jour et par mois, bénéfices, dépenses, dettes clients, produits les plus vendus et les plus rentables, état du stock ; export Excel et PDF ; saisie des dépenses |
+| **Paramètres** | Identité et mentions légales de l'atelier, monnaie, numérotation, état de la base ; catégories de dépenses ; comptes utilisateurs et sauvegarde (administrateur) |
 
-Chaque liste s'exporte vers Excel ou s'imprime en PDF. Les factures, les reçus
-de caisse et les planches d'étiquettes sont produits au format PDF.
+Le stock se met à jour tout seul à chaque vente et à chaque annulation. Une
+vente, son règlement et ses sorties de stock s'enregistrent ensemble ou pas du
+tout. Rien n'est effacé : une vente ou un paiement annulé reste dans
+l'historique, avec son motif.
 
 ---
 
-## Sécurité
+## Deux rôles
 
-Quatre rôles : **Administrateur**, **Responsable**, **Employé**, **Caissier**.
+| Rôle | Peut |
+|------|------|
+| **Employé** | Tout le travail quotidien : produits, stock, commandes, clients, ventes, dépenses, rapports |
+| **Administrateur** | En plus : créer et gérer les comptes, sauvegarder et restaurer la base |
 
-Les droits sont vérifiés dans la couche métier, et pas seulement dans les
-écrans : masquer un bouton n'empêche rien, refuser l'opération si.
-
-Les mots de passe sont hachés (PBKDF2 HMAC-SHA512, 210 000 itérations). Un
-compte créé par un administrateur reçoit un mot de passe provisoire, et le
-logiciel propose de le remplacer à chaque connexion tant qu'il reste en usage.
-La proposition n'empêche jamais d'ouvrir l'atelier : le changement se fait
-aussi à tout moment depuis le bas du menu. Cinq tentatives manquées bloquent
-le compte un quart d'heure.
-
-Toute opération sensible est inscrite au journal d'audit.
-
----
-
-## Prérequis
-
-* [.NET SDK 8](https://dotnet.microsoft.com/download) ou supérieur
-* [PostgreSQL 14](https://www.postgresql.org/download/) ou supérieur
-* Windows 10 ou 11
-
-```bat
-winget install Microsoft.DotNet.SDK.8
-winget install PostgreSQL.PostgreSQL.16
-```
-
-Fermez puis rouvrez le terminal. L'installateur PostgreSQL demande un mot de
-passe pour l'utilisateur `postgres` : notez-le.
-
----
-
-## Lancer l'application
-
-```bat
-copy src\CeramiPro.App\appsettings.Local.exemple.json src\CeramiPro.App\appsettings.Local.json
-notepad src\CeramiPro.App\appsettings.Local.json
-```
-
-Renseignez le mot de passe PostgreSQL après `Password=`, enregistrez, puis :
-
-```bat
-dotnet run --project src\CeramiPro.App
-```
-
-La base `CeramiProDB` et ses tables sont créées au premier démarrage.
-
-Le compte de départ est `admin`, mot de passe `CeramiPro@2026` ; le logiciel
-propose d'en choisir un autre à la première connexion, sans l'imposer.
+Le menu cache ce qui n'est pas permis, et les services le refusent aussi.
+Mots de passe hachés (PBKDF2), au moins huit caractères avec majuscule,
+minuscule et chiffre ; cinq essais manqués bloquent le compte un quart d'heure.
 
 ---
 
 ## Installer sur l'ordinateur de l'atelier
 
-```bat
-deploiement\publier.bat
-deploiement\construire-installateur.bat
-```
+1. **PostgreSQL** (14 ou plus récent) :
+   ```bat
+   winget install PostgreSQL.PostgreSQL.16
+   ```
+   L'installateur demande un mot de passe pour l'utilisateur `postgres` : notez-le.
 
-Le premier script produit `deploiement\publication\CeramiPro.exe`, autonome :
-l'atelier n'a pas à installer .NET. Le second construit
-`deploiement\CeramiPro_Setup.exe`, qui pose le logiciel, crée les raccourcis et
-ouvre le fichier de réglages pour y saisir le mot de passe de la base.
+2. **CeramiPro** : lancez `CeramiPro_Setup.exe`. Il installe le logiciel dans
+   `C:\Program Files\CeramiPro`, crée les raccourcis, et propose d'ouvrir le
+   fichier de réglages.
 
-Le second demande [Inno Setup 6](https://jrsoftware.org/isinfo.php), gratuit :
+3. Dans `%LOCALAPPDATA%\CeramiPro\appsettings.Local.json`, renseignez le mot
+   de passe PostgreSQL après `Password=`, puis enregistrez.
 
-```bat
-winget install JRSoftware.InnoSetup
-```
+4. Lancez CeramiPro. Au premier démarrage, la base `CeramiProDB` est créée.
+   Connectez-vous avec `admin` / `CeramiPro@2026` ; le logiciel propose de
+   changer ce mot de passe — faites-le.
 
-PostgreSQL reste à installer séparément sur le poste : c'est un service, et son
-mot de passe appartient à l'atelier.
+L'exécutable est autonome : il n'y a pas de .NET à installer sur le poste.
 
 ### Où vivent les fichiers
 
 | Emplacement | Contenu |
 |-------------|---------|
-| `C:\Program Files\CeramiPro` | Le programme |
-| `%LOCALAPPDATA%\CeramiPro` | Réglages locaux, journaux, sauvegardes, documents |
+| `C:\Program Files\CeramiPro` | Le programme (lecture seule) |
+| `%LOCALAPPDATA%\CeramiPro\appsettings.Local.json` | Mot de passe de la base (jamais livré, jamais versionné) |
+| `%LOCALAPPDATA%\CeramiPro\photos` | Photos des produits et des commandes |
+| `%LOCALAPPDATA%\CeramiPro\sauvegardes` | Archives de sauvegarde |
+| `%LOCALAPPDATA%\CeramiPro\journaux` | Journal du logiciel, un fichier par jour |
 
-Le fichier `appsettings.Local.json` est cherché aux deux endroits, celui du
-dossier de données l'emportant : il se modifie ainsi sans droits
-d'administrateur.
+---
+
+## Mettre à jour une installation existante
+
+**Sauvegardez d'abord** (Paramètres → Sauvegarde → *Sauvegarder maintenant*,
+puis copiez l'archive sur une clé USB). Installez ensuite le nouveau
+`CeramiPro_Setup.exe` par-dessus l'ancien : au premier démarrage, la base est
+mise à jour automatiquement, sans perte de données.
+
+Le détail — ce qui change dans la base, où sont rangées les anciennes données,
+comment revenir en arrière — est dans [docs/MISE-A-JOUR.md](docs/MISE-A-JOUR.md).
+
+---
+
+## Sauvegarde
+
+**Paramètres → Sauvegarde.** Une archive ZIP contient chaque table au format
+CSV (lisible sans le logiciel) et les photos. La sauvegarde automatique est
+active chaque jour à partir de 13 h quand le logiciel est ouvert ; l'heure et
+la durée de conservation se règlent sur le même écran.
+
+Copiez régulièrement la dernière archive sur une clé USB : une sauvegarde
+restée sur le même ordinateur ne protège de rien.
+
+**Restaurer** remplace toutes les données actuelles par celles de l'archive :
+deux confirmations sont demandées ; sauvegardez l'état présent avant. Les
+archives produites par l'ancienne version du logiciel se restaurent aussi.
 
 ---
 
 ## Mot de passe administrateur oublié
 
-Les mots de passe sont hachés : ils ne peuvent pas être retrouvés, même en
-lisant la base. Une porte de secours existe, qui exige d'écrire dans un
-fichier de l'ordinateur de l'atelier.
-
-Ajoutez ces deux lignes dans `appsettings.Local.json` :
+Ajoutez dans `appsettings.Local.json` :
 
 ```json
 {
@@ -142,28 +120,63 @@ Ajoutez ces deux lignes dans `appsettings.Local.json` :
 }
 ```
 
-Lancez le logiciel une fois : le compte `admin` retrouve ce mot de passe, et
-un compte bloqué par des tentatives répétées est débloqué.
-
-**Retirez ensuite ces deux lignes**, puis changez le mot de passe depuis le
-logiciel. Tant qu'elles restent, chaque démarrage réinitialise le compte.
+Lancez le logiciel une fois : le compte `admin` reprend ce mot de passe et
+est débloqué. **Retirez ensuite ces lignes** : tant qu'elles restent, chaque
+démarrage réinitialise le compte.
 
 ---
 
-## Sauvegarde
+## Pour les développeurs
 
-L'écran **Administration → Sauvegarde** produit une archive ZIP contenant une
-copie lisible de chaque table, au format CSV : elle se relit sans le logiciel,
-ce qui est la première qualité d'une sauvegarde. Une sauvegarde automatique
-tourne chaque jour, avec purge des archives trop anciennes.
+### Construire l'exécutable et l'installateur (sous Windows)
 
-Copiez régulièrement la dernière archive sur une clé USB : une sauvegarde
-restée sur le même ordinateur ne protège de rien.
+```bat
+winget install Microsoft.DotNet.SDK.8
+winget install JRSoftware.InnoSetup
+deploiement\publier.bat
+deploiement\construire-installateur.bat
+```
 
-Le bouton **Restaurer** du même écran remet la base dans l'état d'une archive
-choisie. L'opération remplace toutes les données actuelles et ne se défait
-pas : elle demande deux confirmations, et il faut sauvegarder l'état présent
-avant de s'en servir. Fermez puis rouvrez le logiciel après une restauration.
+Le premier script produit `deploiement\publication\CeramiPro.exe` (autonome,
+win-x64) ; le second `deploiement\CeramiPro_Setup.exe`.
+
+Sans poste Windows de développement : sur GitHub, onglet **Actions →
+Exécutable Windows → Run workflow**. Une machine Windows de GitHub lance les
+tests, compile l'application, et met `CeramiPro_Setup.exe` à télécharger en
+bas de la page de l'exécution.
+
+### Lancer depuis les sources
+
+```bat
+copy src\CeramiPro.App\appsettings.Local.exemple.json src\CeramiPro.App\appsettings.Local.json
+notepad src\CeramiPro.App\appsettings.Local.json
+dotnet run --project src\CeramiPro.App
+```
+
+### Solutions et tests
+
+| Fichier | Contenu | Système |
+|---------|---------|---------|
+| `CeramiPro.sln` | Domaine, application, infrastructure, présentation, tests | Windows, Linux, macOS |
+| `CeramiPro.Windows.sln` | Tout, y compris l'application WPF | Windows |
+
+```bat
+dotnet test CeramiPro.sln
+python outils\verifier-xaml.py
+```
+
+318 tests : règles métier, écrans pilotés comme au clic, et, si un PostgreSQL
+répond (`CERAMIPRO_TEST_DB` pour en viser un autre), migration d'une base de
+l'ancienne version, installation neuve, restauration et transactions réelles.
+Sans serveur, ces derniers sont ignorés plutôt que déclarés en échec.
+
+Hors de Windows, `outils/verifier-application-windows.sh` compile la couche
+WPF contre les assemblages de référence de Windows et vérifie les XAML.
+
+### Version de .NET
+
+Le projet cible .NET 8 ; pour passer à .NET 10, changez les deux lignes de
+`Directory.Build.props` (`net10.0`, `net10.0-windows`), rien d'autre.
 
 ---
 
@@ -171,52 +184,8 @@ avant de s'en servir. Fermez puis rouvrez le logiciel après une restauration.
 
 | Document | Contenu |
 |----------|---------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Couches, dépendances, règles |
-| [docs/BASE-DE-DONNEES.md](docs/BASE-DE-DONNEES.md) | Arbre des 49 tables et relations |
+| [docs/REMANIEMENT.md](docs/REMANIEMENT.md) | Audit, ce qui a été retiré, simplifié, conservé, et les corrections |
+| [docs/MISE-A-JOUR.md](docs/MISE-A-JOUR.md) | Mise à jour d'une base existante, archives, retour en arrière |
+| [docs/BASE-DE-DONNEES.md](docs/BASE-DE-DONNEES.md) | Les 19 tables et leurs relations |
 | [docs/NAVIGATION.md](docs/NAVIGATION.md) | Menu et fonctionnement des écrans |
-| [docs/PLAN-DE-DEVELOPPEMENT.md](docs/PLAN-DE-DEVELOPPEMENT.md) | Les 13 étapes |
-
----
-
-## Deux solutions
-
-| Fichier | Contenu | Système |
-|---------|---------|---------|
-| `CeramiPro.sln` | Domaine, application, infrastructure, présentation, tests | Windows, Linux, macOS |
-| `CeramiPro.Windows.sln` | Tout, y compris l'application WPF | Windows uniquement |
-
-WPF ne se compile que sous Windows. Séparer les deux solutions permet de
-compiler et de tester toute la logique métier sur n'importe quelle machine,
-et de réserver à Windows ce qui lui est propre.
-
----
-
-## Tests
-
-```bat
-dotnet test CeramiPro.sln
-python outils\verifier-xaml.py
-```
-
-Les tests qui ont besoin de PostgreSQL sont ignorés si aucun serveur ne
-répond, plutôt que déclarés en échec. Pour viser un autre serveur, définissez
-la variable `CERAMIPRO_TEST_DB`.
-
-Le vérificateur XAML remplace le compilateur WPF, indisponible hors de
-Windows : il contrôle les classes compagnons, les ressources employées, les
-gestionnaires d'événements et les commandes liées.
-
----
-
-## Version de .NET
-
-Le cahier des charges vise .NET 10. Le développement a été mené sur .NET 8,
-seule version disponible sur la machine de compilation. Pour basculer, changez
-les deux lignes de `Directory.Build.props` :
-
-```xml
-<VersionDotNet>net10.0</VersionDotNet>
-<VersionDotNetWindows>net10.0-windows</VersionDotNetWindows>
-```
-
-Aucun autre fichier n'est à modifier.
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Couches, règles, journalisation |
