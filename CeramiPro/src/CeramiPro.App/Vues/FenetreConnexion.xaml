@@ -8,8 +8,7 @@
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="{StaticResource Fond}"
-        FontFamily="{StaticResource PoliceInterface}"
-        FlowDirection="{Binding Sens, Converter={StaticResource SensEnFlowDirection}}">
+        FontFamily="{StaticResource PoliceInterface}">
 
     <Grid Margin="36">
         <Grid.RowDefinitions>
@@ -65,21 +64,5 @@
             </StackPanel>
         </Border>
 
-        <!-- Choix de la langue -->
-        <ItemsControl Grid.Row="2" ItemsSource="{Binding Langues}" HorizontalAlignment="Center">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Button Content="{Binding Converter={StaticResource LangueEnNom}}"
-                            Command="{Binding DataContext.ChoisirLangueCommand,
-                                      RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding}"
-                            Style="{StaticResource BoutonSecondaire}"
-                            Margin="4,0" Padding="14,6" FontSize="12" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
     </Grid>
 </Window>

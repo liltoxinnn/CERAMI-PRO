@@ -6,8 +6,8 @@ using CeramiPro.Presentation.Navigation;
 namespace CeramiPro.App.Services;
 
 /// <summary>
-/// Boîtes de dialogue « Enregistrer sous » de Windows, et ouverture d'un
-/// fichier avec le programme que Windows lui associe.
+/// Boîtes de dialogue « Enregistrer sous » et « Ouvrir » de Windows, et
+/// ouverture d'un fichier avec le programme que Windows lui associe.
 /// </summary>
 public class ServiceFichier : IServiceFichier
 {
@@ -33,6 +33,20 @@ public class ServiceFichier : IServiceFichier
         };
 
         return boite.ShowDialog() == true ? boite.FileName : null;
+    }
+
+    public IReadOnlyList<string> Choisir(string titre, string filtre, bool plusieurs = true)
+    {
+        var boite = new OpenFileDialog
+        {
+            Filter = filtre,
+            Multiselect = plusieurs,
+            CheckFileExists = true,
+            Title = $"CeramiPro — {titre}",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
+        };
+
+        return boite.ShowDialog() == true ? boite.FileNames : Array.Empty<string>();
     }
 
     public void Ouvrir(string chemin)

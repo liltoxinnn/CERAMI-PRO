@@ -50,6 +50,7 @@ public static class InjectionDependances
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<ISauvegardeService, SauvegardeService>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddSingleton<IStockagePhotos, StockagePhotos>();
         services.AddScoped<IExportService, ExportService>();
         services.AddHostedService<SauvegardeAutomatique>();
 

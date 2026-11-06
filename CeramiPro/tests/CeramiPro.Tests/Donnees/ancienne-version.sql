@@ -62,6 +62,19 @@ INSERT INTO "Payments" ("Id", "PaymentNumber", "Direction", "InvoiceId", "Amount
     -- Décaissement égaré : ne doit jamais compter comme une recette.
     (2, 'PAI-2026-0002', 1, NULL, 900, now(), 1, FALSE, FALSE, now());
 
+-- Commandes personnalisées à des étapes retirées (conception, décoration).
+INSERT INTO "CustomOrders" ("Id", "OrderNumber", "CustomerId", "Title", "Quantity", "UnitPrice",
+    "DiscountAmount", "TotalAmount", "PaidAmount", "OrderDate", "Deadline", "Status", "IsDeleted",
+    "Notes", "CreatedAt") VALUES
+    (1, 'CMD-2026-0001', 1, 'Service à thé bleu', 1, 12000, 0, 12000, 4000, now(), now() + interval '10 days',
+     1, FALSE, NULL, now()),
+    (2, 'CMD-2026-0002', 1, 'Plat mural', 1, 8000, 0, 8000, 0, now(), now() + interval '20 days',
+     5, FALSE, 'Bordure dorée', now());
+
+INSERT INTO "Payments" ("Id", "PaymentNumber", "Direction", "CustomOrderId", "CustomerId", "Amount",
+    "PaymentDate", "PaymentMethodId", "IsDeposit", "IsDeleted", "CreatedAt") VALUES
+    (3, 'PAI-2026-0003', 0, 1, 1, 4000, now(), 1, TRUE, FALSE, now());
+
 -- Matières premières, fournisseurs et achats : modules retirés, à archiver.
 INSERT INTO "Units" ("Id", "Code", "Name", "Type", "ConversionFactor", "IsSystem", "IsActive", "CreatedAt") VALUES
     (1, 'kg', 'Kilogramme', 0, 1, TRUE, TRUE, now());

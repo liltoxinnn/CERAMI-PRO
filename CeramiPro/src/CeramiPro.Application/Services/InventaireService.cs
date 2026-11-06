@@ -70,6 +70,13 @@ public class InventaireService : IInventaireService
                 $"Demandé : {Formatage.Quantite(Math.Abs(requete.Quantite))}.");
         }
 
+        if (produit.IsUniquePiece && stockApres > 1)
+        {
+            throw new RegleMetierException(
+                $"« {produit.Name} » est une pièce unique : elle ne peut pas compter plus d'un exemplaire " +
+                $"en stock (il y en a déjà {Formatage.Quantite(stockAvant)}).");
+        }
+
         produit.CurrentStock = stockApres;
 
         // Le coût de revient suit la moyenne pondérée : une entrée au prix du
@@ -221,6 +228,63 @@ public class InventaireService : IInventaireService
     /// Enregistre une régularisation après comptage physique. Le motif est
     /// obligatoire : un écart corrigé sans explication ne s'analyse plus.
     /// </summary>
+    public async Task<MouvementStockDto> EnregistrerManuelAsync(
+        MouvementManuelRequete requete, CancellationToken cancellationToken = default)
+    {
+        if (requete.TypeMouvement is not (InventoryTransactionType.Entree or InventoryTransactionType.Perte))
+        {
+            throw new RegleMetierException(
+                "Seules une entrée en stock ou une casse se saisissent ici. Un retour client " +
+                "passe par l'annulation de la vente, et un écart de comptage par la correction du stock.");
+        }
+
+        if (requete.Quantite <= 0)
+        {
+            throw new RegleMetierException("Indiquez un nombre de pièces supérieur à zéro.");
+        }
+
+        if (requete.CoutUnitaire < 0)
+        {
+            throw new RegleMetierException("Le coût d'une pièce ne peut pas être négatif.");
+        }
+
+        var perte = requete.TypeMouvement == InventoryTransactionType.Perte;
+
+        if (perte && string.IsNullOrWhiteSpace(requete.Notes))
+        {
+            throw new RegleMetierException(
+                "Expliquez la casse ou la perte (pièce fêlée à la cuisson, tombée, abîmée…) : " +
+                "un écart de stock non expliqué ne s'analyse plus ensuite.");
+        }
+
+        var produit = await _context.Products.AsNoTracking()
+                          .FirstOrDefaultAsync(p => p.Id == requete.ProduitId, cancellationToken)
+                      ?? throw IntrouvableException.Pour("Produit", requete.ProduitId);
+
+        await EnregistrerAsync(new MouvementStockRequete
+        {
+            TypeMouvement = requete.TypeMouvement,
+            ProduitId = produit.Id,
+            Quantite = perte ? -requete.Quantite : requete.Quantite,
+            CoutUnitaire = perte || requete.CoutUnitaire == 0 ? produit.ProductionCost : requete.CoutUnitaire,
+            Reference = perte ? "Casse ou perte" : "Entrée en stock",
+            Notes = string.IsNullOrWhiteSpace(requete.Notes) ? null : requete.Notes.Trim()
+        }, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _audit.EnregistrerAsync(
+            AuditAction.Modification, "Stock", produit.Id.ToString(),
+            $"{(perte ? "Casse ou perte" : "Entrée en stock")} : {Formatage.Quantite(requete.Quantite)} × " +
+            $"« {produit.Name} ».",
+            cancellationToken: cancellationToken);
+
+        return (await ListerAsync(
+                new FiltreMouvementsRequete { ProduitId = produit.Id, TaillePage = 1 },
+                cancellationToken))
+            .Elements.First();
+    }
+
     public async Task<MouvementStockDto> RegulariserAsync(
         RegularisationRequete requete, CancellationToken cancellationToken = default)
     {

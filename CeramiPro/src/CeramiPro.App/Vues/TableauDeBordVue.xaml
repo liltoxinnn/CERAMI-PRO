@@ -3,35 +3,304 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              FontFamily="{StaticResource PoliceInterface}">
 
-    <StackPanel>
+    <!--
+        Tableau de bord : ce qu'il faut savoir en ouvrant l'atelier.
+        Quatre chiffres en haut, deux graphiques, puis ce qui demande une
+        action : commandes à suivre, stock à refaire, argent à encaisser.
+        Une seule teinte pour les barres (la terre de l'atelier) ; le rouge
+        et l'orange sont réservés aux alertes, toujours accompagnées d'un mot.
+    -->
 
-        <Border Style="{StaticResource Carte}">
-            <StackPanel>
-                <TextBlock Text="Socle technique" Style="{StaticResource TitreCarte}" />
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
-                           Text="Les fondations de CeramiPro sont en place : fenêtre Windows, menu de l'atelier, injection de dépendances, connexion PostgreSQL, journalisation et formats algériens." />
+    <UserControl.Resources>
 
-                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                    <Ellipse Width="10" Height="10" VerticalAlignment="Center"
-                             Fill="{Binding BaseDeDonneesDisponible,
-                                    Converter={StaticResource BooleenEnPastille}}" />
-                    <TextBlock Text="Base de données :" FontWeight="SemiBold"
-                               Margin="8,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding EtatBaseDeDonnees}" Margin="6,0,0,0"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
+        <Style x:Key="LibelleIndicateur" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource TexteSecondaire}" />
+        </Style>
 
-        <Border Style="{StaticResource Carte}">
-            <StackPanel>
-                <TextBlock Text="Prochaines étapes" Style="{StaticResource TitreCarte}" />
-                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
-                           Text="Les modules du menu s'activeront un par un, en suivant le chemin de l'atelier : matières et fournisseurs, puis produits et recettes, puis production, cuisson, décoration, qualité, clients, ventes et rapports." />
-                <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource TexteSecondaire}"
-                           Text="Les chiffres du tableau de bord apparaîtront ici dès que les ventes et la production existeront. Aucun chiffre n'est inventé en attendant." />
-            </StackPanel>
-        </Border>
+        <Style x:Key="ValeurIndicateur" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Texte}" />
+            <Setter Property="Margin" Value="0,6,0,2" />
+        </Style>
 
-    </StackPanel>
+        <Style x:Key="DetailIndicateur" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource TexteSecondaire}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="CarteIndicateur" TargetType="Border" BasedOn="{StaticResource Carte}">
+            <Setter Property="Margin" Value="0,0,12,16" />
+            <Setter Property="Padding" Value="18,16" />
+        </Style>
+
+        <!-- Ligne « libellé … nombre » des cartes de suivi. -->
+        <Style x:Key="LibelleSuivi" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource Texte}" />
+            <Setter Property="Margin" Value="0,5" />
+        </Style>
+
+        <Style x:Key="NombreSuivi" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Texte}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,5" />
+        </Style>
+
+        <!-- Liste courte d'une carte : nom à gauche, deux valeurs à droite. -->
+        <DataTemplate x:Key="ModeleLigne">
+            <Grid Margin="0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Nom}" FontSize="13" TextTrimming="CharacterEllipsis"
+                           Foreground="{StaticResource Texte}" />
+                <TextBlock Grid.Column="1" Text="{Binding Valeur}" FontSize="12.5" Margin="12,0,0,0"
+                           Foreground="{StaticResource Texte}" FontWeight="SemiBold" />
+                <TextBlock Grid.Column="2" Text="{Binding Complement}" FontSize="12" Margin="12,0,0,0"
+                           Foreground="{StaticResource TexteSecondaire}" MinWidth="70" TextAlignment="Right" />
+            </Grid>
+        </DataTemplate>
+
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+
+            <!-- Actions rapides -->
+            <WrapPanel Margin="0,0,0,16">
+                <Button Content="🧾  Nouvelle vente" Command="{Binding NouvelleVenteCommand}"
+                        Style="{StaticResource BoutonPrincipal}" Margin="0,0,8,8" />
+                <Button Content="📋  Nouvelle commande" Command="{Binding NouvelleCommandeCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,8" />
+                <Button Content="🏺  Nouveau produit" Command="{Binding NouveauProduitCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,8" />
+                <Button Content="Actualiser" Command="{Binding ActualiserCommand}"
+                        Style="{StaticResource BoutonSecondaire}" Margin="0,0,8,8" />
+            </WrapPanel>
+
+            <Border Background="{StaticResource DangerFond}" CornerRadius="6" Padding="12,9" Margin="0,0,0,16"
+                    Visibility="{Binding MessageErreur, Converter={StaticResource TexteEnVisibilite}}">
+                <TextBlock Text="{Binding MessageErreur}" TextWrapping="Wrap"
+                           Foreground="{StaticResource Danger}" FontSize="12.5" />
+            </Border>
+
+            <!-- Indicateurs -->
+            <Grid Margin="0,0,-12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Chiffre d'affaires du jour" Style="{StaticResource LibelleIndicateur}" />
+                        <TextBlock Text="{Binding ChiffreDuJour}" Style="{StaticResource ValeurIndicateur}" />
+                        <TextBlock Text="{Binding DetailDuJour}" Style="{StaticResource DetailIndicateur}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Encaissé aujourd'hui" Style="{StaticResource LibelleIndicateur}" />
+                        <TextBlock Text="{Binding EncaisseDuJour}" Style="{StaticResource ValeurIndicateur}" />
+                        <TextBlock Text="Ventes, acomptes et soldes reçus" Style="{StaticResource DetailIndicateur}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Chiffre d'affaires du mois" Style="{StaticResource LibelleIndicateur}" />
+                        <TextBlock Text="{Binding ChiffreDuMois}" Style="{StaticResource ValeurIndicateur}" />
+                        <TextBlock Text="{Binding DetailDuMois}" Style="{StaticResource DetailIndicateur}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3" Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Résultat du mois" Style="{StaticResource LibelleIndicateur}" />
+                        <TextBlock Text="{Binding ResultatDuMois}" Style="{StaticResource ValeurIndicateur}" />
+                        <TextBlock Text="{Binding DetailResultat}" Style="{StaticResource DetailIndicateur}" />
+                        <TextBlock Text="⚠ Les dépenses dépassent le bénéfice ce mois-ci."
+                                   Style="{StaticResource DetailIndicateur}" Foreground="{StaticResource Danger}"
+                                   Margin="0,4,0,0"
+                                   Visibility="{Binding ResultatNegatif, Converter={StaticResource BooleenEnVisibilite}}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Graphiques -->
+            <Grid Margin="0,0,-12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource CarteIndicateur}" Padding="20,16,20,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource DetailIndicateur}"
+                                       VerticalAlignment="Center">
+                                <Run Text="Plus haute journée :" />
+                                <Run Text="{Binding MaximumTrenteJours, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="Chiffre d'affaires — 30 derniers jours" Style="{StaticResource TitreCarte}" />
+                        </DockPanel>
+
+                        <Border BorderBrush="{StaticResource Bordure}" BorderThickness="0,0,0,1" Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding VentesTrenteJours}"
+                                          ItemTemplate="{StaticResource ModeleBarre}"
+                                          ItemsPanel="{StaticResource PanneauBarres}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource CarteIndicateur}" Padding="20,16,20,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource DetailIndicateur}"
+                                       VerticalAlignment="Center">
+                                <Run Text="Meilleur mois :" />
+                                <Run Text="{Binding MaximumDouzeMois, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="12 derniers mois" Style="{StaticResource TitreCarte}" />
+                        </DockPanel>
+
+                        <Border BorderBrush="{StaticResource Bordure}" BorderThickness="0,0,0,1" Margin="0,8,0,0">
+                            <ItemsControl ItemsSource="{Binding VentesDouzeMois}"
+                                          ItemTemplate="{StaticResource ModeleBarre}"
+                                          ItemsPanel="{StaticResource PanneauBarres}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Suivi -->
+            <Grid Margin="0,0,-12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Commandes -->
+                <Border Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Commandes à suivre" Style="{StaticResource TitreCarte}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Reçues, pas encore commencées" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Column="1" Text="{Binding CommandesRecues}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="1" Text="En cours (toutes étapes)" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CommandesEnCours}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="2" Text="Prêtes, à remettre au client" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CommandesPretes}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="3" Text="Échéance dans les 3 jours" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CommandesProchesEcheance}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="4" Text="⚠ En retard" Style="{StaticResource LibelleSuivi}"
+                                       Foreground="{StaticResource Danger}" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding CommandesEnRetard}"
+                                       Style="{StaticResource NombreSuivi}" Foreground="{StaticResource Danger}" />
+                        </Grid>
+
+                        <Button Content="Voir les commandes" Command="{Binding VoirCommandesCommand}"
+                                Style="{StaticResource BoutonSecondaire}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Stock -->
+                <Border Grid.Column="1" Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="Stock" Style="{StaticResource TitreCarte}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition /><RowDefinition /><RowDefinition />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Produits au catalogue" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Column="1" Text="{Binding NombreProduits}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="1" Text="⚠ Sous le seuil d'alerte" Style="{StaticResource LibelleSuivi}"
+                                       Foreground="{StaticResource Avertissement}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProduitsASurveiller}"
+                                       Style="{StaticResource NombreSuivi}" Foreground="{StaticResource Avertissement}" />
+
+                            <TextBlock Grid.Row="2" Text="Valeur du stock (au coût)" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ValeurStock}" Style="{StaticResource NombreSuivi}" />
+                        </Grid>
+
+                        <Border BorderBrush="{StaticResource Bordure}" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,6,0,0">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding StockFaible}" ItemTemplate="{StaticResource ModeleLigne}" />
+                                <TextBlock Text="Aucun produit sous son seuil : rien à refabriquer pour l'instant."
+                                           Style="{StaticResource DetailIndicateur}" Margin="0,5"
+                                           Visibility="{Binding AucunStockFaible, Converter={StaticResource BooleenEnVisibilite}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Button Content="Voir le stock" Command="{Binding VoirStockCommand}"
+                                Style="{StaticResource BoutonSecondaire}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Argent et meilleures ventes -->
+                <Border Grid.Column="2" Style="{StaticResource CarteIndicateur}">
+                    <StackPanel>
+                        <TextBlock Text="À encaisser" Style="{StaticResource TitreCarte}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition /><RowDefinition />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="Reste dû par les clients" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Column="1" Text="{Binding ResteAEncaisser}" Style="{StaticResource NombreSuivi}" />
+
+                            <TextBlock Grid.Row="1" Text="Acomptes sur commandes en cours" Style="{StaticResource LibelleSuivi}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AcomptesRecus}" Style="{StaticResource NombreSuivi}" />
+                        </Grid>
+
+                        <TextBlock Text="Les plus vendus (30 jours)" Style="{StaticResource TitreCarte}" Margin="0,16,0,4" />
+                        <ItemsControl ItemsSource="{Binding PlusVendus}" ItemTemplate="{StaticResource ModeleLigne}" />
+                        <TextBlock Text="Aucune vente ces trente derniers jours."
+                                   Style="{StaticResource DetailIndicateur}" Margin="0,5"
+                                   Visibility="{Binding AucuneVenteRecente, Converter={StaticResource BooleenEnVisibilite}}" />
+
+                        <Button Content="Voir les rapports" Command="{Binding VoirRapportsCommand}"
+                                Style="{StaticResource BoutonSecondaire}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

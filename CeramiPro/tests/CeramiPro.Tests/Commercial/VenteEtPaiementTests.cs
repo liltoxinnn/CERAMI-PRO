@@ -295,7 +295,7 @@ public class CommandeServiceTests : IDisposable
         commande.Numero.Should().StartWith("CMD-");
         commande.Total.Should().Be(45000m);
         commande.Reste.Should().Be(45000m);
-        commande.Statut.Should().Be(CustomOrderStatus.Commande);
+        commande.Statut.Should().Be(CustomOrderStatus.Recue);
     }
 
     [Fact]
@@ -363,16 +363,16 @@ public class CommandeServiceTests : IDisposable
         foreach (var etape in new[]
                  {
                      CustomOrderStatus.Conception, CustomOrderStatus.ValidationClient,
-                     CustomOrderStatus.Production, CustomOrderStatus.Cuisson,
+                     CustomOrderStatus.EnFabrication, CustomOrderStatus.Cuisson,
                      CustomOrderStatus.Decoration, CustomOrderStatus.ControleQualite,
-                     CustomOrderStatus.Pret
+                     CustomOrderStatus.Prete
                  })
         {
             await _atelier.Commandes.ChangerStatutAsync(commande.Id, etape);
         }
 
         var action = async () => await _atelier.Commandes.ChangerStatutAsync(
-            commande.Id, CustomOrderStatus.Livre);
+            commande.Id, CustomOrderStatus.Livree);
 
         await action.Should().ThrowAsync<RegleMetierException>().WithMessage("*à encaisser*");
     }

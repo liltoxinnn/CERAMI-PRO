@@ -8,6 +8,7 @@ public record ClientDto(
     string Numero,
     string Nom,
     string? Telephone,
+    string? Instagram,
     string? Email,
     string? Adresse,
     string? Ville,
@@ -24,6 +25,10 @@ public class ClientRequete
 {
     public string Nom { get; set; } = string.Empty;
     public string? Telephone { get; set; }
+
+    /// <summary>Compte Instagram, avec ou sans « @ ».</summary>
+    public string? Instagram { get; set; }
+
     public string? Email { get; set; }
     public string? Adresse { get; set; }
     public string? Ville { get; set; }
@@ -35,6 +40,13 @@ public class FiltreClientsRequete : PagedRequest
 {
     public bool SeulementAvecDette { get; set; }
     public bool InclureInactifs { get; set; } = true;
+}
+
+/// <summary>Client proposé dans une liste de choix : nom et de quoi le reconnaître.</summary>
+public record ClientChoixDto(int Id, string Nom, string? Telephone, string? Instagram)
+{
+    public string Libelle => string.Join(" — ",
+        new[] { Nom, Telephone, Instagram }.Where(v => !string.IsNullOrWhiteSpace(v)));
 }
 
 /// <summary>Note datée ajoutée à la fiche d'un client.</summary>
@@ -49,6 +61,8 @@ public record CommandeDto(
     string ClientNom,
     string? ClientTelephone,
     string Titre,
+    CanalCommande Canal,
+    string CanalLibelle,
     string? Description,
     decimal? Largeur,
     decimal? Hauteur,
@@ -83,6 +97,10 @@ public class CommandeRequete
 {
     public int ClientId { get; set; }
     public string Titre { get; set; } = string.Empty;
+
+    /// <summary>Par où la commande est arrivée.</summary>
+    public CanalCommande Canal { get; set; } = CanalCommande.Atelier;
+
     public string? Description { get; set; }
     public decimal? Largeur { get; set; }
     public decimal? Hauteur { get; set; }
@@ -100,10 +118,14 @@ public class CommandeRequete
 public class FiltreCommandesRequete : PagedRequest
 {
     public CustomOrderStatus? Statut { get; set; }
+    public CanalCommande? Canal { get; set; }
     public int? ClientId { get; set; }
     public bool SeulementEnRetard { get; set; }
     public bool SeulementProchesEcheance { get; set; }
     public bool SeulementEnCours { get; set; }
+
+    /// <summary>Commandes non annulées dont il reste une somme à encaisser.</summary>
+    public bool SeulementAvecReste { get; set; }
 }
 
 public class PhotoCommandeRequete

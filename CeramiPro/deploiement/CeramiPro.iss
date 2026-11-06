@@ -52,11 +52,12 @@ Name: "raccourcibureau"; Description: "{cm:CreerRaccourciBureau}"; \
 Source: "publication\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-; Journaux, documents produits et sauvegardes, dans le profil de
-; l'utilisateur : le dossier du programme reste en lecture seule.
+; Journaux, sauvegardes et photos, dans le profil de l'utilisateur :
+; le dossier du programme reste en lecture seule.
 Name: "{localappdata}\{#NomApplication}"
 Name: "{localappdata}\{#NomApplication}\journaux"
 Name: "{localappdata}\{#NomApplication}\sauvegardes"
+Name: "{localappdata}\{#NomApplication}\photos"
 
 [Icons]
 Name: "{group}\{#NomApplication}"; Filename: "{app}\{#Executable}"

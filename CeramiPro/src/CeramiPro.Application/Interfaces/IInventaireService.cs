@@ -25,6 +25,13 @@ public interface IInventaireService
     Task<PagedResult<MouvementStockDto>> ListerAsync(
         FiltreMouvementsRequete requete, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Enregistre une entrée ou une casse saisie à la main, et l'écrit en
+    /// base. Une casse doit être expliquée.
+    /// </summary>
+    Task<MouvementStockDto> EnregistrerManuelAsync(
+        MouvementManuelRequete requete, CancellationToken cancellationToken = default);
+
     /// <summary>Enregistre une régularisation justifiée après comptage.</summary>
     Task<MouvementStockDto> RegulariserAsync(
         RegularisationRequete requete, CancellationToken cancellationToken = default);

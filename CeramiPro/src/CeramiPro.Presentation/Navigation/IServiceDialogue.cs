@@ -16,4 +16,12 @@ public interface IServiceDialogue
 
     /// <summary>Demande une confirmation ; renvoie vrai si l'utilisateur accepte.</summary>
     bool Confirmer(string message, string titre = "Confirmation");
+
+    /// <summary>
+    /// Demande un court texte — le motif d'une annulation, par exemple.
+    /// Renvoie nul si l'utilisateur renonce ; un texte obligatoire ne peut
+    /// pas être validé vide.
+    /// </summary>
+    string? Demander(string message, string titre = "Précision", string valeurInitiale = "",
+        bool obligatoire = true);
 }

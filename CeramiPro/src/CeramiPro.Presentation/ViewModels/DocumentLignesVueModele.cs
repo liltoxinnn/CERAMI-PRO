@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,23 +7,18 @@ using CommunityToolkit.Mvvm.Input;
 namespace CeramiPro.Presentation.ViewModels;
 
 /// <summary>
-/// Base des écrans qui composent un document ligne par ligne : la caisse,
-/// la saisie d'un achat, l'enfournement d'une cuisson.
-///
-/// Les trois se ressemblent assez pour partager le même écran : on choisit
-/// un article, on donne une quantité, on l'ajoute, et le total se met à
-/// jour. Ce qui les distingue — le champ d'en-tête, ce qu'on enregistre —
-/// reste dans les classes dérivées.
+/// Base des écrans qui composent un document ligne par ligne, comme la
+/// caisse : on choisit un article, on donne une quantité, on l'ajoute, et le
+/// total se met à jour. Ce qui est propre au document — les champs
+/// d'en-tête, ce qu'on enregistre — reste dans la classe dérivée.
 /// </summary>
 public abstract partial class DocumentLignesVueModele<TRequete> : VueModeleBase
     where TRequete : class, new()
 {
-    protected readonly IServiceLangue Langue;
     protected readonly IServiceDialogue Dialogue;
 
-    protected DocumentLignesVueModele(IServiceLangue langue, IServiceDialogue dialogue)
+    protected DocumentLignesVueModele(IServiceDialogue dialogue)
     {
-        Langue = langue;
         Dialogue = dialogue;
 
         Lignes.CollectionChanged += (_, _) => Recalculer();
@@ -33,23 +27,20 @@ public abstract partial class DocumentLignesVueModele<TRequete> : VueModeleBase
     /// <summary>En-tête du document, lié aux champs déclarés par l'écran.</summary>
     public TRequete Requete { get; protected set; } = new();
 
-    /// <summary>Champs d'en-tête : client, fournisseur, four, mode de règlement…</summary>
+    /// <summary>Champs d'en-tête : client, mode de règlement, notes…</summary>
     public abstract IReadOnlyList<ChampFormulaire> Champs { get; }
 
-    /// <summary>Nom donné à ce que l'on ajoute : « produit », « matière », « pièce ».</summary>
+    /// <summary>Nom donné à ce que l'on ajoute : « produit ».</summary>
     public abstract string NomArticle { get; }
 
     /// <summary>Intitulé du bouton d'enregistrement.</summary>
     public abstract string LibelleEnregistrer { get; }
 
-    /// <summary>Faux pour un enfournement, où les pièces n'ont pas de prix.</summary>
+    /// <summary>Faux pour un document où les pièces n'ont pas de prix.</summary>
     public virtual bool AfficherPrix => true;
 
     /// <summary>Vrai à la caisse, où l'on encaisse en même temps que l'on vend.</summary>
     public virtual bool GereReglement => false;
-
-    /// <summary>Vrai lorsqu'une douchette peut servir à ajouter une ligne.</summary>
-    public virtual bool AccepteScan => false;
 
     // ------------------------------------------------------------- Articles
 
@@ -67,10 +58,6 @@ public abstract partial class DocumentLignesVueModele<TRequete> : VueModeleBase
 
     [ObservableProperty]
     private decimal _remiseLigne;
-
-    /// <summary>Code lu par la douchette ou tapé à la main.</summary>
-    [ObservableProperty]
-    private string _codeScanne = string.Empty;
 
     partial void OnArticleChoisiChanged(int? value) => _ = ArticleChoisiAsync(value);
 
@@ -161,7 +148,7 @@ public abstract partial class DocumentLignesVueModele<TRequete> : VueModeleBase
 
     /// <summary>
     /// Ajoute une ligne, ou augmente celle qui existe déjà pour cet article.
-    /// Scanner deux fois le même produit doit donner « 2 », pas deux lignes.
+    /// Ajouter deux fois le même produit doit donner « 2 », pas deux lignes.
     /// </summary>
     protected void Ajouter(int articleId, string nom, decimal quantite,
         decimal prixUnitaire, decimal remise = 0m, string? reference = null, string? unite = null)
@@ -230,30 +217,11 @@ public abstract partial class DocumentLignesVueModele<TRequete> : VueModeleBase
         RemiseLigne = 0m;
         RemiseDocument = 0m;
         MontantPaye = 0m;
-        CodeScanne = string.Empty;
         MessageErreur = null;
 
         OnPropertyChanged(nameof(Requete));
         Recalculer();
     }
-
-    /// <summary>Ajoute la ligne correspondant au code lu par la douchette.</summary>
-    [RelayCommand]
-    private async Task ScannerAsync()
-    {
-        if (string.IsNullOrWhiteSpace(CodeScanne))
-        {
-            return;
-        }
-
-        var code = CodeScanne.Trim();
-        CodeScanne = string.Empty;
-
-        await ExecuterAsync(() => ScannerAsync(code));
-    }
-
-    /// <summary>Traite un code lu ; sans effet sur les écrans qui n'en acceptent pas.</summary>
-    protected virtual Task ScannerAsync(string code) => Task.CompletedTask;
 
     /// <summary>Enregistre le document auprès du service métier.</summary>
     [RelayCommand]

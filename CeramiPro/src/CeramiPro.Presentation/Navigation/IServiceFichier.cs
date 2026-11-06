@@ -1,8 +1,9 @@
 namespace CeramiPro.Presentation.Navigation;
 
 /// <summary>
-/// Demande à l'utilisateur où enregistrer un fichier. Passer par une
-/// interface permet de tester les écrans sans ouvrir de boîte de dialogue.
+/// Choix de fichiers : où enregistrer un document, quelles photos ajouter.
+/// Passer par une interface permet de tester les écrans sans ouvrir de
+/// boîte de dialogue.
 /// </summary>
 public interface IServiceFichier
 {
@@ -13,4 +14,10 @@ public interface IServiceFichier
 
     /// <summary>Ouvre un fichier avec le programme associé de Windows.</summary>
     void Ouvrir(string chemin);
+
+    /// <summary>
+    /// Demande à l'utilisateur de choisir un ou plusieurs fichiers existants.
+    /// Renvoie une liste vide s'il renonce.
+    /// </summary>
+    IReadOnlyList<string> Choisir(string titre, string filtre, bool plusieurs = true);
 }

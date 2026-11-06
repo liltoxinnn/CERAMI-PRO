@@ -1,5 +1,4 @@
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,40 +7,33 @@ namespace CeramiPro.Presentation.ViewModels;
 
 /// <summary>
 /// Fenêtre principale : le menu latéral, l'en-tête et la zone de contenu.
-/// C'est elle qui décide des entrées visibles selon les droits de la personne
-/// connectée, et qui bascule l'interface d'une langue à l'autre.
+/// C'est elle qui décide des entrées visibles selon le rôle de la personne
+/// connectée.
 /// </summary>
 public partial class FenetrePrincipaleVueModele : ObservableObject
 {
     private readonly IServiceNavigation _navigation;
     private readonly IUtilisateurCourant _utilisateurCourant;
-    private readonly IServiceLangue _langue;
     private readonly IServiceCompte? _compte;
 
     public FenetrePrincipaleVueModele(
         IServiceNavigation navigation,
         IUtilisateurCourant utilisateurCourant,
-        IServiceLangue langue,
         IServiceCompte? compte = null)
     {
         _navigation = navigation;
         _utilisateurCourant = utilisateurCourant;
-        _langue = langue;
         _compte = compte;
 
-        Menu = FiltrerSelonLesDroits(CatalogueNavigation.Construire(langue));
+        Menu = FiltrerSelonLeRole(CatalogueNavigation.Construire());
 
         _navigation.VueChangee += vue => VueCourante = vue;
-        _langue.LangueChangee += AppliquerLangue;
 
         VueCourante = _navigation.VueCourante;
     }
 
-    /// <summary>Entrées du menu que l'utilisateur a le droit de voir.</summary>
+    /// <summary>Entrées du menu que l'utilisateur peut ouvrir.</summary>
     public IReadOnlyList<ElementNavigation> Menu { get; }
-
-    /// <summary>Langues proposées dans l'en-tête.</summary>
-    public IReadOnlyList<Langue> Langues { get; } = new[] { Langue.Francais, Langue.Arabe };
 
     [ObservableProperty]
     private VueModeleBase? _vueCourante;
@@ -49,31 +41,23 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     [ObservableProperty]
     private bool _menuReduit;
 
-    public Langue LangueCourante => _langue.LangueCourante;
+    public string NomApplication => "CeramiPro";
+
+    public string SousTitreApplication => "Gestion d'atelier céramique";
 
     /// <summary>
-    /// Sens de lecture. En arabe, toute la fenêtre s'inverse : le menu passe
-    /// à droite, les colonnes et les champs suivent.
-    /// </summary>
-    public SensEcriture Sens => _langue.Sens;
-
-    public string NomApplication => _langue["app.nom"];
-
-    public string SousTitreApplication => _langue["app.sousTitre"];
-
-    /// <summary>
-    /// Tant que l'authentification n'existe pas, l'encadré du bas annonce
-    /// clairement qu'aucune session n'est ouverte, plutôt qu'un tiret muet.
+    /// Sans session ouverte, l'encadré du bas l'annonce clairement plutôt
+    /// que d'afficher un tiret muet.
     /// </summary>
     public string NomUtilisateur
         => _utilisateurCourant.NomComplet
            ?? _utilisateurCourant.NomUtilisateur
-           ?? _langue["message.sessionAbsente"];
+           ?? "Aucune session";
 
     /// <summary>Nom lisible du rôle, jamais son code technique.</summary>
     public string NomRole => _utilisateurCourant.NomRole ?? string.Empty;
 
-    public string LibelleDeconnexion => _langue["action.deconnexion"];
+    public string LibelleDeconnexion => "Se déconnecter";
 
     public string LibelleChangerMotDePasse => "Changer mon mot de passe";
 
@@ -113,37 +97,19 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
     [RelayCommand]
     private void BasculerMenu() => MenuReduit = !MenuReduit;
 
-    [RelayCommand]
-    private void ChoisirLangue(Langue langue) => _langue.Changer(langue);
-
-    /// <summary>Rafraîchit tout ce qui dépend de la langue, sans redémarrer.</summary>
-    private void AppliquerLangue()
-    {
-        foreach (var element in Menu)
-        {
-            element.RafraichirLibelle();
-        }
-
-        OnPropertyChanged(nameof(LangueCourante));
-        OnPropertyChanged(nameof(Sens));
-        OnPropertyChanged(nameof(NomApplication));
-        OnPropertyChanged(nameof(SousTitreApplication));
-        OnPropertyChanged(nameof(NomUtilisateur));
-        OnPropertyChanged(nameof(LibelleDeconnexion));
-    }
-
     /// <summary>
-    /// Retire les entrées interdites. Un groupe dont toutes les sous-entrées
-    /// sont interdites disparaît lui aussi, plutôt que de rester vide.
+    /// Retire les entrées réservées aux administrateurs. Un groupe dont toutes
+    /// les sous-entrées sont retirées disparaît lui aussi, plutôt que de
+    /// rester vide.
     /// </summary>
-    private IReadOnlyList<ElementNavigation> FiltrerSelonLesDroits(
+    private IReadOnlyList<ElementNavigation> FiltrerSelonLeRole(
         IReadOnlyList<ElementNavigation> elements)
     {
         var visibles = new List<ElementNavigation>();
 
         foreach (var element in elements)
         {
-            if (element.DroitRequis is not null && !_utilisateurCourant.PossedeDroit(element.DroitRequis))
+            if (element.AdministrateurSeulement && !_utilisateurCourant.EstAdministrateur)
             {
                 continue;
             }
@@ -154,13 +120,13 @@ public partial class FenetrePrincipaleVueModele : ObservableObject
                 continue;
             }
 
-            var enfants = FiltrerSelonLesDroits(element.Enfants);
+            var enfants = FiltrerSelonLeRole(element.Enfants);
 
             if (enfants.Count > 0)
             {
                 visibles.Add(new ElementNavigation(
-                    _langue, element.CleLibelle, element.Icone,
-                    element.Destination, element.DroitRequis, enfants));
+                    element.Libelle, element.Icone, element.Destination,
+                    element.AdministrateurSeulement, enfants));
             }
         }
 

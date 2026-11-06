@@ -34,6 +34,8 @@ public class CustomOrderConfiguration : IEntityTypeConfiguration<CustomOrder>
         builder.Ignore(c => c.RemainingAmount);
 
         builder.Property(c => c.Status).HasConversion<int>();
+        builder.Property(c => c.Channel).HasConversion<int>();
+        builder.Property(c => c.Version).IsRowVersion();
 
         builder.HasIndex(c => c.OrderNumber).IsUnique();
         builder.HasIndex(c => c.Status);
@@ -116,6 +118,7 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.Ignore(v => v.RemainingAmount);
 
         builder.Property(v => v.Status).HasConversion<int>();
+        builder.Property(v => v.Version).IsRowVersion();
 
         builder.HasIndex(v => v.SaleNumber).IsUnique();
         builder.HasIndex(v => v.SaleDate);

@@ -127,4 +127,36 @@
         <Setter Property="SelectionMode" Value="Single" />
     </Style>
 
+
+    <!--
+        Graphiques en barres du tableau de bord et des rapports. Une seule
+        teinte, la terre de l'atelier ; la colonne entière réagit au survol
+        et porte l'info-bulle, pour qu'une petite valeur reste facile à viser.
+    -->
+
+    <DataTemplate x:Key="ModeleBarre">
+        <Grid x:Name="Colonne" Background="Transparent" ToolTip="{Binding InfoBulle}" Margin="1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="150" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="Barre" VerticalAlignment="Bottom" Height="{Binding Hauteur}"
+                    Background="{StaticResource Terre}" CornerRadius="4,4,0,0" />
+
+            <TextBlock Grid.Row="1" Text="{Binding EtiquetteAffichee}" FontSize="10.5"
+                       Foreground="{StaticResource TexteSecondaire}" TextAlignment="Center"
+                       Margin="-24,6,-24,0" />
+        </Grid>
+        <DataTemplate.Triggers>
+            <Trigger SourceName="Colonne" Property="IsMouseOver" Value="True">
+                <Setter TargetName="Barre" Property="Background" Value="{StaticResource TerreFoncee}" />
+            </Trigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <ItemsPanelTemplate x:Key="PanneauBarres">
+        <UniformGrid Rows="1" />
+    </ItemsPanelTemplate>
+
 </ResourceDictionary>

@@ -34,4 +34,5 @@ public record RestaurationDto(
     int NombreTables,
     int NombreLignes,
     bool AncienneVersion = false,
-    int TablesNonReprises = 0);
+    int TablesNonReprises = 0,
+    int PhotosRestaurees = 0);

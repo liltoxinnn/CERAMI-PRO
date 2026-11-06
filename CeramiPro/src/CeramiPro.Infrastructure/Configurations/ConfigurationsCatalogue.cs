@@ -43,6 +43,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.CurrentStock).HasPrecision(18, 3);
         builder.Property(p => p.MinimumStock).HasPrecision(18, 3);
 
+        builder.Property(p => p.Version).IsRowVersion();
+
         builder.HasIndex(p => p.Reference).IsUnique();
         builder.HasIndex(p => p.Name);
 
@@ -80,6 +82,7 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.CustomerNumber).HasMaxLength(30).IsRequired();
         builder.Property(c => c.FullName).HasMaxLength(150).IsRequired();
         builder.Property(c => c.PhoneNumber).HasMaxLength(30);
+        builder.Property(c => c.Instagram).HasMaxLength(100);
         builder.Property(c => c.Email).HasMaxLength(150);
         builder.Property(c => c.Address).HasMaxLength(300);
         builder.Property(c => c.City).HasMaxLength(100);

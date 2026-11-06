@@ -4,13 +4,11 @@
              FontFamily="{StaticResource PoliceInterface}">
 
     <!--
-        Écran de saisie d'un document ligne par ligne : la caisse, un achat
-        chez un fournisseur, un enfournement.
-
-        Les trois se composent de la même façon — on choisit un article, on
-        l'ajoute, le total suit — et partagent donc cet écran. Ce qui les
-        distingue tient dans les champs d'en-tête, construits à droite à
-        partir de ceux que la vue-modèle déclare.
+        Écran de saisie d'un document ligne par ligne : la nouvelle vente.
+        On choisit un produit — en tapant le début de son nom ou de sa
+        référence —, on l'ajoute, et le total suit. Les champs d'en-tête
+        (client, mode de règlement) sont construits à droite à partir de ceux
+        que la vue-modèle déclare.
     -->
 
     <Grid>
@@ -21,27 +19,6 @@
 
         <!-- ============ Colonne de gauche : articles et lignes ============ -->
         <DockPanel Grid.Column="0" Margin="0,0,16,0">
-
-            <!-- Douchette -->
-            <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16"
-                    Background="{StaticResource TerreClaire}" BorderBrush="{StaticResource Terre}"
-                    Visibility="{Binding AccepteScan, Converter={StaticResource BooleenEnVisibilite}}">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Left" Text="🔍" FontSize="18"
-                               VerticalAlignment="Center" Margin="0,0,10,0" />
-
-                    <Button DockPanel.Dock="Right" Content="Ajouter" Command="{Binding ScannerCommand}"
-                            Style="{StaticResource BoutonPrincipal}" Margin="8,0,0,0" MinWidth="100" />
-
-                    <TextBox x:Name="ZoneScan" Style="{StaticResource Saisie}" FontSize="15"
-                             Text="{Binding CodeScanne, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Scannez l'étiquette du produit, ou tapez son code puis Entrée.">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Enter" Command="{Binding ScannerCommand}" />
-                        </TextBox.InputBindings>
-                    </TextBox>
-                </DockPanel>
-            </Border>
 
             <!-- Choix d'un article -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="16">
@@ -55,8 +32,8 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                        <TextBlock Text="Article" Style="{StaticResource EtiquetteChamp}" />
-                        <ComboBox ItemsSource="{Binding Articles}"
+                        <TextBlock Text="Produit" Style="{StaticResource EtiquetteChamp}" />
+                        <ComboBox x:Name="ChoixArticle" ItemsSource="{Binding Articles}"
                                   DisplayMemberPath="Libelle" SelectedValuePath="Valeur"
                                   SelectedValue="{Binding ArticleChoisi}"
                                   IsEditable="True" IsTextSearchEnabled="True"

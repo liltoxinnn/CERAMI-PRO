@@ -35,13 +35,15 @@
                 <StackPanel Grid.Column="1" Margin="0,0,12,0">
                     <TextBlock Text="Du" Style="{StaticResource EtiquetteChamp}" />
                     <DatePicker SelectedDate="{Binding Du}" Width="150" MinHeight="38"
-                                VerticalContentAlignment="Center" />
+                                VerticalContentAlignment="Center"
+                                IsEnabled="{Binding SansPeriode, Converter={StaticResource BooleenInverse}}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Margin="0,0,16,0">
                     <TextBlock Text="Au" Style="{StaticResource EtiquetteChamp}" />
                     <DatePicker SelectedDate="{Binding Au}" Width="150" MinHeight="38"
-                                VerticalContentAlignment="Center" />
+                                VerticalContentAlignment="Center"
+                                IsEnabled="{Binding SansPeriode, Converter={StaticResource BooleenInverse}}" />
                 </StackPanel>
 
                 <Button Grid.Column="3" Content="Afficher" Command="{Binding AfficherCommand}"
@@ -49,6 +51,21 @@
                         VerticalAlignment="Bottom" />
             </Grid>
         </Border>
+
+        <!-- Périodes rapides -->
+        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,12"
+                   IsEnabled="{Binding SansPeriode, Converter={StaticResource BooleenInverse}}">
+            <TextBlock Text="Période :" VerticalAlignment="Center" Margin="0,0,10,8"
+                       Foreground="{StaticResource TexteSecondaire}" FontSize="12.5" />
+            <Button Content="Aujourd'hui" Command="{Binding AujourdhuiCommand}"
+                    Style="{StaticResource BoutonSecondaire}" Padding="12,6" MinHeight="32" Margin="0,0,6,8" />
+            <Button Content="Ce mois" Command="{Binding CeMoisCommand}"
+                    Style="{StaticResource BoutonSecondaire}" Padding="12,6" MinHeight="32" Margin="0,0,6,8" />
+            <Button Content="Mois dernier" Command="{Binding MoisDernierCommand}"
+                    Style="{StaticResource BoutonSecondaire}" Padding="12,6" MinHeight="32" Margin="0,0,6,8" />
+            <Button Content="Cette année" Command="{Binding CetteAnneeCommand}"
+                    Style="{StaticResource BoutonSecondaire}" Padding="12,6" MinHeight="32" Margin="0,0,6,8" />
+        </WrapPanel>
 
         <!-- Titre du rapport affiché et boutons d'export -->
         <Border DockPanel.Dock="Top" Margin="0,0,0,12"
@@ -69,6 +86,27 @@
                 </StackPanel>
             </DockPanel>
         </Border>
+
+        <!-- Graphique du rapport -->
+        <Border DockPanel.Dock="Top" Style="{StaticResource Carte}" Padding="20,14,20,10"
+                Visibility="{Binding AGraphique, Converter={StaticResource BooleenEnVisibilite}}">
+            <StackPanel>
+                <TextBlock Style="{StaticResource IntroductionPage}" Margin="0,0,0,6">
+                    <Run Text="Valeur la plus haute :" />
+                    <Run Text="{Binding MaximumGraphique, Mode=OneWay}" FontWeight="SemiBold" />
+                </TextBlock>
+                <Border BorderBrush="{StaticResource Bordure}" BorderThickness="0,0,0,1">
+                    <ItemsControl ItemsSource="{Binding Barres}"
+                                  ItemTemplate="{StaticResource ModeleBarre}"
+                                  ItemsPanel="{StaticResource PanneauBarres}" />
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Comment les chiffres sont calculés -->
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding Remarque}" Style="{StaticResource IntroductionPage}"
+                   Margin="2,10,0,0"
+                   Visibility="{Binding Remarque, Converter={StaticResource TexteEnVisibilite}}" />
 
         <!-- Totaux du rapport -->
         <Border DockPanel.Dock="Bottom" Background="{StaticResource TerreClaire}"

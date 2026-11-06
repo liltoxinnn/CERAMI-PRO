@@ -49,11 +49,16 @@ public record TableauDeBordDto(
     IReadOnlyList<ClassementDto> ProduitsLesPlusVendus,
     IReadOnlyList<ProduitAlerteDto> StockFaible);
 
+/// <param name="ChiffreAffaires">Ventes du jour et commandes livrées ce jour-là.</param>
+/// <param name="Encaisse">Argent reçu dans la journée, acomptes compris.</param>
 public record ActiviteDuJourDto(
-    decimal ChiffreAffaires, decimal Benefice, int NombreVentes, decimal PaiementsRecus);
+    decimal ChiffreAffaires, int NombreVentes, int CommandesLivrees, decimal Encaisse);
 
+/// <param name="Benefice">Chiffre d'affaires, moins la TVA et le coût des pièces vendues.</param>
+/// <param name="Resultat">Bénéfice moins les dépenses du mois.</param>
 public record ActivitePeriodeDto(
-    decimal ChiffreAffaires, decimal Benefice, decimal Depenses, decimal Resultat, int NombreVentes);
+    decimal ChiffreAffaires, decimal Benefice, decimal Depenses, decimal Resultat,
+    int NombreVentes, int CommandesLivrees, decimal Encaisse);
 
 public record CommandesResumeDto(
     int EnAttente, int EnCours, int ProchesEcheance, int EnRetard, int PretesALivrer);
@@ -61,8 +66,10 @@ public record CommandesResumeDto(
 public record StockResumeDto(
     int NombreProduits, int ProduitsFaibles, decimal ValeurStock);
 
+/// <param name="ResteAEncaisser">Ventes à crédit et commandes non soldées.</param>
+/// <param name="AcomptesRecus">Acomptes versés sur les commandes pas encore livrées.</param>
 public record FinancesResumeDto(
-    decimal ArgentRecu, decimal CreancesClients, decimal DepensesMois);
+    decimal ResteAEncaisser, decimal AcomptesRecus);
 
 /// <summary>Produit passé sous son seuil, montré directement sur le tableau de bord.</summary>
 public record ProduitAlerteDto(int Id, string Nom, decimal Stock, decimal Seuil);
@@ -78,16 +85,18 @@ public record ClassementDto(string Nom, decimal Quantite, decimal Montant, strin
 /// <summary>Rapports disponibles dans l'écran « Rapports ».</summary>
 public enum TypeRapport
 {
-    [Libelle("Chiffre d'affaires")] ChiffreAffaires,
+    [Libelle("Ventes par jour")] VentesParJour,
+    [Libelle("Ventes par mois")] VentesParMois,
     [Libelle("Bénéfices")] Benefices,
     [Libelle("Dépenses")] Depenses,
     [Libelle("Dettes clients")] DettesClients,
     [Libelle("Produits les plus vendus")] ProduitsLesPlusVendus,
     [Libelle("Produits les plus rentables")] ProduitsLesPlusRentables,
-    [Libelle("Valeur du stock")] ValeurStock
+    [Libelle("État du stock")] ValeurStock
 }
 
 /// <summary>Rapport prêt à afficher, à imprimer ou à exporter.</summary>
+/// <param name="Remarque">Précision sur la façon dont les chiffres sont calculés.</param>
 public record RapportDto(
     TypeRapport Type,
     string Titre,
@@ -95,41 +104,12 @@ public record RapportDto(
     IReadOnlyList<string> Colonnes,
     IReadOnlyList<IReadOnlyList<string>> Lignes,
     IReadOnlyList<string>? Totaux,
-    IReadOnlyList<PointGraphiqueDto>? Graphique);
+    IReadOnlyList<PointGraphiqueDto>? Graphique,
+    string? Remarque = null);
 
 public class RapportRequete
 {
-    public TypeRapport Type { get; set; } = TypeRapport.ChiffreAffaires;
+    public TypeRapport Type { get; set; } = TypeRapport.VentesParJour;
     public DateTime? Du { get; set; }
     public DateTime? Au { get; set; }
 }
-
-// ------------------------------------------------------------- Calculateurs
-
-/// <summary>Calcul d'une surface avec pourcentage de perte.</summary>
-public class CalculSurfaceRequete
-{
-    public decimal Longueur { get; set; }
-    public decimal Largeur { get; set; }
-    public decimal PourcentagePerte { get; set; }
-    public int NombrePieces { get; set; } = 1;
-}
-
-public record CalculSurfaceDto(
-    decimal SurfaceUnitaire,
-    decimal SurfaceTotale,
-    decimal Perte,
-    decimal SurfaceAvecPerte);
-
-/// <summary>Calcul du nombre de pièces ou d'emballages nécessaires.</summary>
-public class CalculQuantiteRequete
-{
-    public decimal QuantiteParUnite { get; set; } = 1m;
-    public decimal QuantiteSouhaitee { get; set; }
-    public decimal PourcentagePerte { get; set; }
-}
-
-public record CalculQuantiteDto(
-    decimal QuantiteNecessaire,
-    decimal QuantiteAvecPerte,
-    int UnitesNecessaires);

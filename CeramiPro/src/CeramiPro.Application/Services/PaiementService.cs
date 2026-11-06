@@ -113,7 +113,7 @@ public class PaiementService : IPaiementService
         {
             PaymentNumber = await _numerotation.GenererAsync(TypeDocument.Paiement, cancellationToken),
             Amount = requete.Montant,
-            PaymentDate = requete.Date ?? _horloge.MaintenantUtc,
+            PaymentDate = _horloge.JourSaisiVersUtc(requete.Date),
             PaymentMethodId = requete.ModeReglementId,
             IsDeposit = requete.Acompte,
             Reference = Nettoyer(requete.Reference),
@@ -145,7 +145,7 @@ public class PaiementService : IPaiementService
                                .FirstOrDefaultAsync(c => c.Id == requete.CommandeId, cancellationToken)
                            ?? throw IntrouvableException.Pour("Commande personnalisée", requete.CommandeId);
 
-            if (commande.Status == CustomOrderStatus.Annule)
+            if (commande.Status == CustomOrderStatus.Annulee)
             {
                 throw new RegleMetierException($"La commande {commande.OrderNumber} est annulée.");
             }
@@ -205,6 +205,7 @@ public class PaiementService : IPaiementService
         paiement.Notes = string.IsNullOrWhiteSpace(paiement.Notes)
             ? $"Annulé : {motif.Trim()}"
             : $"{paiement.Notes}\nAnnulé : {motif.Trim()}";
+        paiement.DeletionReason = motif.Trim();
 
         // Suppression logique : l'écriture reste consultable (règle métier n°15).
         _context.Payments.Remove(paiement);
@@ -236,7 +237,7 @@ public class PaiementService : IPaiementService
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 
-    private static PaiementDto Convertir(Payment p) => new(
+    private PaiementDto Convertir(Payment p) => new(
         p.Id,
         p.PaymentNumber,
         p.CustomerId,
@@ -246,7 +247,7 @@ public class PaiementService : IPaiementService
         p.CustomOrderId,
         p.CustomOrder?.OrderNumber,
         p.Amount,
-        p.PaymentDate,
+        _horloge.EnHeureAtelier(p.PaymentDate),
         p.PaymentMethodId,
         p.PaymentMethod.Name,
         p.IsDeposit,

@@ -231,6 +231,8 @@ VUES_PARTAGEES = {
     'FenetrePrincipale': 'FenetrePrincipaleVueModele',
     'FenetreMotDePasse': 'ChangementMotDePasseVueModele',
     'TableauDeBordVue': 'TableauDeBordVueModele',
+    'FenetrePhotos': 'GaleriePhotosVueModele',
+    'FenetreFicheClient': 'FicheClientVueModele',
 }
 
 
@@ -315,6 +317,52 @@ def verifier_liaisons(chemin, ecrans, index):
             signaler(chemin, 'liaison « %s » absente de %s' % (premier, vue_modele))
 
 
+def verifier_gabarits_types(chemin, index):
+    """Un « DataTemplate » qui déclare son type de données (DataType) lie ses
+    contrôles aux propriétés de ce type : elles sont vérifiables, comme
+    celles d'un écran."""
+    document = xml.dom.minidom.parse(chemin)
+
+    for gabarit in document.getElementsByTagName('DataTemplate'):
+        type_donnees = gabarit.getAttribute('DataType')
+        trouve = re.match(r'\{x:Type\s+\w+:(\w+)\}', type_donnees)
+
+        if not trouve:
+            continue
+
+        nom_type = trouve.group(1)
+        membres = membres_du_type(nom_type, index)
+
+        if not membres:
+            continue
+
+        liaisons = set()
+
+        def parcourir(noeud):
+            if noeud.nodeType != noeud.ELEMENT_NODE:
+                return
+            if noeud is not gabarit and (noeud.tagName.endswith('DataTemplate') or 'Column' in noeud.tagName):
+                return
+            if noeud.hasAttributes():
+                for rang in range(noeud.attributes.length):
+                    valeur = noeud.attributes.item(rang).value
+                    # Une liaison vers un autre élément (RelativeSource,
+                    # ElementName) ne porte pas sur l'élément du gabarit.
+                    if 'RelativeSource' in valeur or 'ElementName' in valeur:
+                        continue
+                    for chemin_lie in re.findall(r'\{Binding\s+([^},\s]+)', valeur):
+                        liaisons.add(chemin_lie)
+            for enfant in noeud.childNodes:
+                parcourir(enfant)
+
+        parcourir(gabarit)
+
+        for lie in liaisons:
+            premier = lie.split('.')[0].split('[')[0]
+            if premier and premier[0].isupper() and premier not in membres:
+                signaler(chemin, 'liaison « %s » absente de %s (gabarit)' % (premier, nom_type))
+
+
 def main():
     connues = ressources_declarees()
     commandes = commandes_declarees()
@@ -334,6 +382,7 @@ def main():
         verifier_evenements(chemin, contenu)
         verifier_commandes(chemin, contenu, commandes)
         verifier_liaisons(chemin, ecrans, index)
+        verifier_gabarits_types(chemin, index)
 
     print('%d fichiers XAML, %d ressources, %d commandes, %d écrans liés'
           % (len(fichiers), len(connues), len(commandes), len(ecrans)))

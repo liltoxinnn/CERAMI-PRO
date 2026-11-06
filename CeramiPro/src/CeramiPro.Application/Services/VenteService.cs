@@ -123,7 +123,7 @@ public class VenteService : IVenteService
         {
             SaleNumber = await _numerotation.GenererAsync(TypeDocument.Vente, cancellationToken),
             CustomerId = requete.ClientId,
-            SaleDate = requete.Date ?? _horloge.MaintenantUtc,
+            SaleDate = _horloge.JourSaisiVersUtc(requete.Date),
             Status = SaleStatus.Confirmee,
             DiscountAmount = requete.Remise,
             Notes = Nettoyer(requete.Notes),
@@ -214,7 +214,7 @@ public class VenteService : IVenteService
 
     /// <summary>Crée la facture correspondant à la vente.</summary>
     public async Task<VenteDto> AnnulerAsync(
-        int id, string motif, CancellationToken cancellationToken = default)
+        int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default)
     {
         var vente = await ChargerAvecDetails().FirstOrDefaultAsync(v => v.Id == id, cancellationToken)
                     ?? throw IntrouvableException.Pour("Vente", id);
@@ -231,9 +231,18 @@ public class VenteService : IVenteService
 
         if (vente.PaidAmount > 0)
         {
-            throw new RegleMetierException(
-                $"La vente {vente.SaleNumber} a déjà été réglée " +
-                $"({Formatage.Montant(vente.PaidAmount)}). Annulez d'abord les paiements.");
+            if (!rembourser)
+            {
+                throw new RegleMetierException(
+                    $"La vente {vente.SaleNumber} a déjà été réglée " +
+                    $"({Formatage.Montant(vente.PaidAmount)}) : l'annuler suppose de rembourser le client.");
+            }
+
+            await Remboursement.AnnulerPaiementsAsync(
+                _context, p => p.SaleId == vente.Id, $"Remboursé à l'annulation de la vente : {motif.Trim()}",
+                cancellationToken);
+
+            vente.PaidAmount = 0m;
         }
 
         // Les produits reviennent en stock (règle métier n°6).
@@ -262,12 +271,12 @@ public class VenteService : IVenteService
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 
-    private static VenteDto Convertir(Sale v) => new(
+    private VenteDto Convertir(Sale v) => new(
         v.Id,
         v.SaleNumber,
         v.CustomerId,
         v.Customer?.FullName ?? "Client de passage",
-        v.SaleDate,
+        _horloge.EnHeureAtelier(v.SaleDate),
         v.Status,
         v.Status.Libelle(),
         v.Subtotal,

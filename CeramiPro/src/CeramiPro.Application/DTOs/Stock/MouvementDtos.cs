@@ -27,6 +27,28 @@ public class MouvementStockRequete
     public bool AutoriserStockNegatif { get; set; }
 }
 
+/// <summary>
+/// Entrée ou sortie saisie à la main dans l'écran « Stock » : pièces
+/// terminées ou reçues, pièces cassées ou perdues. Les ventes, retours et
+/// annulations, eux, passent par leur propre document.
+/// </summary>
+public class MouvementManuelRequete
+{
+    public int ProduitId { get; set; }
+
+    /// <summary><see cref="InventoryTransactionType.Entree"/> ou <see cref="InventoryTransactionType.Perte"/>.</summary>
+    public InventoryTransactionType TypeMouvement { get; set; } = InventoryTransactionType.Entree;
+
+    /// <summary>Nombre de pièces, toujours positif : le type dit s'il entre ou s'il sort.</summary>
+    public decimal Quantite { get; set; } = 1m;
+
+    /// <summary>Coût d'une pièce à l'entrée ; laissé à zéro, le coût actuel est conservé.</summary>
+    public decimal CoutUnitaire { get; set; }
+
+    /// <summary>Précision libre ; obligatoire pour une casse ou une perte.</summary>
+    public string? Notes { get; set; }
+}
+
 /// <summary>Mouvement affiché dans l'historique du stock.</summary>
 public record MouvementStockDto(
     int Id,

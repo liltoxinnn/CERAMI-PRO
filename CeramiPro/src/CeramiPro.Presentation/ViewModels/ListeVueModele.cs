@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.Common;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,14 +16,7 @@ namespace CeramiPro.Presentation.ViewModels;
 /// </summary>
 public abstract partial class ListeVueModele<TElement> : VueModeleBase
 {
-    protected readonly IServiceLangue Langue;
-
-    protected ListeVueModele(IServiceLangue langue, OutilsListe? outils = null)
-    {
-        Langue = langue;
-        Outils = outils;
-        Langue.LangueChangee += RafraichirTextes;
-    }
+    protected ListeVueModele(OutilsListe? outils = null) => Outils = outils;
 
     /// <summary>Services communs aux listes ; absents sur les écrans en lecture seule.</summary>
     protected OutilsListe? Outils { get; }
@@ -79,22 +71,39 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     /// <summary>Vrai quand la recherche n'a rien donné, pour afficher un message.</summary>
     public bool AucunResultat => !ChargementEnCours && Elements.Count == 0;
 
-    public string LibelleRechercher => Langue["action.rechercher"];
-    public string LibelleActualiser => Langue["action.actualiser"];
-    public string LibelleAjouter => Langue["action.ajouter"];
-    public string LibelleModifier => Langue["action.modifier"];
-    public string LibelleSupprimer => Langue["action.supprimer"];
-    public string LibelleExporter => Langue["action.exporter"];
-    public string LibelleAucunResultat => Langue["etat.aucunResultat"];
+    public string LibelleRechercher => "Rechercher";
+    public string LibelleActualiser => "Actualiser";
+    public string LibelleAjouter => "Ajouter";
+    public string LibelleModifier => "Modifier";
+    public string LibelleSupprimer => "Supprimer";
+    public string LibelleExporter => "Exporter";
+    public string LibelleAucunResultat => "Aucun résultat";
 
     /// <summary>Colonnes du tableau, déclarées par chaque écran.</summary>
     public abstract IReadOnlyList<ColonneListe> Colonnes { get; }
 
     /// <summary>
-    /// Actions propres à l'écran — réceptionner, défourner, annuler — qui
-    /// s'appliquent à la ligne choisie. Vide sur les écrans de consultation.
+    /// Actions propres à l'écran — imprimer un reçu, annuler, enregistrer une
+    /// entrée de stock — qui s'appliquent à la ligne choisie. Vide sur les
+    /// écrans de consultation.
     /// </summary>
     public virtual IReadOnlyList<ActionListe> Actions { get; } = Array.Empty<ActionListe>();
+
+    /// <summary>
+    /// Filtres affichés au-dessus du tableau — « seulement le stock faible »,
+    /// « étape de la commande ». Un changement relance la recherche depuis
+    /// la première page.
+    /// </summary>
+    public virtual IReadOnlyList<FiltreListe> Filtres { get; } = Array.Empty<FiltreListe>();
+
+    public bool AFiltres => Filtres.Count > 0;
+
+    /// <summary>À passer aux filtres : relance la recherche depuis la première page.</summary>
+    protected Task FiltreChangeAsync()
+    {
+        Page = 1;
+        return RafraichirAsync();
+    }
 
     /// <summary>Va chercher une page de résultats auprès du service métier.</summary>
     protected abstract Task<PagedResult<TElement>> LireAsync();
@@ -188,25 +197,67 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
 
         await ExecuterAsync(async () =>
         {
-            if (Outils.Services.GetService(TypeFormulaire) is not IFormulaire formulaire)
-            {
-                return;
-            }
+            var enregistre = await Outils.OuvrirFormulaireAsync(TypeFormulaire,
+                id is { } identifiant ? formulaire => formulaire.PreparerModificationAsync(identifiant) : null);
 
-            // Les listes déroulantes sont chargées avant l'affichage : un
-            // formulaire ne doit jamais s'ouvrir sur des choix vides.
-            await formulaire.PreparerAsync();
-
-            if (id is { } identifiant)
-            {
-                await formulaire.PreparerModificationAsync(identifiant);
-            }
-
-            if (Outils.Formulaires.Afficher(formulaire))
+            if (enregistre)
             {
                 await RafraichirAsync();
             }
         });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>
+    /// Ouvre un autre formulaire que celui de l'écran — encaisser un acompte
+    /// sur la commande choisie, par exemple — puis recharge la liste.
+    /// </summary>
+    protected async Task OuvrirFormulaireAsync<TFormulaire>(Func<TFormulaire, Task> preparer)
+        where TFormulaire : class, IFormulaire
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        await ExecuterAsync(async () =>
+        {
+            if (await Outils.OuvrirFormulaireAsync(preparer))
+            {
+                await RafraichirAsync();
+            }
+        });
+
+        if (MessageErreur is not null)
+        {
+            Outils.Dialogue.Erreur(MessageErreur);
+        }
+    }
+
+    /// <summary>
+    /// Ouvre une fenêtre de consultation — fiche client, photos — pour la
+    /// ligne choisie, puis recharge la liste : ce qui a été fait dans la
+    /// fenêtre se voit aussitôt dans le tableau.
+    /// </summary>
+    protected async Task OuvrirFenetreAsync(Func<TElement, VueModeleBase> fenetre)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is not { } element)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        Outils.Fenetres.Afficher(fenetre(element));
+        await RafraichirAsync();
     }
 
     /// <summary>Supprime la fiche sélectionnée, après confirmation.</summary>
@@ -224,7 +275,7 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
             return;
         }
 
-        if (!Outils.Dialogue.Confirmer(Langue["message.confirmerSuppression"]))
+        if (!Outils.Dialogue.Confirmer("Voulez-vous vraiment supprimer cet élément ?"))
         {
             return;
         }
@@ -410,8 +461,36 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
     }
 
     /// <summary>
-    /// Produit un document, demande où l'enregistrer, puis l'ouvre. Les
-    /// factures, les reçus et les bons suivent tous ce même chemin.
+    /// Comme <see cref="AgirAsync"/>, pour une action qui doit être motivée —
+    /// une annulation, typiquement. Le motif est demandé avant d'agir et
+    /// conservé dans l'historique par le service ; renoncer à le saisir
+    /// abandonne l'action.
+    /// </summary>
+    protected async Task AgirAvecMotifAsync(
+        Func<TElement, string, Task> action, string question, string? succes = null)
+    {
+        if (Outils is null)
+        {
+            return;
+        }
+
+        if (ElementSelectionne is null)
+        {
+            Outils.Dialogue.Avertissement("Choisissez d'abord une ligne dans le tableau.");
+            return;
+        }
+
+        if (Outils.Dialogue.Demander(question, "Motif") is not { } motif)
+        {
+            return;
+        }
+
+        await AgirAsync(element => action(element, motif), succes: succes);
+    }
+
+    /// <summary>
+    /// Produit un document, demande où l'enregistrer, puis l'ouvre. Tous les
+    /// reçus suivent ce même chemin.
     /// </summary>
     protected async Task ImprimerAsync(
         Func<TElement, Task<byte[]>> document, Func<TElement, string> nomFichier)
@@ -449,18 +528,4 @@ public abstract partial class ListeVueModele<TElement> : VueModeleBase
 
     /// <summary>Filtre de la boîte « Enregistrer sous » pour un document imprimable.</summary>
     protected const string FiltrePdf = "Document PDF (*.pdf)|*.pdf";
-
-    /// <summary>Redemande l'affichage des libellés après un changement de langue.</summary>
-    protected virtual void RafraichirTextes()
-    {
-        OnPropertyChanged(nameof(Titre));
-        OnPropertyChanged(nameof(Introduction));
-        OnPropertyChanged(nameof(LibelleRechercher));
-        OnPropertyChanged(nameof(LibelleActualiser));
-        OnPropertyChanged(nameof(LibelleAjouter));
-        OnPropertyChanged(nameof(LibelleModifier));
-        OnPropertyChanged(nameof(LibelleSupprimer));
-        OnPropertyChanged(nameof(LibelleExporter));
-        OnPropertyChanged(nameof(LibelleAucunResultat));
-    }
 }

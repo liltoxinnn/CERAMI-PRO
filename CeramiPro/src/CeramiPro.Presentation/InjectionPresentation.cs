@@ -23,6 +23,8 @@ public static class InjectionPresentation
         // Les services communs à tous les écrans de liste, réunis pour éviter
         // cinq paramètres au constructeur de chacun.
         services.AddTransient<OutilsListe>();
+        services.AddTransient<FabriqueGaleries>();
+        services.AddTransient<FabriqueFicheClient>();
 
         services.AddSingleton<FenetrePrincipaleVueModele>();
         services.AddTransient<TableauDeBordVueModele>();
@@ -36,57 +38,35 @@ public static class InjectionPresentation
     }
 
     /// <summary>
-    /// Écrans de l'application. Chaque entrée du menu latéral pointe vers
-    /// l'une de ces vues-modèles.
+    /// Écrans de l'application, rangés comme les sept sections du menu.
+    /// Chaque entrée du menu latéral pointe vers l'une de ces vues-modèles.
     /// </summary>
     private static void AjouterEcrans(IServiceCollection services)
     {
-        // Stock et catalogue
-        services.AddTransient<StockVueModele>();
-        services.AddTransient<MatieresVueModele>();
+        // Produits
         services.AddTransient<ProduitsVueModele>();
         services.AddTransient<ProduitsStockVueModele>();
         services.AddTransient<MouvementsVueModele>();
-        services.AddTransient<AlertesVueModele>();
-        services.AddTransient<RecettesVueModele>();
-        services.AddTransient<EtiquettesVueModele>();
+        services.AddTransient<CategoriesProduitsVueModele>();
 
-        // Production, cuisson, décoration, qualité
-        services.AddTransient<TableauProductionVueModele>();
-        services.AddTransient<ProductionVueModele>();
-        services.AddTransient<ProductionEnCoursVueModele>();
-        services.AddTransient<HistoriqueProductionVueModele>();
-        services.AddTransient<FoursVueModele>();
-        services.AddTransient<CuissonsVueModele>();
-        services.AddTransient<EnfournementVueModele>();
-        services.AddTransient<DecorationsVueModele>();
-        services.AddTransient<QualiteVueModele>();
-
-        // Clients, fournisseurs et commerce
-        services.AddTransient<ClientsVueModele>();
+        // Commandes et clients
         services.AddTransient<CommandesVueModele>();
-        services.AddTransient<FournisseursVueModele>();
-        services.AddTransient<AchatsVueModele>();
-        services.AddTransient<NouvelAchatVueModele>();
+        services.AddTransient<ClientsVueModele>();
+
+        // Ventes
         services.AddTransient<CaisseVueModele>();
         services.AddTransient<VentesVueModele>();
-        services.AddTransient<FacturesVueModele>();
         services.AddTransient<PaiementsVueModele>();
+
+        // Rapports
+        services.AddTransient<RapportsVueModele>();
         services.AddTransient<DepensesVueModele>();
 
-        // Rapports et outils
-        services.AddTransient<RapportsVueModele>();
-        services.AddTransient<CalculateursVueModele>();
-
-        // Administration
-        services.AddTransient<UtilisateursVueModele>();
-        services.AddTransient<UnitesVueModele>();
-        services.AddTransient<CategoriesMatieresVueModele>();
-        services.AddTransient<CategoriesProduitsVueModele>();
-        services.AddTransient<CategoriesDepensesVueModele>();
-        services.AddTransient<TypesDecorationVueModele>();
-        services.AddTransient<SauvegardeVueModele>();
+        // Paramètres
         services.AddTransient<ParametresVueModele>();
+        services.AddTransient<CategoriesDepensesVueModele>();
+        services.AddTransient<UtilisateursVueModele>();
+        services.AddTransient<SauvegardeVueModele>();
     }
 
     /// <summary>
@@ -95,20 +75,15 @@ public static class InjectionPresentation
     /// </summary>
     private static void AjouterFormulaires(IServiceCollection services)
     {
-        services.AddTransient<MatiereFormulaireVueModele>();
         services.AddTransient<ProduitFormulaireVueModele>();
-        services.AddTransient<FournisseurFormulaireVueModele>();
+        services.AddTransient<MouvementStockFormulaireVueModele>();
+        services.AddTransient<RegularisationFormulaireVueModele>();
+        services.AddTransient<CategorieProduitFormulaireVueModele>();
         services.AddTransient<ClientFormulaireVueModele>();
         services.AddTransient<CommandeFormulaireVueModele>();
         services.AddTransient<PaiementFormulaireVueModele>();
         services.AddTransient<DepenseFormulaireVueModele>();
-        services.AddTransient<OrdreProductionFormulaireVueModele>();
-        services.AddTransient<FourFormulaireVueModele>();
-        services.AddTransient<UniteFormulaireVueModele>();
-        services.AddTransient<UtilisateurFormulaireVueModele>();
-        services.AddTransient<CategorieMatiereFormulaireVueModele>();
-        services.AddTransient<CategorieProduitFormulaireVueModele>();
         services.AddTransient<CategorieDepenseFormulaireVueModele>();
-        services.AddTransient<TypeDecorationFormulaireVueModele>();
+        services.AddTransient<UtilisateurFormulaireVueModele>();
     }
 }

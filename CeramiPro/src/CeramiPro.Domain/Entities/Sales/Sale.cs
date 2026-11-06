@@ -41,6 +41,9 @@ public class Sale : AuditableEntity, ISoftDeletable
     /// <summary>Motif saisi lors de la suppression, conservé pour l\'historique.</summary>
     public string? DeletionReason { get; set; }
 
+    /// <summary>Jeton de concurrence (« xmin ») : protège le montant déjà encaissé.</summary>
+    public uint Version { get; set; }
+
     public ICollection<SaleItem> Items { get; set; } = new List<SaleItem>();
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
 }

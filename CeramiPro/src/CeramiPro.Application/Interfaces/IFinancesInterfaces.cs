@@ -9,6 +9,8 @@ public interface IDepenseService
     Task<PagedResult<DepenseDto>> ListerAsync(
         FiltreDepensesRequete requete, CancellationToken cancellationToken = default);
 
+    Task<DepenseDto> ObtenirAsync(int id, CancellationToken cancellationToken = default);
+
     Task<DepenseDto> CreerAsync(DepenseRequete requete, CancellationToken cancellationToken = default);
 
     Task<DepenseDto> ModifierAsync(int id, DepenseRequete requete, CancellationToken cancellationToken = default);

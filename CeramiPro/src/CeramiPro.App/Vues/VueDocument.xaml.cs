@@ -40,12 +40,9 @@ public partial class VueDocument : UserControl
             observable.PropertyChanged += SurChangement;
         }
 
-        // Le curseur attend dans la zone de scan : à la caisse, on enchaîne
-        // les produits sans jamais toucher la souris.
-        if (DataContext?.GetType().GetProperty("AccepteScan")?.GetValue(DataContext) is true)
-        {
-            ZoneScan.Focus();
-        }
+        // Le curseur attend dans le choix du produit : à la caisse, on tape le
+        // début d'un nom et on enchaîne sans toucher la souris.
+        ChoixArticle.Focus();
     }
 
     private void SurChangement(object? source, PropertyChangedEventArgs args)
@@ -60,7 +57,7 @@ public partial class VueDocument : UserControl
 
     /// <summary>
     /// Colonnes du tableau des lignes. Les colonnes de prix disparaissent
-    /// quand le document n'en comporte pas — un enfournement, par exemple.
+    /// quand le document n'en comporte pas.
     /// </summary>
     private void ConstruireColonnes()
     {

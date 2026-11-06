@@ -26,8 +26,7 @@ public enum ColonneAlignement
 /// Une colonne du tableau d'un écran de liste.
 ///
 /// Les colonnes sont déclarées par la vue-modèle plutôt que dans le XAML :
-/// un seul écran générique suffit alors pour toutes les listes, et les
-/// en-têtes suivent la langue choisie.
+/// un seul écran générique suffit alors pour toutes les listes.
 ///
 /// La colonne connaît aussi sa mise en forme, ce qui garantit qu'un montant
 /// s'écrit de la même façon à l'écran, dans le tableur et sur le papier.

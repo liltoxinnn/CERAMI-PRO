@@ -1,7 +1,6 @@
 using CeramiPro.Application.DTOs.Catalogue;
 using CeramiPro.Application.DTOs.Referentiels;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 
 namespace CeramiPro.Presentation.ViewModels.Formulaires;
 
@@ -12,8 +11,8 @@ public class ProduitFormulaireVueModele : FormulaireVueModele<ProduitRequete>
     private readonly IReferentielService _referentiels;
 
     public ProduitFormulaireVueModele(
-        IProduitService produits, IReferentielService referentiels, IServiceLangue langue)
-        : base(langue)
+        IProduitService produits, IReferentielService referentiels)
+        : base()
     {
         _produits = produits;
         _referentiels = referentiels;
@@ -54,8 +53,8 @@ public class ProduitFormulaireVueModele : FormulaireVueModele<ProduitRequete>
             CoutProduction = produit.CoutProduction,
             PrixVente = produit.PrixVente,
             StockMinimum = produit.StockMinimum,
-            CodeBarres = produit.CodeBarres,
             Personnalisable = produit.Personnalisable,
+            PieceUnique = produit.PieceUnique,
             Actif = produit.Actif
         };
 
@@ -71,12 +70,15 @@ public class ProduitFormulaireVueModele : FormulaireVueModele<ProduitRequete>
                 Obligatoire: true, Options: categories),
             new("Prix de vente", nameof(ProduitRequete.PrixVente), TypeChamp.Montant, Obligatoire: true),
             new("Coût de production", nameof(ProduitRequete.CoutProduction), TypeChamp.Montant,
-                Aide: "Laissez à zéro si une recette calcule ce coût."),
+                Aide: "Ce que coûte la pièce à fabriquer : il sert au calcul des marges et des bénéfices."),
+            new("Pièce unique", nameof(ProduitRequete.PieceUnique), TypeChamp.Case,
+                Aide: "Faite à la main en un seul exemplaire : son stock vaut 0 ou 1, " +
+                      "et une fois vendue elle ne déclenche aucune alerte."),
             new("Stock initial", nameof(ProduitRequete.StockInitial), TypeChamp.Nombre,
-                Aide: "Pièces déjà fabriquées et disponibles à la vente."),
-            new("Seuil d'alerte", nameof(ProduitRequete.StockMinimum), TypeChamp.Nombre),
-            new("Code-barres", nameof(ProduitRequete.CodeBarres), TypeChamp.Texte,
-                Aide: "Laissez vide : le logiciel en attribue un automatiquement."),
+                Aide: "Pièces déjà fabriquées et disponibles à la vente. Ensuite, le stock se met à jour " +
+                      "tout seul à chaque vente, et par les entrées saisies dans « Stock »."),
+            new("Seuil d'alerte", nameof(ProduitRequete.StockMinimum), TypeChamp.Nombre,
+                Aide: "En dessous, le produit apparaît dans « Stock faible » sur le tableau de bord."),
             new("Matière", nameof(ProduitRequete.Matiere), TypeChamp.Texte,
                 Aide: "Grès, faïence, porcelaine…"),
             new("Couleur", nameof(ProduitRequete.Couleur)),

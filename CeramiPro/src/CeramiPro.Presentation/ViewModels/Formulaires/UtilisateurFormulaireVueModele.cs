@@ -1,6 +1,6 @@
 using CeramiPro.Application.DTOs.Identity;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Presentation.ViewModels.Formulaires;
 
@@ -8,39 +8,26 @@ namespace CeramiPro.Presentation.ViewModels.Formulaires;
 /// Création et modification d'un compte.
 ///
 /// Le mot de passe n'est demandé qu'à la création : ensuite, il se
-/// réinitialise depuis la liste, ce qui évite qu'un responsable puisse lire
-/// ou remplacer discrètement celui d'un collègue en modifiant sa fiche.
+/// réinitialise depuis la liste, ce qui évite de remplacer discrètement
+/// celui d'un collègue en modifiant sa fiche.
 /// </summary>
 public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
 {
     private readonly IUtilisateurService _utilisateurs;
-    private readonly IRoleService _roles;
 
-    public UtilisateurFormulaireVueModele(
-        IUtilisateurService utilisateurs, IRoleService roles, IServiceLangue langue)
-        : base(langue)
+    public UtilisateurFormulaireVueModele(IUtilisateurService utilisateurs)
     {
         _utilisateurs = utilisateurs;
-        _roles = roles;
-        _champs = Construire(Array.Empty<OptionChamp>(), creation: true);
+        _champs = Construire(creation: true);
     }
 
     private IReadOnlyList<ChampFormulaire> _champs;
-    private IReadOnlyList<OptionChamp> _rolesDisponibles = Array.Empty<OptionChamp>();
 
     public override string Titre => EstCreation ? "Nouveau compte" : "Modifier le compte";
 
     public override IReadOnlyList<ChampFormulaire> Champs => _champs;
 
-    public override async Task PreparerAsync()
-    {
-        var roles = await _roles.ListerAsync();
-
-        _rolesDisponibles = roles.Select(r => new OptionChamp(r.Id, r.Nom)).ToList();
-        _champs = Construire(_rolesDisponibles, creation: true);
-
-        OnPropertyChanged(nameof(Champs));
-    }
+    public override Task PreparerAsync() => Task.CompletedTask;
 
     public override async Task PreparerModificationAsync(int id)
     {
@@ -53,16 +40,15 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
             NomComplet = utilisateur.NomComplet,
             Email = utilisateur.Email,
             Telephone = utilisateur.Telephone,
-            RoleId = utilisateur.RoleId,
+            Role = (int)utilisateur.Role,
             Actif = utilisateur.Actif
         };
 
-        _champs = Construire(_rolesDisponibles, creation: false);
+        _champs = Construire(creation: false);
         OnPropertyChanged(nameof(Champs));
     }
 
-    private static IReadOnlyList<ChampFormulaire> Construire(
-        IReadOnlyList<OptionChamp> roles, bool creation)
+    private static IReadOnlyList<ChampFormulaire> Construire(bool creation)
     {
         var champs = new List<ChampFormulaire>
         {
@@ -70,7 +56,9 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
                 Obligatoire: true,
                 Aide: creation ? "Il servira à se connecter et ne pourra plus être changé." : null),
             new("Nom complet", nameof(CompteRequete.NomComplet), TypeChamp.Texte, Obligatoire: true),
-            new("Rôle", nameof(CompteRequete.RoleId), TypeChamp.Liste, Obligatoire: true, Options: roles),
+            new("Rôle", nameof(CompteRequete.Role), TypeChamp.Liste, Obligatoire: true,
+                Options: OptionChamp.De<RoleUtilisateur>(),
+                Aide: "L'administrateur gère en plus les comptes et les sauvegardes."),
             new("Email", nameof(CompteRequete.Email)),
             new("Téléphone", nameof(CompteRequete.Telephone))
         };
@@ -100,7 +88,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
                 NomComplet = Requete.NomComplet,
                 Email = Requete.Email,
                 Telephone = Requete.Telephone,
-                RoleId = Requete.RoleId,
+                Role = (RoleUtilisateur)Requete.Role,
                 Actif = Requete.Actif
             });
 
@@ -114,7 +102,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
             Email = Requete.Email,
             Telephone = Requete.Telephone,
             MotDePasse = Requete.MotDePasse,
-            RoleId = Requete.RoleId,
+            Role = (RoleUtilisateur)Requete.Role,
             Actif = Requete.Actif,
             DoitChangerMotDePasse = Requete.DoitChangerMotDePasse
         });
@@ -132,7 +120,8 @@ public class CompteRequete
     public string? Email { get; set; }
     public string? Telephone { get; set; }
     public string MotDePasse { get; set; } = string.Empty;
-    public int RoleId { get; set; }
+    /// <summary>Valeur de <see cref="RoleUtilisateur"/> ; « Employé » par défaut.</summary>
+    public int Role { get; set; } = (int)RoleUtilisateur.Employe;
     public bool Actif { get; set; } = true;
     public bool DoitChangerMotDePasse { get; set; } = true;
 }

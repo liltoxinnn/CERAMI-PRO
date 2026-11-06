@@ -9,9 +9,9 @@ namespace CeramiPro.Infrastructure.Services;
 /// Les fichiers de la sauvegarde sont d'abord chargés tels quels dans des
 /// tables temporaires, puis recopiés dans les tables actuelles en appliquant
 /// les mêmes conversions que la migration « SimplificationDuSchema » : deux
-/// rôles au lieu de quatre, stock des variantes reporté sur le produit,
-/// mouvements de matières premières écartés, paiements rattachés à la vente
-/// de leur facture. Les tables des modules retirés ne sont pas reprises —
+/// rôles au lieu de quatre, quatre étapes de commande au lieu de dix, stock
+/// des variantes reporté sur le produit, mouvements de matières premières
+/// écartés, paiements rattachés à la vente de leur facture. Les tables des modules retirés ne sont pas reprises —
 /// elles restent dans le fichier de sauvegarde, qui n'est jamais modifié.
 /// </summary>
 public static class RepriseAncienneVersion
@@ -220,6 +220,31 @@ public static class RepriseAncienneVersion
                             """
                     },
                     Jointure: """LEFT JOIN "ancien_Invoices" i ON i."Id" = a."InvoiceId" """);
+
+            case "CustomOrders" when Possede("Status"):
+                // Quatre étapes au lieu de dix, comme dans la migration.
+                const string ancienneEtape = """
+                    CASE a."Status"
+                        WHEN '1' THEN 'conception'
+                        WHEN '2' THEN 'validation client'
+                        WHEN '4' THEN 'cuisson'
+                        WHEN '5' THEN 'décoration'
+                        WHEN '6' THEN 'contrôle qualité'
+                    END
+                    """;
+                return new Conversion(new Dictionary<string, string>
+                {
+                    ["Status"] = """
+                        CASE WHEN a."Status" IN ('1', '2') THEN '0'
+                             WHEN a."Status" IN ('4', '5', '6') THEN '3'
+                             ELSE a."Status" END
+                        """,
+                    ["Notes"] = $"""
+                        CASE WHEN a."Status" IN ('1', '2', '4', '5', '6')
+                        THEN LEFT(CONCAT_WS(' — ', a."Notes", 'Ancienne étape : ' || {ancienneEtape}), 2000)
+                        ELSE a."Notes" END
+                        """
+                });
 
             case "BusinessSettings" when Possede("InvoiceFooter"):
                 return new Conversion(new Dictionary<string, string>

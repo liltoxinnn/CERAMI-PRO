@@ -1,7 +1,6 @@
-using CeramiPro.Application.DTOs.Catalogue;
+using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
@@ -9,9 +8,10 @@ namespace CeramiPro.Presentation.ViewModels.Ecrans;
 /// <summary>
 /// Caisse de l'atelier : vente au comptoir.
 ///
-/// L'écran est conçu pour aller vite : on scanne ou on choisit un produit,
-/// la quantité vaut un par défaut, le rendu de monnaie s'affiche pendant
-/// que l'on tape le montant reçu, et le reçu s'imprime à la validation.
+/// L'écran est conçu pour aller vite : on tape le début du nom ou de la
+/// référence d'un produit, la quantité vaut un par défaut, le rendu de
+/// monnaie s'affiche pendant que l'on tape le montant reçu, et le reçu
+/// s'imprime à la validation.
 /// </summary>
 public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
 {
@@ -29,9 +29,8 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
         IReferentielService referentiels,
         IDocumentService documents,
         IServiceFichier fichiers,
-        IServiceLangue langue,
         IServiceDialogue dialogue)
-        : base(langue, dialogue)
+        : base(dialogue)
     {
         _ventes = ventes;
         _produits = produits;
@@ -45,11 +44,11 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
 
     private IReadOnlyList<ChampFormulaire> _champs;
 
-    public override string Titre => Langue["menu.caisse"];
+    public override string Titre => "Nouvelle vente";
 
     public override string Introduction =>
-        "Vente au comptoir. Scannez l'étiquette du produit ou choisissez-le dans la liste, " +
-        "puis encaissez : le stock, la facture et le reçu suivent tout seuls.";
+        "Choisissez les produits — tapez le début de leur nom ou de leur référence — puis " +
+        "encaissez : le stock se met à jour et le reçu est prêt à imprimer.";
 
     public override IReadOnlyList<ChampFormulaire> Champs => _champs;
 
@@ -59,26 +58,21 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
 
     public override bool GereReglement => true;
 
-    public override bool AccepteScan => true;
-
     public override async Task ChargerAsync()
     {
         await ExecuterAsync(async () =>
         {
-            var produits = await _produits.ListerAsync(new FiltreProduitsRequete
-            {
-                TaillePage = 200,
-                InclureInactifs = false
-            });
+            var produits = await _produits.ListerActifsAsync();
 
             Articles.Clear();
-            foreach (var produit in produits.Elements)
+            foreach (var produit in produits)
             {
-                Articles.Add(new OptionChamp(produit.Id, $"{produit.Reference} — {produit.Nom}"));
+                Articles.Add(new OptionChamp(produit.Id,
+                    $"{produit.Nom} — {produit.Reference} — {Formatage.Quantite(produit.StockActuel)} en stock"));
                 _prix[produit.Id] = produit.PrixVente;
             }
 
-            var clients = await _clients.ListerAsync(new FiltreClientsRequete { TaillePage = 200 });
+            var clients = await _clients.ListerPourChoixAsync();
             var modes = (await _referentiels.ListerModesReglementAsync())
                 .Where(m => m.Actif)
                 .ToList();
@@ -86,7 +80,7 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
             _modeParDefaut = modes.FirstOrDefault()?.Id;
 
             _champs = Construire(
-                clients.Elements.Select(c => new OptionChamp(c.Id, c.Nom)).ToList(),
+                clients.Select(c => new OptionChamp(c.Id, c.Libelle)).ToList(),
                 modes.Select(m => new OptionChamp(m.Id, m.Nom)).ToList());
 
             // Au comptoir, on règle presque toujours de la même façon : le
@@ -113,27 +107,6 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
         }
 
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Ajoute le produit dont l'étiquette vient d'être scannée. Un code
-    /// inconnu ne bloque pas la caisse : il affiche un message et la vente
-    /// continue.
-    /// </summary>
-    protected override async Task ScannerAsync(string code)
-    {
-        var produit = await _produits.RechercherParCodeAsync(code);
-
-        if (produit is null)
-        {
-            MessageErreur = $"Aucun produit ne correspond au code « {code} ».";
-            return;
-        }
-
-        _prix[produit.Id] = produit.PrixVente;
-
-        Ajouter(produit.Id, $"{produit.Reference} — {produit.Nom}", 1m, produit.PrixVente,
-            reference: produit.Reference);
     }
 
     private static IReadOnlyList<ChampFormulaire> Construire(
@@ -176,7 +149,6 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
         // c'est le total, et la différence lui est rendue en monnaie. Porter
         // le billet entier au crédit de la vente créerait un avoir imaginaire.
         Requete.MontantPaye = Math.Min(MontantPaye, Total);
-        Requete.EmettreFacture = true;
         Requete.Lignes = Lignes.Select(l => new LigneVenteRequete
         {
             ProduitId = l.ArticleId,
@@ -197,7 +169,7 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
 
         if (Dialogue.Confirmer(
                 $"Vente {vente.Numero} enregistrée.\n\n" +
-                $"Total : {Application.Common.Formatage.Montant(vente.Total)}\n" +
+                $"Total : {Formatage.Montant(vente.Total)}\n" +
                 $"Monnaie à rendre : {rendu}\n\n" +
                 "Voulez-vous imprimer le reçu ?",
                 "Vente enregistrée"))
@@ -211,7 +183,7 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
     {
         try
         {
-            var contenu = await _documents.RecuPdfAsync(vente.Id);
+            var contenu = await _documents.RecuVentePdfAsync(vente.Id);
             var nomFichier = $"recu-{vente.Numero}.pdf";
 
             if (_fichiers.DemanderOuEnregistrer(nomFichier, "Document PDF (*.pdf)|*.pdf") is not { } chemin)

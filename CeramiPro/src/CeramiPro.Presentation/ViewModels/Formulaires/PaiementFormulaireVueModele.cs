@@ -1,30 +1,36 @@
+using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Presentation.ViewModels.Formulaires;
 
 /// <summary>
-/// Encaissement d'un règlement client.
+/// Encaissement d'un règlement client : le solde d'une vente à crédit, ou
+/// un acompte ou un solde sur une commande.
 ///
-/// Le paiement se rattache à une facture impayée : c'est ainsi que les
-/// soldes se mettent à jour tout seuls, sans double saisie.
+/// Le paiement se rattache toujours à un document qui a un reste à payer :
+/// c'est ainsi que les soldes se mettent à jour tout seuls, sans double saisie.
 /// </summary>
-public class PaiementFormulaireVueModele : FormulaireVueModele<PaiementRequete>
+public class PaiementFormulaireVueModele : FormulaireVueModele<ReglementRequete>
 {
     private readonly IPaiementService _paiements;
-    private readonly IFactureService _factures;
+    private readonly IVenteService _ventes;
+    private readonly ICommandeService _commandes;
     private readonly IReferentielService _referentiels;
+
+    /// <summary>Commandes proposées, pour savoir si le règlement est un acompte.</summary>
+    private Dictionary<int, CommandeDto> _commandesOuvertes = new();
 
     public PaiementFormulaireVueModele(
         IPaiementService paiements,
-        IFactureService factures,
-        IReferentielService referentiels,
-        IServiceLangue langue)
-        : base(langue)
+        IVenteService ventes,
+        ICommandeService commandes,
+        IReferentielService referentiels)
     {
         _paiements = paiements;
-        _factures = factures;
+        _ventes = ventes;
+        _commandes = commandes;
         _referentiels = referentiels;
         _champs = Construire(Array.Empty<OptionChamp>(), Array.Empty<OptionChamp>());
     }
@@ -37,40 +43,116 @@ public class PaiementFormulaireVueModele : FormulaireVueModele<PaiementRequete>
 
     public override async Task PreparerAsync()
     {
-        var impayees = await _factures.ListerAsync(
-            new FiltreFacturesRequete { TaillePage = 200, SeulementImpayees = true });
+        var ventes = await _ventes.ListerAsync(
+            new FiltreVentesRequete { TaillePage = 200, SeulementImpayees = true });
+
+        var commandes = await _commandes.ListerAsync(
+            new FiltreCommandesRequete { TaillePage = 200, SeulementAvecReste = true });
 
         var modes = await _referentiels.ListerModesReglementAsync();
 
+        _commandesOuvertes = commandes.Elements.ToDictionary(c => c.Id);
+
+        var documents = ventes.Elements
+            .Select(v => new OptionChamp(
+                ReglementRequete.CodeVente(v.Id),
+                $"Vente {v.Numero} — {v.ClientNom} — reste {Formatage.Montant(v.Reste)}"))
+            .Concat(commandes.Elements.Select(c => new OptionChamp(
+                ReglementRequete.CodeCommande(c.Id),
+                $"Commande {c.Numero} — {c.ClientNom} — reste {Formatage.Montant(c.Reste)}")))
+            .ToList();
+
         _champs = Construire(
-            impayees.Elements
-                .Select(f => new OptionChamp(
-                    f.Id,
-                    $"{f.Numero} — {f.ClientNom} — reste {Application.Common.Formatage.Montant(f.Reste)}"))
-                .ToList(),
+            documents,
             modes.Where(m => m.Actif).Select(m => new OptionChamp(m.Id, m.Nom)).ToList());
+
+        // Le mode le plus courant est proposé d'office.
+        if (Requete.ModeReglementId == 0 && modes.FirstOrDefault(m => m.Actif) is { } premier)
+        {
+            Requete.ModeReglementId = premier.Id;
+        }
 
         OnPropertyChanged(nameof(Champs));
     }
 
+    /// <summary>
+    /// Ouvre le formulaire sur une vente ou une commande précise, avec son
+    /// reste à payer proposé comme montant.
+    /// </summary>
+    public void Preselectionner(int code, decimal reste)
+    {
+        Requete.Document = code;
+        Requete.Montant = reste;
+        OnPropertyChanged(nameof(Requete));
+    }
+
     private static IReadOnlyList<ChampFormulaire> Construire(
-        IReadOnlyList<OptionChamp> factures, IReadOnlyList<OptionChamp> modes)
+        IReadOnlyList<OptionChamp> documents, IReadOnlyList<OptionChamp> modes)
         => new ChampFormulaire[]
         {
-            new("Facture réglée", nameof(PaiementRequete.FactureId), TypeChamp.Liste,
-                Obligatoire: true, Options: factures,
-                Aide: factures.Count == 0
-                    ? "Aucune facture impayée : il n'y a rien à encaisser."
-                    : null),
-            new("Montant reçu", nameof(PaiementRequete.Montant), TypeChamp.Montant, Obligatoire: true),
-            new("Date", nameof(PaiementRequete.Date), TypeChamp.Date),
-            new("Mode de règlement", nameof(PaiementRequete.ModeReglementId), TypeChamp.Liste,
+            new("Règlement de", nameof(ReglementRequete.Document), TypeChamp.Liste,
+                Obligatoire: true, Options: documents,
+                Aide: documents.Count == 0
+                    ? "Aucune vente ni commande n'a de reste à payer : il n'y a rien à encaisser."
+                    : "Ventes à crédit et commandes dont il reste une somme à encaisser."),
+            new("Montant reçu", nameof(ReglementRequete.Montant), TypeChamp.Montant, Obligatoire: true),
+            new("Date", nameof(ReglementRequete.Date), TypeChamp.Date),
+            new("Mode de règlement", nameof(ReglementRequete.ModeReglementId), TypeChamp.Liste,
                 Obligatoire: true, Options: modes),
-            new("Référence", nameof(PaiementRequete.Reference), TypeChamp.Texte,
+            new("Référence", nameof(ReglementRequete.Reference), TypeChamp.Texte,
                 Aide: "Numéro de chèque, de virement ou de transaction."),
-            new("Acompte", nameof(PaiementRequete.Acompte), TypeChamp.Case),
-            new("Notes", nameof(PaiementRequete.Notes), TypeChamp.TexteLong)
+            new("Notes", nameof(ReglementRequete.Notes), TypeChamp.TexteLong)
         };
 
-    protected override Task EnregistrerAsync() => _paiements.EnregistrerAsync(Requete);
+    protected override Task EnregistrerAsync()
+    {
+        var requete = new PaiementRequete
+        {
+            Montant = Requete.Montant,
+            Date = Requete.Date,
+            ModeReglementId = Requete.ModeReglementId,
+            Reference = Requete.Reference,
+            Notes = Requete.Notes
+        };
+
+        if (ReglementRequete.EstCommande(Requete.Document, out var commandeId))
+        {
+            requete.CommandeId = commandeId;
+
+            // Tant que la pièce n'est pas livrée, ce qu'on reçoit est un acompte.
+            requete.Acompte = _commandesOuvertes.TryGetValue(commandeId, out var commande)
+                              && commande.Statut != CustomOrderStatus.Livree;
+        }
+        else
+        {
+            requete.VenteId = Requete.Document;
+        }
+
+        return _paiements.EnregistrerAsync(requete);
+    }
+}
+
+/// <summary>
+/// Saisie d'un règlement. Ventes et commandes figurent dans la même liste :
+/// une commande y est repérée par un code négatif, une vente par son
+/// identifiant.
+/// </summary>
+public class ReglementRequete
+{
+    public int Document { get; set; }
+    public decimal Montant { get; set; }
+    public DateTime? Date { get; set; }
+    public int ModeReglementId { get; set; }
+    public string? Reference { get; set; }
+    public string? Notes { get; set; }
+
+    public static int CodeVente(int venteId) => venteId;
+
+    public static int CodeCommande(int commandeId) => -commandeId;
+
+    public static bool EstCommande(int code, out int commandeId)
+    {
+        commandeId = -code;
+        return code < 0;
+    }
 }

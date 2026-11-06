@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.DTOs.Sauvegarde;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,23 +16,20 @@ namespace CeramiPro.Presentation.ViewModels.Ecrans;
 public partial class SauvegardeVueModele : VueModeleBase
 {
     private readonly ISauvegardeService _sauvegardes;
-    private readonly IServiceLangue _langue;
     private readonly IServiceDialogue _dialogue;
     private readonly IServiceFichier _fichiers;
 
     public SauvegardeVueModele(
         ISauvegardeService sauvegardes,
-        IServiceLangue langue,
         IServiceDialogue dialogue,
         IServiceFichier fichiers)
     {
         _sauvegardes = sauvegardes;
-        _langue = langue;
         _dialogue = dialogue;
         _fichiers = fichiers;
     }
 
-    public override string Titre => _langue["menu.administration.sauvegarde"];
+    public override string Titre => "Sauvegarde";
 
     public override string Introduction =>
         "Copie de sécurité des données de l'atelier. Copiez régulièrement la dernière archive " +
@@ -186,7 +182,7 @@ public partial class SauvegardeVueModele : VueModeleBase
                 $"Restaurer la sauvegarde « {choisie.NomFichier} » du "
                 + $"{Application.Common.Formatage.DateHeure(choisie.Date)} ?\n\n"
                 + "TOUTES les données enregistrées depuis cette date seront perdues : "
-                + "ventes, productions, paiements, fiches créées ou modifiées.\n\n"
+                + "ventes, commandes, paiements, fiches créées ou modifiées.\n\n"
                 + "Cette opération est irréversible.",
                 "Restaurer la base"))
         {
@@ -219,8 +215,9 @@ public partial class SauvegardeVueModele : VueModeleBase
 
             _dialogue.Succes(
                 $"La base a été restaurée depuis « {resultat.NomFichier} ».\n\n"
-                + $"{resultat.NombreTables} table(s) et {resultat.NombreLignes} ligne(s) "
-                + "remises en place.\n\n"
+                + $"{resultat.NombreTables} table(s) et {resultat.NombreLignes} ligne(s) remises en place"
+                + (resultat.PhotosRestaurees > 0 ? $", ainsi que {resultat.PhotosRestaurees} photo(s)" : string.Empty)
+                + ".\n\n"
                 + ancienneVersion
                 + "Fermez puis rouvrez CeramiPro pour travailler sur les données restaurées.",
                 "Restauration terminée");

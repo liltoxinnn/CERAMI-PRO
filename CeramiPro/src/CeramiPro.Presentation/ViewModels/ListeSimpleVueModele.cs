@@ -1,13 +1,12 @@
 using System.Reflection;
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Presentation.ViewModels;
 
 /// <summary>
-/// Écran de liste pour les tables courtes — catégories, unités, fours,
-/// recettes — que les services renvoient d'un bloc.
+/// Écran de liste pour les tables courtes — les catégories — que les
+/// services renvoient d'un bloc.
 ///
 /// La recherche et la pagination se font ici, en mémoire : sur quelques
 /// dizaines de lignes, cela évite d'imposer une pagination au service, et
@@ -15,8 +14,8 @@ namespace CeramiPro.Presentation.ViewModels;
 /// </summary>
 public abstract class ListeSimpleVueModele<TElement> : ListeVueModele<TElement>
 {
-    protected ListeSimpleVueModele(IServiceLangue langue, OutilsListe? outils = null)
-        : base(langue, outils)
+    protected ListeSimpleVueModele(OutilsListe? outils = null)
+        : base(outils)
     {
     }
 

@@ -10,7 +10,7 @@
     </UserControl.Resources>
 
     <!--
-        Paramètres de l'atelier. Ce qui figure sur les factures vient en
+        Paramètres de l'atelier. Ce qui figure sur les reçus vient en
         premier : c'est ce que l'on renseigne le jour de l'installation.
     -->
 
@@ -42,7 +42,7 @@
                 <Border Style="{StaticResource Carte}">
                     <StackPanel>
                         <TextBlock Text="Identité de l'atelier" Style="{StaticResource TitreCarte}" />
-                        <TextBlock Text="Ces informations figurent en tête de chaque facture et de chaque reçu."
+                        <TextBlock Text="Ces informations figurent en tête de chaque reçu."
                                    Style="{StaticResource IntroductionPage}" Margin="0,0,0,10" />
 
                         <UniformGrid Columns="2">
@@ -101,7 +101,7 @@
                 <Border Style="{StaticResource Carte}">
                     <StackPanel>
                         <TextBlock Text="Mentions légales" Style="{StaticResource TitreCarte}" />
-                        <TextBlock Text="Numéros obligatoires sur les factures en Algérie."
+                        <TextBlock Text="Numéros de l'entreprise, imprimés au bas des reçus lorsqu'ils sont renseignés."
                                    Style="{StaticResource IntroductionPage}" Margin="0,0,0,10" />
 
                         <UniformGrid Columns="3">
@@ -160,7 +160,7 @@
                             </StackPanel>
 
                             <StackPanel Style="{StaticResource Ligne}" VerticalAlignment="Bottom">
-                                <CheckBox Content="Appliquer la TVA sur les factures" Margin="0,0,0,10"
+                                <CheckBox Content="Appliquer la TVA aux ventes" Margin="0,0,0,10"
                                           IsChecked="{Binding Reglages.TvaActivee}" />
                             </StackPanel>
 
@@ -177,52 +177,95 @@
                 <Border Style="{StaticResource Carte}">
                     <StackPanel>
                         <TextBlock Text="Numérotation des documents" Style="{StaticResource TitreCarte}" />
-                        <TextBlock Text="Préfixe placé devant le numéro de chaque document, par exemple FAC-2026-0001."
-                                   Style="{StaticResource IntroductionPage}" Margin="0,0,0,10" />
+                        <TextBlock Text="Préfixe placé devant le numéro de chaque document, par exemple VTE-2026-0001. Il ne s'applique qu'aux nouveaux documents."
+                                   Style="{StaticResource IntroductionPage}" TextWrapping="Wrap" Margin="0,0,0,10" />
 
-                        <UniformGrid Columns="4">
-                            <StackPanel Style="{StaticResource Ligne}">
-                                <TextBlock Text="Factures" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
-                                         Text="{Binding Reglages.PrefixeFacture, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
+                        <UniformGrid Columns="3">
                             <StackPanel Style="{StaticResource Ligne}">
                                 <TextBlock Text="Ventes" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
                                          Text="{Binding Reglages.PrefixeVente, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Style="{StaticResource Ligne}">
-                                <TextBlock Text="Achats" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
-                                         Text="{Binding Reglages.PrefixeAchat, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <StackPanel Style="{StaticResource Ligne}">
-                                <TextBlock Text="Production" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
-                                         Text="{Binding Reglages.PrefixeProduction, UpdateSourceTrigger=PropertyChanged}" />
-                            </StackPanel>
-                            <StackPanel Style="{StaticResource Ligne}">
                                 <TextBlock Text="Commandes" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
                                          Text="{Binding Reglages.PrefixeCommande, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Style="{StaticResource Ligne}">
                                 <TextBlock Text="Paiements" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
                                          Text="{Binding Reglages.PrefixePaiement, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Style="{StaticResource Ligne}">
-                                <TextBlock Text="Cuissons" Style="{StaticResource EtiquetteChamp}" />
-                                <TextBox Style="{StaticResource Saisie}"
-                                         Text="{Binding Reglages.PrefixeCuisson, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Clients" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
+                                         Text="{Binding Reglages.PrefixeClient, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Produits" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
+                                         Text="{Binding Reglages.PrefixeProduit, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Dépenses" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBox Style="{StaticResource Saisie}" MaxLength="10"
+                                         Text="{Binding Reglages.PrefixeDepense, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </UniformGrid>
 
-                        <TextBlock Text="Pied de page des factures" Style="{StaticResource EtiquetteChamp}"
+                        <TextBlock Text="Message en bas des reçus" Style="{StaticResource EtiquetteChamp}"
                                    Margin="0,8,0,4" />
                         <TextBox Style="{StaticResource Saisie}" AcceptsReturn="True" MinHeight="70"
-                                 TextWrapping="Wrap" VerticalContentAlignment="Top"
-                                 Text="{Binding Reglages.PiedDePageFacture, UpdateSourceTrigger=PropertyChanged}" />
+                                 TextWrapping="Wrap" VerticalContentAlignment="Top" MaxLength="1000"
+                                 Text="{Binding Reglages.PiedDePageRecu, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Base de données -->
+                <Border Style="{StaticResource Carte}">
+                    <StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Vérifier la connexion"
+                                    Command="{Binding VerifierBaseCommand}"
+                                    Style="{StaticResource BoutonSecondaire}" />
+                            <TextBlock Text="Base de données" Style="{StaticResource TitreCarte}" />
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource IntroductionPage}" TextWrapping="Wrap" Margin="0,0,0,10">
+                            <Run Text="La connexion se règle dans le fichier" />
+                            <Run Text="{Binding BaseDeDonnees.FichierConfiguration, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="placé à côté du programme. Les sauvegardes se gèrent dans « Paramètres › Sauvegarde »." />
+                        </TextBlock>
+
+                        <UniformGrid Columns="3">
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="État" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding EtatBase}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Serveur" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock>
+                                    <Run Text="{Binding BaseDeDonnees.Serveur, Mode=OneWay}" />
+                                    <Run Text=":" />
+                                    <Run Text="{Binding BaseDeDonnees.Port, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Base" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding BaseDeDonnees.NomBase}" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Compte PostgreSQL" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding BaseDeDonnees.Compte}" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Version de PostgreSQL" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding BaseDeDonnees.VersionPostgres}" />
+                            </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Dernière mise à jour du schéma" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding BaseDeDonnees.VersionSchema}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </UniformGrid>
                     </StackPanel>
                 </Border>
 

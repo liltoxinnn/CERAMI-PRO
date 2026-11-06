@@ -10,7 +10,12 @@ public class RegleMetierException : Exception
         : base(message)
         => Details = details ?? Array.Empty<string>();
 
-    /// <summary>Précisions listées sous le message, par exemple les matières manquantes.</summary>
+    /// <summary>Règle enfreinte à la suite d'une erreur technique, gardée pour le journal.</summary>
+    public RegleMetierException(string message, Exception cause)
+        : base(message, cause)
+        => Details = Array.Empty<string>();
+
+    /// <summary>Précisions listées sous le message, par exemple les produits manquants.</summary>
     public IReadOnlyList<string> Details { get; }
 }
 

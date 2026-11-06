@@ -27,10 +27,20 @@ public interface IProduitService
     /// <summary>Produits passés sous leur seuil d'alerte.</summary>
     Task<IReadOnlyList<ProduitDto>> ListerStockFaibleAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Tous les produits actifs, sans pagination : la caisse doit pouvoir
+    /// proposer le catalogue entier, quelle que soit sa taille.
+    /// </summary>
+    Task<IReadOnlyList<ProduitDto>> ListerActifsAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PhotoProduitDto>> ListerPhotosAsync(int produitId, CancellationToken cancellationToken = default);
 
     Task<PhotoProduitDto> AjouterPhotoAsync(
         int produitId, PhotoProduitRequete requete, CancellationToken cancellationToken = default);
 
-    Task SupprimerPhotoAsync(int produitId, int photoId, CancellationToken cancellationToken = default);
+    /// <summary>Retire une photo et renvoie le chemin du fichier, à effacer ensuite.</summary>
+    Task<string> SupprimerPhotoAsync(int produitId, int photoId, CancellationToken cancellationToken = default);
+
+    /// <summary>La photo choisie devient celle qui représente le produit.</summary>
+    Task DefinirPhotoPrincipaleAsync(int produitId, int photoId, CancellationToken cancellationToken = default);
 }

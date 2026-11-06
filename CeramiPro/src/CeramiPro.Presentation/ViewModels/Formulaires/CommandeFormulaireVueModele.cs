@@ -1,18 +1,20 @@
 using CeramiPro.Application.DTOs.Commercial;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Enums;
 
 namespace CeramiPro.Presentation.ViewModels.Formulaires;
 
-/// <summary>Commande personnalisée : une pièce sur mesure demandée par un client.</summary>
+/// <summary>
+/// Commande personnalisée : une pièce sur mesure demandée par un client, à
+/// l'atelier ou par Instagram, WhatsApp… L'acompte s'encaisse ensuite depuis
+/// la liste des commandes, et le reste à payer se calcule tout seul.
+/// </summary>
 public class CommandeFormulaireVueModele : FormulaireVueModele<CommandeRequete>
 {
     private readonly ICommandeService _commandes;
     private readonly IClientService _clients;
 
-    public CommandeFormulaireVueModele(
-        ICommandeService commandes, IClientService clients, IServiceLangue langue)
-        : base(langue)
+    public CommandeFormulaireVueModele(ICommandeService commandes, IClientService clients)
     {
         _commandes = commandes;
         _clients = clients;
@@ -27,9 +29,9 @@ public class CommandeFormulaireVueModele : FormulaireVueModele<CommandeRequete>
 
     public override async Task PreparerAsync()
     {
-        var clients = await _clients.ListerAsync(new FiltreClientsRequete { TaillePage = 200 });
+        var clients = await _clients.ListerPourChoixAsync();
 
-        _champs = Construire(clients.Elements.Select(c => new OptionChamp(c.Id, c.Nom)).ToList());
+        _champs = Construire(clients.Select(c => new OptionChamp(c.Id, c.Libelle)).ToList());
         OnPropertyChanged(nameof(Champs));
     }
 
@@ -42,6 +44,7 @@ public class CommandeFormulaireVueModele : FormulaireVueModele<CommandeRequete>
         {
             ClientId = commande.ClientId,
             Titre = commande.Titre,
+            Canal = commande.Canal,
             Description = commande.Description,
             Largeur = commande.Largeur,
             Hauteur = commande.Hauteur,
@@ -51,7 +54,7 @@ public class CommandeFormulaireVueModele : FormulaireVueModele<CommandeRequete>
             Quantite = commande.Quantite,
             PrixUnitaire = commande.PrixUnitaire,
             Remise = commande.Remise,
-            DateLimite = commande.DateLimite,
+            DateLimite = commande.DateLimite.Date,
             EmployeId = commande.EmployeId,
             Notes = commande.Notes
         };
@@ -61,12 +64,18 @@ public class CommandeFormulaireVueModele : FormulaireVueModele<CommandeRequete>
         => new ChampFormulaire[]
         {
             new("Client", nameof(CommandeRequete.ClientId), TypeChamp.Liste,
-                Obligatoire: true, Options: clients),
+                Obligatoire: true, Options: clients,
+                Aide: clients.Count == 0
+                    ? "Aucun client : créez-le d'abord avec « Nouveau client »."
+                    : "Tapez le début du nom pour le retrouver."),
+            new("Reçue par", nameof(CommandeRequete.Canal), TypeChamp.Liste,
+                Obligatoire: true, Options: OptionChamp.De<CanalCommande>()),
             new("Titre de la commande", nameof(CommandeRequete.Titre), TypeChamp.Texte,
                 Obligatoire: true, Aide: "Par exemple : « Service à thé bleu, 12 pièces »."),
             new("Quantité", nameof(CommandeRequete.Quantite), TypeChamp.Nombre, Obligatoire: true),
             new("Prix unitaire", nameof(CommandeRequete.PrixUnitaire), TypeChamp.Montant, Obligatoire: true),
-            new("Remise", nameof(CommandeRequete.Remise), TypeChamp.Montant),
+            new("Remise", nameof(CommandeRequete.Remise), TypeChamp.Montant,
+                Aide: "Total = quantité × prix unitaire − remise. L'acompte s'encaisse ensuite depuis la liste."),
             new("Date limite", nameof(CommandeRequete.DateLimite), TypeChamp.Date, Obligatoire: true),
             new("Description", nameof(CommandeRequete.Description), TypeChamp.TexteLong),
             new("Couleurs demandées", nameof(CommandeRequete.Couleurs)),

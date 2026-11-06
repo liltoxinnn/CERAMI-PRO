@@ -8,6 +8,13 @@ namespace CeramiPro.Presentation.ViewModels;
 /// </summary>
 public abstract partial class VueModeleBase : ObservableObject
 {
+    /// <summary>
+    /// Reçoit les erreurs inattendues, pour le journal du logiciel. Branché
+    /// par l'application au démarrage ; l'utilisateur, lui, ne voit qu'un
+    /// message clair.
+    /// </summary>
+    public static Action<Exception>? SignalerErreur { get; set; }
+
     [ObservableProperty]
     private bool _chargementEnCours;
 
@@ -44,10 +51,17 @@ public abstract partial class VueModeleBase : ObservableObject
         {
             MessageErreur = erreur.Message;
         }
+        catch (Application.Common.IntrouvableException erreur)
+        {
+            MessageErreur = erreur.Message;
+        }
         catch (Exception erreur)
         {
+            SignalerErreur?.Invoke(erreur);
+
             MessageErreur = messageErreur?.Invoke(erreur)
-                ?? "L'opération n'a pas pu être effectuée. Veuillez réessayer.";
+                ?? "L'opération n'a pas pu être effectuée. Veuillez réessayer. " +
+                   "Si le problème persiste, le détail est noté dans le journal du logiciel.";
         }
         finally
         {

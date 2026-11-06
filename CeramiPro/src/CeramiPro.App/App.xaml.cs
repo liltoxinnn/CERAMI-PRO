@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Markup;
 using CeramiPro.Application;
 using CeramiPro.Application.Common;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Presentation;
@@ -103,6 +102,10 @@ public partial class App : System.Windows.Application
                 XmlLanguage.GetLanguage(ParametresAtelier.Culture.IetfLanguageTag)));
 
         Directory.CreateDirectory(DossierDonnees);
+
+        // Les erreurs imprévues des écrans partent au journal ; l'utilisateur,
+        // lui, reçoit un message en français dans l'écran concerné.
+        VueModeleBase.SignalerErreur = erreur => Log.Error(erreur, "Erreur inattendue dans un écran.");
 
         // Une erreur imprévue ne doit jamais fermer le logiciel sans un mot
         // d'explication : le détail part au journal, l'utilisateur reçoit une
@@ -284,8 +287,8 @@ public partial class App : System.Windows.Application
 
             // Ce que seule une application Windows peut fournir : les boîtes
             // de dialogue et les fenêtres du système.
-            services.AddSingleton<IServiceLangue, ServiceLangue>();
             services.AddSingleton<IServiceDialogue, ServiceDialogue>();
+            services.AddSingleton<IServiceFenetres, ServiceFenetres>();
             services.AddSingleton<IServiceFormulaire, ServiceFormulaire>();
             services.AddSingleton<IServiceFichier, ServiceFichier>();
             services.AddSingleton<IServiceCompte, ServiceCompte>();
@@ -299,39 +302,105 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>
-    /// Vérifie que PostgreSQL répond avant d'ouvrir la fenêtre. Un message
-    /// clair vaut mieux qu'une application qui s'ouvre puis échoue partout.
+    /// Vérifie que PostgreSQL répond, puis met le schéma à jour, avant
+    /// d'ouvrir la fenêtre. Les deux échecs ont des remèdes différents : ils
+    /// ont donc chacun leur message.
     /// </summary>
     private async Task<bool> BaseDeDonneesPreteAsync()
     {
         using var portee = _hote!.Services.CreateScope();
         var contexte = portee.ServiceProvider.GetRequiredService<CeramiProDbContext>();
+        var nomBase = contexte.Database.GetDbConnection().Database;
+
+        bool joignable;
 
         try
         {
+            joignable = await contexte.Database.CanConnectAsync();
+        }
+        catch (Exception erreur)
+        {
+            Log.Error(erreur, "La base de données est injoignable.");
+            joignable = false;
+        }
+
+        if (!joignable)
+        {
+            // Une base qui n'existe pas encore n'empêche pas la connexion au
+            // serveur : la migration la créera. On ne s'arrête donc que si le
+            // serveur lui-même ne répond pas.
+            if (!await ServeurJoignableAsync(contexte))
+            {
+                MessageBox.Show(
+                    "Impossible de se connecter à la base de données.\n\n" +
+                    "Vérifiez, dans l'ordre :\n\n" +
+                    "1. Le service PostgreSQL est démarré.\n" +
+                    $"2. Le fichier « {FichierReglagesLocaux} » existe et\n" +
+                    "    contient le bon mot de passe.\n\n" +
+                    "Il est cherché à ces deux endroits, le second l'emportant :\n\n" +
+                    Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux) + "\n" +
+                    Path.Combine(DossierDonnees, FichierReglagesLocaux),
+                    "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                return false;
+            }
+        }
+
+        try
+        {
+            var enAttente = (await contexte.Database.GetPendingMigrationsAsync()).ToList();
+
+            if (enAttente.Count > 0)
+            {
+                Log.Information("Mise à jour du schéma de « {Base} » : {Migrations}.",
+                    nomBase, string.Join(", ", enAttente));
+            }
+
+            // Chaque mise à jour s'applique dans une transaction : si elle
+            // échoue, la base reste exactement dans son état d'avant.
             await contexte.Database.MigrateAsync();
 
             var semeur = portee.ServiceProvider.GetRequiredService<CeramiPro.Infrastructure.Data.Seed.DatabaseSeeder>();
             await semeur.ExecuterAsync();
 
-            Log.Information("Base de données « {Base} » prête.", ParametresAtelier.NomBaseDeDonnees);
+            Log.Information("Base de données « {Base} » prête.", nomBase);
             return true;
         }
         catch (Exception erreur)
         {
-            Log.Error(erreur, "La base de données est injoignable.");
+            Log.Error(erreur, "La mise à jour de la base de données a échoué.");
 
             MessageBox.Show(
-                "Impossible de se connecter à la base de données.\n\n" +
-                "Vérifiez, dans l'ordre :\n\n" +
-                "1. Le service PostgreSQL est démarré.\n" +
-                $"2. Le fichier « {FichierReglagesLocaux} » existe et\n" +
-                "    contient le bon mot de passe.\n\n" +
-                "Il est cherché à ces deux endroits, le second l'emportant :\n\n" +
-                Path.Combine(AppContext.BaseDirectory, FichierReglagesLocaux) + "\n" +
-                Path.Combine(DossierDonnees, FichierReglagesLocaux),
-                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Warning);
+                $"La base « {nomBase} » est joignable, mais sa mise à jour a échoué.\n\n" +
+                "Aucune donnée n'a été modifiée : chaque mise à jour s'annule entièrement en cas d'échec.\n\n" +
+                $"Raison : {erreur.GetBaseException().Message}\n\n" +
+                "Le compte PostgreSQL utilisé doit pouvoir créer des tables et des schémas. " +
+                "Le détail complet se trouve dans :\n" +
+                Path.Combine(DossierDonnees, "journaux"),
+                "CeramiPro", MessageBoxButton.OK, MessageBoxImage.Error);
 
+            return false;
+        }
+    }
+
+    /// <summary>Vrai si le serveur PostgreSQL répond, même si la base n'existe pas encore.</summary>
+    private static async Task<bool> ServeurJoignableAsync(CeramiProDbContext contexte)
+    {
+        try
+        {
+            var chaine = new Npgsql.NpgsqlConnectionStringBuilder(contexte.Database.GetConnectionString())
+            {
+                Database = "postgres",
+                Timeout = 5
+            };
+
+            await using var connexion = new Npgsql.NpgsqlConnection(chaine.ConnectionString);
+            await connexion.OpenAsync();
+            return true;
+        }
+        catch (Exception erreur)
+        {
+            Log.Error(erreur, "Le serveur PostgreSQL ne répond pas.");
             return false;
         }
     }

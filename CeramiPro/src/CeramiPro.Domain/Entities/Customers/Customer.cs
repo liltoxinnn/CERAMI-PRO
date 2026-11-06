@@ -10,6 +10,9 @@ public class Customer : AuditableEntity
     public string CustomerNumber { get; set; } = null!;
     public string FullName { get; set; } = null!;
     public string? PhoneNumber { get; set; }
+
+    /// <summary>Compte Instagram, par exemple « @atelier.nadia ».</summary>
+    public string? Instagram { get; set; }
     public string? Email { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }

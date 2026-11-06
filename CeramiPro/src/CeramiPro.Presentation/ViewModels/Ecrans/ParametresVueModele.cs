@@ -1,6 +1,5 @@
 using CeramiPro.Application.DTOs.Settings;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,30 +8,46 @@ namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
 /// <summary>
 /// Paramètres de l'atelier : identité de l'entreprise, mentions légales,
-/// devise, TVA et préfixes des numéros de documents.
+/// devise, TVA, numérotation des documents, et état de la base de données.
 ///
-/// Ces valeurs apparaissent sur les factures et les reçus : elles doivent
-/// être renseignées avant la première vente.
+/// L'identité et les mentions légales apparaissent sur les reçus : elles
+/// doivent être renseignées avant la première vente.
 /// </summary>
 public partial class ParametresVueModele : VueModeleBase
 {
     private readonly IParametresService _parametres;
-    private readonly IServiceLangue _langue;
+    private readonly IServiceEtatBaseDeDonnees _base;
     private readonly IServiceDialogue _dialogue;
 
     public ParametresVueModele(
-        IParametresService parametres, IServiceLangue langue, IServiceDialogue dialogue)
+        IParametresService parametres, IServiceEtatBaseDeDonnees baseDeDonnees, IServiceDialogue dialogue)
     {
         _parametres = parametres;
-        _langue = langue;
+        _base = baseDeDonnees;
         _dialogue = dialogue;
     }
 
-    public override string Titre => _langue["menu.parametres"];
+    public override string Titre => "Paramètres de l'atelier";
 
     public override string Introduction =>
-        "Identité de l'atelier, mentions légales et numérotation des documents. " +
-        "Ces informations apparaissent en tête de chaque facture.";
+        "Identité de l'atelier, mentions légales, monnaie et numérotation des documents. " +
+        "Le nom, l'adresse et les mentions légales apparaissent sur chaque reçu.";
+
+    /// <summary>Connexion et version de la base, en lecture seule.</summary>
+    [ObservableProperty]
+    private InformationsBaseDeDonnees? _baseDeDonnees;
+
+    /// <summary>Texte affiché dans la carte « Base de données ».</summary>
+    public string EtatBase => BaseDeDonnees switch
+    {
+        null => "Vérification en cours…",
+        { Disponible: false } => "Injoignable — vérifiez que PostgreSQL est démarré.",
+        { MisesAJourEnAttente: > 0 } infos =>
+            $"Connectée — {infos.MisesAJourEnAttente} mise(s) à jour du schéma en attente : redémarrez le logiciel.",
+        _ => "Connectée"
+    };
+
+    partial void OnBaseDeDonneesChanged(InformationsBaseDeDonnees? value) => OnPropertyChanged(nameof(EtatBase));
 
     /// <summary>Objet lié aux champs de l'écran.</summary>
     [ObservableProperty]
@@ -42,14 +57,23 @@ public partial class ParametresVueModele : VueModeleBase
     private bool _enregistrementEnCours;
 
     public override async Task ChargerAsync()
-        => await ExecuterAsync(async () => Reglages = await _parametres.ObtenirAsync());
+        => await ExecuterAsync(async () =>
+        {
+            Reglages = await _parametres.ObtenirAsync();
+            BaseDeDonnees = await _base.DecrireAsync();
+        });
+
+    /// <summary>Revérifie la connexion, par exemple après avoir redémarré PostgreSQL.</summary>
+    [RelayCommand]
+    private async Task VerifierBaseAsync()
+        => await ExecuterAsync(async () => BaseDeDonnees = await _base.DecrireAsync());
 
     [RelayCommand]
     private async Task EnregistrerAsync()
     {
         if (string.IsNullOrWhiteSpace(Reglages.NomAtelier))
         {
-            MessageErreur = "Le nom de l'atelier est obligatoire : il figure sur toutes les factures.";
+            MessageErreur = "Le nom de l'atelier est obligatoire : il figure sur tous les reçus.";
             return;
         }
 

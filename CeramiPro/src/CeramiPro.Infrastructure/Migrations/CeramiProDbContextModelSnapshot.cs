@@ -118,6 +118,9 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<bool>("IsCustomizable")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsUniquePiece")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MaterialDescription")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
@@ -152,6 +155,12 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<decimal?>("Weight")
                         .HasPrecision(10, 3)
@@ -272,6 +281,9 @@ namespace CeramiPro.Infrastructure.Migrations
                     b.Property<int?>("AssignedUserId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Colors")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
@@ -364,6 +376,12 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Property<int?>("UpdatedByUserId")
                         .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<decimal?>("Width")
                         .HasPrecision(10, 2)
@@ -505,6 +523,10 @@ namespace CeramiPro.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Instagram")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -1066,6 +1088,12 @@ namespace CeramiPro.Infrastructure.Migrations
 
                     b.Property<int?>("UserId")
                         .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 

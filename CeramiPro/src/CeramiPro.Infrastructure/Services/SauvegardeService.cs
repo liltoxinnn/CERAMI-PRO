@@ -34,7 +34,11 @@ public class SauvegardeService : ISauvegardeService
     /// <summary>Préfixe des archives créées à la demande.</summary>
     public const string PrefixeManuel = "ceramipro-";
 
+    /// <summary>Dossier de l'archive qui contient les photos des produits et des commandes.</summary>
+    public const string DossierPhotos = "photos/";
+
     private readonly CeramiProDbContext _context;
+    private readonly IStockagePhotos _photos;
     private readonly IServiceDateHeure _horloge;
     private readonly IAuditService _audit;
     private readonly ILogger<SauvegardeService> _journal;
@@ -42,22 +46,30 @@ public class SauvegardeService : ISauvegardeService
 
     public SauvegardeService(
         CeramiProDbContext context,
+        IStockagePhotos photos,
         IServiceDateHeure horloge,
         IAuditService audit,
         IConfiguration configuration,
         ILogger<SauvegardeService> journal)
     {
         _context = context;
+        _photos = photos;
         _horloge = horloge;
         _audit = audit;
         _journal = journal;
 
+        // Dans le profil de l'utilisateur, comme le prépare l'installateur :
+        // le dossier du programme, sous « Program Files », est en lecture seule.
         _dossier = configuration["Sauvegarde:Dossier"]
-                   ?? Path.Combine(AppContext.BaseDirectory, "sauvegardes");
+                   ?? Path.Combine(
+                       Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                       "CeramiPro", "sauvegardes");
     }
 
     public async Task<EtatSauvegardeDto> EtatAsync(CancellationToken cancellationToken = default)
     {
+        RecupererAnciennesSauvegardes();
+
         var reglages = await LireReglagesAsync(cancellationToken);
         var sauvegardes = ListerFichiers();
 
@@ -91,6 +103,8 @@ public class SauvegardeService : ISauvegardeService
             {
                 await EcrireTableAsync(archive, table, cancellationToken);
             }
+
+            await EcrirePhotosAsync(archive, cancellationToken);
         }
 
         var information = new FileInfo(chemin);
@@ -175,6 +189,43 @@ public class SauvegardeService : ISauvegardeService
             reglages.TryGetValue(CleConservation, out var jours) && int.TryParse(jours, out var valeur)
                 ? valeur
                 : 30);
+    }
+
+    /// <summary>
+    /// Les versions précédentes rangeaient les sauvegardes à côté du
+    /// programme. Celles qui s'y trouvent encore sont recopiées — jamais
+    /// déplacées — dans le dossier actuel, pour rester dans la liste.
+    /// </summary>
+    private void RecupererAnciennesSauvegardes()
+    {
+        var ancien = Path.Combine(AppContext.BaseDirectory, "sauvegardes");
+
+        if (!Directory.Exists(ancien)
+            || string.Equals(Path.GetFullPath(ancien), Path.GetFullPath(_dossier), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(_dossier);
+
+            foreach (var fichier in Directory.EnumerateFiles(ancien, "*.zip"))
+            {
+                var cible = Path.Combine(_dossier, Path.GetFileName(fichier));
+
+                if (!File.Exists(cible))
+                {
+                    File.Copy(fichier, cible);
+                    File.SetLastWriteTimeUtc(cible, File.GetLastWriteTimeUtc(fichier));
+                    _journal.LogInformation("Ancienne sauvegarde recopiée : {Fichier}", Path.GetFileName(fichier));
+                }
+            }
+        }
+        catch (Exception erreur) when (erreur is IOException or UnauthorizedAccessException)
+        {
+            _journal.LogWarning(erreur, "Les anciennes sauvegardes de {Dossier} n'ont pas pu être recopiées.", ancien);
+        }
     }
 
     private List<SauvegardeDto> ListerFichiers()
@@ -345,9 +396,13 @@ public class SauvegardeService : ISauvegardeService
             }
         }
 
+        // Les photos sont remises une fois les données validées : une
+        // restauration refusée ne doit rien changer sur le disque.
+        var photosRestaurees = RestaurerPhotos(archive);
+
         _journal.LogInformation(
-            "Base restaurée depuis « {Fichier} » : {Tables} tables, {Lignes} lignes.",
-            nomFichier, tablesRestaurees, lignesRestaurees);
+            "Base restaurée depuis « {Fichier} » : {Tables} tables, {Lignes} lignes, {Photos} photos.",
+            nomFichier, tablesRestaurees, lignesRestaurees, photosRestaurees);
 
         await _audit.EnregistrerAsync(
             AuditAction.Restauration, "Sauvegarde", nomFichier,
@@ -360,7 +415,67 @@ public class SauvegardeService : ISauvegardeService
             tablesRestaurees,
             lignesRestaurees,
             ancienFormat,
-            ancienFormat ? contenus.Keys.Count(RepriseAncienneVersion.TablesRetirees.Contains) : 0);
+            ancienFormat ? contenus.Keys.Count(RepriseAncienneVersion.TablesRetirees.Contains) : 0,
+            photosRestaurees);
+    }
+
+    /// <summary>
+    /// Ajoute les photos à l'archive. Elles sont déjà compressées : les
+    /// recompresser prendrait du temps sans rien gagner.
+    /// </summary>
+    private async Task EcrirePhotosAsync(ZipArchive archive, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(_photos.Racine))
+        {
+            return;
+        }
+
+        foreach (var fichier in Directory.EnumerateFiles(_photos.Racine, "*", SearchOption.AllDirectories))
+        {
+            var relatif = Path.GetRelativePath(_photos.Racine, fichier).Replace('\\', '/');
+            var entree = archive.CreateEntry(DossierPhotos + relatif, CompressionLevel.NoCompression);
+
+            await using var source = File.OpenRead(fichier);
+            await using var cible = entree.Open();
+            await source.CopyToAsync(cible, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Remet les photos de l'archive dans le dossier des photos. Un chemin
+    /// qui sortirait de ce dossier est ignoré : une archive ne doit jamais
+    /// pouvoir écrire ailleurs sur l'ordinateur.
+    /// </summary>
+    private int RestaurerPhotos(ZipArchive archive)
+    {
+        var racine = Path.GetFullPath(_photos.Racine) + Path.DirectorySeparatorChar;
+        var restaurees = 0;
+
+        foreach (var entree in archive.Entries.Where(e =>
+                     e.FullName.StartsWith(DossierPhotos, StringComparison.Ordinal) && e.Name.Length > 0))
+        {
+            var relatif = entree.FullName[DossierPhotos.Length..].Replace('/', Path.DirectorySeparatorChar);
+            var destination = Path.GetFullPath(Path.Combine(racine, relatif));
+
+            if (!destination.StartsWith(racine, StringComparison.OrdinalIgnoreCase))
+            {
+                _journal.LogWarning("Photo ignorée, chemin hors du dossier des photos : {Chemin}", entree.FullName);
+                continue;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                entree.ExtractToFile(destination, overwrite: true);
+                restaurees++;
+            }
+            catch (IOException erreur)
+            {
+                _journal.LogWarning(erreur, "La photo {Chemin} n'a pas pu être remise en place.", entree.FullName);
+            }
+        }
+
+        return restaurees;
     }
 
     /// <summary>
@@ -807,7 +922,8 @@ public class SauvegardeService : ISauvegardeService
             Cette archive contient une copie de toutes les données de l'atelier.
             Le dossier « donnees » comprend un fichier par table, au format CSV,
             séparé par des points-virgules et encodé en UTF-8. Chaque fichier
-            s'ouvre directement dans un tableur.
+            s'ouvre directement dans un tableur. Le dossier « photos » contient
+            les photos des produits et des commandes.
 
             Conservez cette archive en lieu sûr, de préférence sur un support
             différent de l'ordinateur de l'atelier (clé USB, disque externe).

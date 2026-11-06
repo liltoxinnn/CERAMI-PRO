@@ -1,6 +1,5 @@
 using CeramiPro.Application.DTOs.Auth;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -19,12 +18,10 @@ namespace CeramiPro.Presentation.ViewModels;
 public partial class ChangementMotDePasseVueModele : VueModeleBase
 {
     private readonly IAuthService _auth;
-    private readonly IServiceLangue _langue;
 
-    public ChangementMotDePasseVueModele(IAuthService auth, IServiceLangue langue)
+    public ChangementMotDePasseVueModele(IAuthService auth)
     {
         _auth = auth;
-        _langue = langue;
     }
 
     public override string Titre => "Changer le mot de passe";
@@ -55,13 +52,13 @@ public partial class ChangementMotDePasseVueModele : VueModeleBase
     [ObservableProperty]
     private bool _change;
 
-    public string LibelleValider => _langue["action.valider"];
+    public string LibelleValider => "Valider";
 
     /// <summary>
     /// « Plus tard » dit mieux que « Annuler » ce que fait le bouton quand la
     /// fenêtre s'est ouverte d'elle-même : on ne renonce à rien, on remet.
     /// </summary>
-    public string LibelleAnnuler => ProposeAuDemarrage ? "Plus tard" : _langue["action.annuler"];
+    public string LibelleAnnuler => ProposeAuDemarrage ? "Plus tard" : "Annuler";
 
     /// <summary>Rappel des règles, affiché avant la saisie plutôt qu'après l'échec.</summary>
     public string Exigences =>

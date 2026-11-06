@@ -1,3 +1,4 @@
+using CeramiPro.Application.Common;
 using CeramiPro.Application.Interfaces;
 using CeramiPro.Domain.Entities.Audit;
 using CeramiPro.Domain.Entities.Catalog;
@@ -88,16 +89,47 @@ public class CeramiProDbContext : DbContext, IApplicationDbContext
         configurationBuilder.Properties<DateTime?>().HaveConversion<ConvertisseurUtcNullable>();
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         AppliquerTracabilite();
-        return base.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException erreur)
+        {
+            throw ConflitDeModification(erreur);
+        }
     }
 
     public override int SaveChanges()
     {
         AppliquerTracabilite();
-        return base.SaveChanges();
+
+        try
+        {
+            return base.SaveChanges();
+        }
+        catch (DbUpdateConcurrencyException erreur)
+        {
+            throw ConflitDeModification(erreur);
+        }
+    }
+
+    /// <summary>
+    /// Un autre poste a modifié la même fiche entre la lecture et
+    /// l'enregistrement : rien n'est écrit, et l'utilisateur recommence sur
+    /// des chiffres à jour plutôt que d'écraser ceux de son collègue.
+    /// </summary>
+    private RegleMetierException ConflitDeModification(DbUpdateConcurrencyException erreur)
+    {
+        ChangeTracker.Clear();
+
+        return new RegleMetierException(
+            "Ces données viennent d'être modifiées sur un autre poste. " +
+            "Rien n'a été enregistré : actualisez l'écran, vérifiez les montants et les " +
+            "quantités, puis recommencez.", erreur);
     }
 
     /// <summary>

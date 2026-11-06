@@ -16,18 +16,28 @@ public class UtilisateurService : IUtilisateurService
     private readonly IPasswordHasherService _hachage;
     private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly IAuditService _audit;
+    private readonly IServiceDateHeure _horloge;
 
     public UtilisateurService(
         IApplicationDbContext context,
         IPasswordHasherService hachage,
         IUtilisateurCourant utilisateurCourant,
-        IAuditService audit)
+        IAuditService audit,
+        IServiceDateHeure horloge)
     {
         _context = context;
         _hachage = hachage;
         _utilisateurCourant = utilisateurCourant;
         _audit = audit;
+        _horloge = horloge;
     }
+
+    /// <summary>Dates affichées à l'heure de l'atelier.</summary>
+    private UtilisateurDto Localiser(UtilisateurDto u) => u with
+    {
+        DerniereConnexion = _horloge.EnHeureAtelier(u.DerniereConnexion),
+        DateCreation = _horloge.EnHeureAtelier(u.DateCreation)
+    };
 
     public async Task<PagedResult<UtilisateurDto>> ListerAsync(PagedRequest requete, CancellationToken cancellationToken = default)
     {
@@ -52,7 +62,8 @@ public class UtilisateurService : IUtilisateurService
             .Select(Projection)
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<UtilisateurDto>(elements, total, requete.Page, requete.TaillePage);
+        return new PagedResult<UtilisateurDto>(
+            elements.Select(Localiser).ToList(), total, requete.Page, requete.TaillePage);
     }
 
     public async Task<UtilisateurDto> ObtenirAsync(int id, CancellationToken cancellationToken = default)
@@ -63,7 +74,7 @@ public class UtilisateurService : IUtilisateurService
             .Select(Projection)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return utilisateur ?? throw IntrouvableException.Pour("Utilisateur", id);
+        return utilisateur is null ? throw IntrouvableException.Pour("Utilisateur", id) : Localiser(utilisateur);
     }
 
     public async Task<UtilisateurDto> CreerAsync(CreerUtilisateurRequete requete, CancellationToken cancellationToken = default)
@@ -93,7 +104,7 @@ public class UtilisateurService : IUtilisateurService
         await _audit.EnregistrerAsync(AuditAction.Creation, nameof(User), utilisateur.Id.ToString(),
             $"Création de l'utilisateur « {utilisateur.UserName} » (rôle : {requete.Role.Libelle()}).", null, cancellationToken);
 
-        return Convertir(utilisateur);
+        return Localiser(Convertir(utilisateur));
     }
 
     public async Task<UtilisateurDto> ModifierAsync(int id, ModifierUtilisateurRequete requete, CancellationToken cancellationToken = default)
@@ -118,7 +129,7 @@ public class UtilisateurService : IUtilisateurService
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(User), utilisateur.Id.ToString(),
             $"Modification de l'utilisateur « {utilisateur.UserName} ».", null, cancellationToken);
 
-        return Convertir(utilisateur);
+        return Localiser(Convertir(utilisateur));
     }
 
     public async Task ReinitialiserMotDePasseAsync(int id, ReinitialiserMotDePasseRequete requete, CancellationToken cancellationToken = default)

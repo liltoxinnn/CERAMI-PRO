@@ -1,13 +1,11 @@
 using CeramiPro.Application.DTOs.Referentiels;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Domain.Common;
 
 namespace CeramiPro.Presentation.ViewModels.Formulaires;
 
 /// <summary>
-/// Saisie d'un élément d'une liste simple : catégorie de matières, de
-/// produits, de dépenses, ou type de décoration.
+/// Saisie d'une catégorie, de produits ou de dépenses.
 ///
 /// Les quatre listes ont exactement la même fiche : une seule vue-modèle
 /// suffit, le type voulu étant donné par les classes dérivées.
@@ -16,8 +14,8 @@ public abstract class ReferentielFormulaireVueModele : FormulaireVueModele<Eleme
 {
     private readonly IReferentielService _referentiels;
 
-    protected ReferentielFormulaireVueModele(IReferentielService referentiels, IServiceLangue langue)
-        : base(langue)
+    protected ReferentielFormulaireVueModele(IReferentielService referentiels)
+        : base()
         => _referentiels = referentiels;
 
     /// <summary>Liste concernée.</summary>
@@ -65,20 +63,11 @@ public abstract class ReferentielFormulaireVueModele : FormulaireVueModele<Eleme
     }
 }
 
-/// <summary>Argile, émail, pigment, emballage…</summary>
-public class CategorieMatiereFormulaireVueModele : ReferentielFormulaireVueModele
-{
-    public CategorieMatiereFormulaireVueModele(IReferentielService referentiels, IServiceLangue langue)
-        : base(referentiels, langue) { }
-
-    protected override TypeReferentiel Type => TypeReferentiel.CategorieMatiere;
-}
-
-/// <summary>Vaisselle, carrelage, décoration…</summary>
+/// <summary>Vases, assiettes, statues, objets décoratifs…</summary>
 public class CategorieProduitFormulaireVueModele : ReferentielFormulaireVueModele
 {
-    public CategorieProduitFormulaireVueModele(IReferentielService referentiels, IServiceLangue langue)
-        : base(referentiels, langue) { }
+    public CategorieProduitFormulaireVueModele(IReferentielService referentiels)
+        : base(referentiels) { }
 
     protected override TypeReferentiel Type => TypeReferentiel.CategorieProduit;
 }
@@ -86,17 +75,8 @@ public class CategorieProduitFormulaireVueModele : ReferentielFormulaireVueModel
 /// <summary>Électricité, gaz, transport, salaires…</summary>
 public class CategorieDepenseFormulaireVueModele : ReferentielFormulaireVueModele
 {
-    public CategorieDepenseFormulaireVueModele(IReferentielService referentiels, IServiceLangue langue)
-        : base(referentiels, langue) { }
+    public CategorieDepenseFormulaireVueModele(IReferentielService referentiels)
+        : base(referentiels) { }
 
     protected override TypeReferentiel Type => TypeReferentiel.CategorieDepense;
-}
-
-/// <summary>Émaillage, peinture à la main, dorure…</summary>
-public class TypeDecorationFormulaireVueModele : ReferentielFormulaireVueModele
-{
-    public TypeDecorationFormulaireVueModele(IReferentielService referentiels, IServiceLangue langue)
-        : base(referentiels, langue) { }
-
-    protected override TypeReferentiel Type => TypeReferentiel.TypeDecoration;
 }

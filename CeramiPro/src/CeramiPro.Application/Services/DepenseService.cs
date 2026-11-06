@@ -86,7 +86,7 @@ public class DepenseService : IDepenseService
             Reference = await _numerotation.GenererAsync(TypeDocument.Depense, cancellationToken),
             ExpenseCategoryId = requete.CategorieId,
             Amount = requete.Montant,
-            ExpenseDate = requete.Date ?? _horloge.MaintenantUtc,
+            ExpenseDate = _horloge.JourSaisiVersUtc(requete.Date),
             Description = requete.Description.Trim(),
             ReceiptPath = Nettoyer(requete.Justificatif),
             PaymentMethodId = requete.ModeReglementId,
@@ -113,7 +113,12 @@ public class DepenseService : IDepenseService
 
         depense.ExpenseCategoryId = requete.CategorieId;
         depense.Amount = requete.Montant;
-        depense.ExpenseDate = requete.Date ?? depense.ExpenseDate;
+        // La date ne change que si un autre jour a été choisi : ouvrir la fiche
+        // pour corriger le montant ne doit pas la déplacer.
+        if (requete.Date is { } jour && jour.Date != _horloge.EnHeureAtelier(depense.ExpenseDate).Date)
+        {
+            depense.ExpenseDate = _horloge.JourSaisiVersUtc(jour);
+        }
         depense.Description = requete.Description.Trim();
         depense.ReceiptPath = Nettoyer(requete.Justificatif);
         depense.PaymentMethodId = requete.ModeReglementId;
@@ -156,7 +161,7 @@ public class DepenseService : IDepenseService
             .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
     }
 
-    private async Task<DepenseDto> ObtenirAsync(int id, CancellationToken cancellationToken)
+    public async Task<DepenseDto> ObtenirAsync(int id, CancellationToken cancellationToken = default)
     {
         var depense = await ChargerAvecDetails().AsNoTracking()
                           .FirstOrDefaultAsync(d => d.Id == id, cancellationToken)
@@ -192,8 +197,8 @@ public class DepenseService : IDepenseService
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();
 
-    private static DepenseDto Convertir(Expense d) => new(
+    private DepenseDto Convertir(Expense d) => new(
         d.Id, d.Reference, d.ExpenseCategoryId, d.ExpenseCategory.Name, d.Amount,
-        d.ExpenseDate, d.Description, d.ReceiptPath, d.PaymentMethodId,
+        _horloge.EnHeureAtelier(d.ExpenseDate), d.Description, d.ReceiptPath, d.PaymentMethodId,
         d.PaymentMethod?.Name, d.User?.FullName);
 }

@@ -25,6 +25,7 @@ public record ProduitDto(
     decimal StockActuel,
     decimal StockMinimum,
     bool Personnalisable,
+    bool PieceUnique,
     bool Actif,
     bool StockFaible,
     string? ImagePrincipale,
@@ -46,6 +47,10 @@ public class ProduitRequete
     public decimal PrixVente { get; set; }
     public decimal StockMinimum { get; set; }
     public bool Personnalisable { get; set; }
+
+    /// <summary>Pièce faite à la main en un seul exemplaire : stock de 0 ou 1.</summary>
+    public bool PieceUnique { get; set; }
+
     public bool Actif { get; set; } = true;
 
     /// <summary>Pièces déjà présentes dans l'atelier lors de la création de la fiche.</summary>

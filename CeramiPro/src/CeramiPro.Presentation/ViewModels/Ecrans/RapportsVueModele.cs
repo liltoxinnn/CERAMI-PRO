@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CeramiPro.Application.DTOs.Finances;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Domain.Common;
 using CeramiPro.Presentation.Navigation;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,27 +9,24 @@ using CommunityToolkit.Mvvm.Input;
 namespace CeramiPro.Presentation.ViewModels.Ecrans;
 
 /// <summary>
-/// Écran des rapports : choix du rapport et de la période, affichage, puis
-/// export vers un tableur ou impression.
+/// Écran des rapports : choix du rapport et de la période, affichage avec
+/// graphique, puis export vers un tableur ou impression.
 /// </summary>
 public partial class RapportsVueModele : VueModeleBase
 {
     private readonly IRapportService _rapports;
     private readonly IExportService _exports;
-    private readonly IServiceLangue _langue;
     private readonly IServiceFichier _fichiers;
     private readonly IServiceDialogue _dialogue;
 
     public RapportsVueModele(
         IRapportService rapports,
         IExportService exports,
-        IServiceLangue langue,
         IServiceFichier fichiers,
         IServiceDialogue dialogue)
     {
         _rapports = rapports;
         _exports = exports;
-        _langue = langue;
         _fichiers = fichiers;
         _dialogue = dialogue;
 
@@ -39,17 +35,80 @@ public partial class RapportsVueModele : VueModeleBase
         _au = aujourdhui;
     }
 
-    public override string Titre => _langue["menu.rapports"];
+    public override string Titre => "Rapports";
 
     public override string Introduction =>
-        "Choisissez un rapport et une période, puis exportez-le vers un tableur ou imprimez-le.";
+        "Ventes du jour ou du mois, bénéfices, dépenses, dettes et état du stock. Choisissez un rapport " +
+        "et une période ; le tableau s'exporte vers Excel ou s'imprime en PDF.";
 
-    /// <summary>Les douze rapports, avec leur nom en français.</summary>
-    public IReadOnlyList<(TypeRapport Valeur, string Libelle)> RapportsDisponibles { get; } =
-        EnumExtensions.Libelles<TypeRapport>();
+    /// <summary>
+    /// Les rapports proposés. Des enregistrements et non des tuples : WPF ne
+    /// sait lier que des propriétés, et les noms d'un tuple n'existent qu'à
+    /// la compilation.
+    /// </summary>
+    public IReadOnlyList<OptionRapport> RapportsDisponibles { get; } = EnumExtensions.Libelles<TypeRapport>()
+        .Select(r => new OptionRapport(r.Valeur, r.Libelle))
+        .ToList();
 
     [ObservableProperty]
-    private TypeRapport _typeChoisi = TypeRapport.ChiffreAffaires;
+    private TypeRapport _typeChoisi = TypeRapport.VentesParJour;
+
+    /// <summary>
+    /// Les rapports mois par mois couvrent l'année : sur un seul mois, ils
+    /// n'auraient qu'une ligne. Le rapport se met à jour aussitôt.
+    /// </summary>
+    partial void OnTypeChoisiChanged(TypeRapport value)
+    {
+        if (value is TypeRapport.VentesParMois or TypeRapport.Benefices
+            && Du.Year == Au.Year && Du.Month == Au.Month)
+        {
+            Du = new DateTime(Au.Year, 1, 1);
+        }
+
+        _ = AfficherAsync();
+    }
+
+    /// <summary>Vrai pour les rapports qui ne dépendent pas de la période.</summary>
+    public bool SansPeriode => TypeChoisi is TypeRapport.DettesClients or TypeRapport.ValeurStock;
+
+    [ObservableProperty]
+    private string? _remarque;
+
+    /// <summary>Graphique du rapport, quand il en a un.</summary>
+    public ObservableCollection<BarreGraphique> Barres { get; } = new();
+
+    public bool AGraphique => Barres.Count > 0;
+
+    [ObservableProperty]
+    private string? _maximumGraphique;
+
+    public override Task ChargerAsync() => AfficherAsync();
+
+    // ------------------------------------------------------- Périodes rapides
+
+    [RelayCommand]
+    private Task AujourdhuiAsync() => PeriodeAsync(DateTime.Today, DateTime.Today);
+
+    [RelayCommand]
+    private Task CeMoisAsync()
+        => PeriodeAsync(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1), DateTime.Today);
+
+    [RelayCommand]
+    private Task MoisDernierAsync()
+    {
+        var debut = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
+        return PeriodeAsync(debut, debut.AddMonths(1).AddDays(-1));
+    }
+
+    [RelayCommand]
+    private Task CetteAnneeAsync() => PeriodeAsync(new DateTime(DateTime.Today.Year, 1, 1), DateTime.Today);
+
+    private Task PeriodeAsync(DateTime du, DateTime au)
+    {
+        Du = du;
+        Au = au;
+        return AfficherAsync();
+    }
 
     [ObservableProperty]
     private DateTime _du;
@@ -84,6 +143,10 @@ public partial class RapportsVueModele : VueModeleBase
 
             TitreRapport = rapport.Titre;
             PeriodeRapport = rapport.Periode;
+            Remarque = rapport.Remarque;
+
+            var points = rapport.Graphique ?? Array.Empty<PointGraphiqueDto>();
+            MaximumGraphique = Graphique.Remplir(Barres, points, Graphique.PasDesEtiquettes(points.Count));
 
             Colonnes.Clear();
             foreach (var colonne in rapport.Colonnes) Colonnes.Add(colonne);
@@ -97,6 +160,8 @@ public partial class RapportsVueModele : VueModeleBase
 
         OnPropertyChanged(nameof(RapportAffiche));
         OnPropertyChanged(nameof(AucuneDonnee));
+        OnPropertyChanged(nameof(AGraphique));
+        OnPropertyChanged(nameof(SansPeriode));
     }
 
     [RelayCommand]
@@ -139,3 +204,6 @@ public partial class RapportsVueModele : VueModeleBase
         Au = Au
     };
 }
+
+/// <summary>Un rapport proposé dans la liste de choix.</summary>
+public record OptionRapport(TypeRapport Valeur, string Libelle);

@@ -11,6 +11,9 @@ public interface IClientService
 
     Task<ClientDto> ObtenirAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Tous les clients actifs, par ordre alphabétique, pour les listes de choix.</summary>
+    Task<IReadOnlyList<ClientChoixDto>> ListerPourChoixAsync(CancellationToken cancellationToken = default);
+
     Task<ClientDto> CreerAsync(ClientRequete requete, CancellationToken cancellationToken = default);
 
     Task<ClientDto> ModifierAsync(int id, ClientRequete requete, CancellationToken cancellationToken = default);
@@ -42,9 +45,17 @@ public interface ICommandeService
     Task<CommandeDto> AjouterPhotoAsync(
         int id, PhotoCommandeRequete requete, CancellationToken cancellationToken = default);
 
+    /// <summary>Retire une photo et renvoie le chemin du fichier, à effacer ensuite.</summary>
+    Task<string> SupprimerPhotoAsync(int id, int photoId, CancellationToken cancellationToken = default);
+
     Task<CommandeDto> AjouterNoteAsync(int id, NoteRequete requete, CancellationToken cancellationToken = default);
 
-    Task<CommandeDto> AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Annule une commande. Un acompte déjà versé bloque l'annulation, sauf à
+    /// le rembourser : les paiements sont alors annulés dans le même geste.
+    /// </summary>
+    Task<CommandeDto> AnnulerAsync(
+        int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default);
 }
 
 public interface IVenteService
@@ -57,8 +68,13 @@ public interface IVenteService
     /// <summary>Enregistre une vente : le stock diminue et le reçu peut être imprimé.</summary>
     Task<VenteDto> EnregistrerAsync(VenteRequete requete, CancellationToken cancellationToken = default);
 
-    /// <summary>Annule une vente et remet les produits en stock.</summary>
-    Task<VenteDto> AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Annule une vente et remet les produits en stock. Une vente déjà payée
+    /// ne s'annule qu'en remboursant le client : ses paiements sont alors
+    /// annulés dans le même geste, rien ne reste à moitié fait.
+    /// </summary>
+    Task<VenteDto> AnnulerAsync(
+        int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default);
 }
 
 public interface IPaiementService

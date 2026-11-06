@@ -79,6 +79,8 @@ public class MonteeDeVersionTests : IDisposable
             // et les droits et rôles, remplacés, ne sont pas gardés.
             archives.Should().NotContain(new[] { "Kilns", "Roles", "Permissions", "RolePermissions" });
 
+            archives.Should().Contain("CustomOrders_avant_simplification");
+
             (await CompterAsync(contexte,
                     """SELECT COUNT(*) FROM archives."InventoryTransactions_avant_simplification" WHERE "MaterialId" IS NOT NULL"""))
                 .Should().Be(2, "les mouvements de matières restent consultables");
@@ -229,9 +231,19 @@ public class MonteeDeVersionTests : IDisposable
         vente.TotalAmount.Should().Be(6000m);
         vente.Items.Should().HaveCount(2);
 
+        // Quatre étapes de commande au lieu de dix ; l'acompte reste acquis.
+        var commandes = await contexte.CustomOrders.AsNoTracking().OrderBy(c => c.Id).ToListAsync();
+        commandes.Select(c => (c.OrderNumber, c.Status)).Should().Equal(
+            ("CMD-2026-0001", CustomOrderStatus.Recue),
+            ("CMD-2026-0002", CustomOrderStatus.EnFabrication));
+        commandes[0].Notes.Should().Be("Ancienne étape : conception");
+        commandes[1].Notes.Should().Be("Bordure dorée — Ancienne étape : décoration");
+        commandes[0].PaidAmount.Should().Be(4000m);
+        commandes[0].Channel.Should().Be(CanalCommande.Atelier, "le canal d'une ancienne commande est inconnu");
+
         // Le paiement enregistré sur la facture garde le lien vers la vente ;
         // le décaissement égaré est masqué, pas effacé.
-        var paiement = await contexte.Payments.AsNoTracking().SingleAsync();
+        var paiement = await contexte.Payments.AsNoTracking().SingleAsync(p => p.SaleId != null);
         paiement.PaymentNumber.Should().Be("PAI-2026-0001");
         paiement.SaleId.Should().Be(1);
         paiement.CustomerId.Should().Be(1);

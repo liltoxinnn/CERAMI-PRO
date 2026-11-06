@@ -1,7 +1,9 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.IO;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace CeramiPro.App.Convertisseurs;
 
@@ -41,36 +43,6 @@ public class BooleenEnPastille : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>
-/// Traduit le sens de lecture métier en sens WPF. En arabe, la fenêtre
-/// entière s'inverse : le menu passe à droite, les colonnes et les champs
-/// suivent, sans qu'aucun écran ait à s'en occuper.
-/// </summary>
-public class SensEnFlowDirection : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is CeramiPro.Application.Localisation.SensEcriture.DroiteAGauche
-            ? FlowDirection.RightToLeft
-            : FlowDirection.LeftToRight;
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is FlowDirection.RightToLeft
-            ? CeramiPro.Application.Localisation.SensEcriture.DroiteAGauche
-            : CeramiPro.Application.Localisation.SensEcriture.GaucheADroite;
-}
-
-/// <summary>Nom d'une langue écrit dans sa propre langue.</summary>
-public class LangueEnNom : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is CeramiPro.Application.Localisation.Langue langue
-            ? CeramiPro.Application.Localisation.LangueInfo.NomNatif(langue)
-            : string.Empty;
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => throw new NotSupportedException();
-}
-
 /// <summary>Inverse un booléen : sert à désactiver un bouton pendant un chargement.</summary>
 public class BooleenInverse : IValueConverter
 {
@@ -89,29 +61,6 @@ public class TexteEnVisibilite : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => string.IsNullOrWhiteSpace(value as string) ? Visibility.Collapsed : Visibility.Visible;
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        => throw new NotSupportedException();
-}
-
-/// <summary>
-/// Couleur d'une alerte selon sa gravité. La couleur ne porte jamais
-/// l'information seule : le libellé de la gravité est toujours affiché à
-/// côté, afin que l'écran reste lisible par une personne daltonienne.
-/// </summary>
-public class GraviteEnCouleur : IValueConverter
-{
-    private static readonly SolidColorBrush Critique = new(Color.FromRgb(0xB3, 0x26, 0x1E));
-    private static readonly SolidColorBrush Avertissement = new(Color.FromRgb(0x8A, 0x5B, 0x00));
-    private static readonly SolidColorBrush Information = new(Color.FromRgb(0x1C, 0x5D, 0x99));
-
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value switch
-        {
-            CeramiPro.Domain.Enums.NotificationSeverity.Critique => Critique,
-            CeramiPro.Domain.Enums.NotificationSeverity.Avertissement => Avertissement,
-            _ => Information
-        };
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();
@@ -142,6 +91,75 @@ public class ActionEnStyle : IValueConverter
 
         return System.Windows.Application.Current?.TryFindResource(cle);
     }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Charge une photo depuis son fichier, en miniature si une largeur est
+/// donnée en paramètre.
+///
+/// L'image est lue entièrement puis le fichier est relâché : sans cela,
+/// Windows le garderait verrouillé et la photo ne pourrait pas être retirée
+/// pendant qu'elle est affichée.
+/// </summary>
+public class CheminEnImage : IValueConverter
+{
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not string chemin || string.IsNullOrWhiteSpace(chemin) || !File.Exists(chemin))
+        {
+            return null;
+        }
+
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            image.UriSource = new Uri(chemin, UriKind.Absolute);
+
+            if (parameter is string largeur && int.TryParse(largeur, out var pixels))
+            {
+                image.DecodePixelWidth = pixels;
+            }
+
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception)
+        {
+            // Un fichier abîmé ne doit pas empêcher d'afficher les autres photos.
+            return null;
+        }
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Montant en dinars, écrit comme partout ailleurs : « 12 500,00 DA ».</summary>
+public class MontantEnTexte : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is decimal montant ? CeramiPro.Application.Common.Formatage.Montant(montant) : string.Empty;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Date « 31/08/2026 », ou date et heure si le paramètre vaut « heure ».</summary>
+public class DateEnTexte : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is DateTime date
+            ? (parameter as string == "heure"
+                ? CeramiPro.Application.Common.Formatage.DateHeure(date)
+                : CeramiPro.Application.Common.Formatage.Date(date))
+            : string.Empty;
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotSupportedException();

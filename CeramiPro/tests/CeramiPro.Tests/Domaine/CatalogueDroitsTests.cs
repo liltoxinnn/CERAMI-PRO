@@ -65,7 +65,7 @@ public class LibellesFrancaisTests
     public void Les_etapes_d_une_commande_personnalisee_sont_affichees_en_francais()
     {
         CustomOrderStatus.ValidationClient.Libelle().Should().Be("Validation client");
-        CustomOrderStatus.Livre.Libelle().Should().Be("Livré");
+        CustomOrderStatus.Livree.Libelle().Should().Be("Livré");
     }
 
     [Fact]

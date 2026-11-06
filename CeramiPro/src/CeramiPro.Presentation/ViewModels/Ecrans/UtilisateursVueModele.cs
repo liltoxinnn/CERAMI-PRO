@@ -1,7 +1,6 @@
 using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Identity;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels.Formulaires;
 using CommunityToolkit.Mvvm.Input;
@@ -13,17 +12,25 @@ public partial class UtilisateursVueModele : ListeVueModele<UtilisateurDto>
 {
     private readonly IUtilisateurService _service;
 
-    public UtilisateursVueModele(IUtilisateurService service, IServiceLangue langue, OutilsListe outils)
-        : base(langue, outils)
+    public UtilisateursVueModele(IUtilisateurService service, OutilsListe outils)
+        : base(outils)
         => _service = service;
 
     protected override Type TypeFormulaire => typeof(UtilisateurFormulaireVueModele);
 
-    public override string Titre => Langue["menu.administration.utilisateurs"];
+    public override IReadOnlyList<ActionListe> Actions => new ActionListe[]
+    {
+        new("Désactiver ou réactiver", BasculerActivationCommand,
+            Aide: "Un compte désactivé ne peut plus se connecter ; ses opérations gardent son nom."),
+        new("🔑  Nouveau mot de passe", ReinitialiserMotDePasseCommand,
+            Aide: "Donne un mot de passe provisoire à la personne qui a oublié le sien.")
+    };
+
+    public override string Titre => "Utilisateurs";
 
     public override string Introduction =>
-        "Comptes du personnel et rôle attribué à chacun. Un compte ne se supprime pas : il se désactive, " +
-        "afin que les opérations déjà enregistrées gardent leur auteur.";
+        "Comptes du personnel. L'administrateur gère en plus les comptes et les sauvegardes. " +
+        "Un compte ne se supprime pas : il se désactive, et les opérations enregistrées gardent leur auteur.";
 
     protected override Task<PagedResult<UtilisateurDto>> LireAsync()
         => _service.ListerAsync(new PagedRequest

@@ -5,23 +5,19 @@
                     xmlns:vues="clr-namespace:CeramiPro.App.Vues">
 
     <!--
-        Association entre chaque vue-modèle et son écran.
+        Association entre chaque vue-modèle et son écran, rangée comme les
+        sept sections du menu.
 
-        Les écrans de liste partagent la même vue générique, et les trois
-        écrans de saisie ligne par ligne — caisse, achat, enfournement — la
-        même vue de document : leurs colonnes et leurs champs viennent de la
-        vue-modèle, pas du XAML.
+        Les écrans de liste partagent la même vue générique : leurs colonnes,
+        leurs filtres et leurs actions viennent de la vue-modèle, pas du XAML.
     -->
 
+    <!-- Tableau de bord -->
     <DataTemplate DataType="{x:Type vm:TableauDeBordVueModele}">
         <vues:TableauDeBordVue />
     </DataTemplate>
 
-    <!-- Écrans de liste -->
-    <DataTemplate DataType="{x:Type ecrans:MatieresVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
+    <!-- Produits -->
     <DataTemplate DataType="{x:Type ecrans:ProduitsVueModele}">
         <vues:VueListe />
     </DataTemplate>
@@ -30,83 +26,7 @@
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:FournisseursVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:AchatsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
     <DataTemplate DataType="{x:Type ecrans:MouvementsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:ClientsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:CommandesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:VentesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:FacturesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:PaiementsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:DepensesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:ProductionVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:ProductionEnCoursVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:HistoriqueProductionVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:CuissonsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:DecorationsVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:QualiteVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:UtilisateursVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:FoursVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:UnitesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:RecettesVueModele}">
-        <vues:VueListe />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:CategoriesMatieresVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
@@ -114,58 +34,71 @@
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:CategoriesDepensesVueModele}">
+    <!-- Commandes et clients -->
+    <DataTemplate DataType="{x:Type ecrans:CommandesVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:TypesDecorationVueModele}">
+    <DataTemplate DataType="{x:Type ecrans:ClientsVueModele}">
         <vues:VueListe />
     </DataTemplate>
 
-    <!-- Saisie ligne par ligne -->
+    <!-- Ventes -->
     <DataTemplate DataType="{x:Type ecrans:CaisseVueModele}">
         <vues:VueDocument />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:NouvelAchatVueModele}">
-        <vues:VueDocument />
+    <DataTemplate DataType="{x:Type ecrans:VentesVueModele}">
+        <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:EnfournementVueModele}">
-        <vues:VueDocument />
+    <DataTemplate DataType="{x:Type ecrans:PaiementsVueModele}">
+        <vues:VueListe />
     </DataTemplate>
 
-    <!-- Écrans particuliers -->
+    <!-- Rapports -->
     <DataTemplate DataType="{x:Type ecrans:RapportsVueModele}">
         <vues:RapportsVue />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:AlertesVueModele}">
-        <vues:AlertesVue />
+    <DataTemplate DataType="{x:Type ecrans:DepensesVueModele}">
+        <vues:VueListe />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:StockVueModele}">
-        <vues:StockVue />
-    </DataTemplate>
-
+    <!-- Paramètres -->
     <DataTemplate DataType="{x:Type ecrans:ParametresVueModele}">
         <vues:ParametresVue />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:CategoriesDepensesVueModele}">
+        <vues:VueListe />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type ecrans:UtilisateursVueModele}">
+        <vues:VueListe />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type ecrans:SauvegardeVueModele}">
         <vues:SauvegardeVue />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:EtiquettesVueModele}">
-        <vues:EtiquettesVue />
+    <!--
+        Filtres des écrans de liste : une case à cocher, ou une liste de choix.
+        La vue générique les présente sans rien savoir du métier.
+    -->
+    <DataTemplate DataType="{x:Type vm:FiltreCase}">
+        <CheckBox Content="{Binding Libelle}" IsChecked="{Binding Actif}"
+                  VerticalAlignment="Center" Margin="0,0,24,8" FontSize="13" />
     </DataTemplate>
 
-    <DataTemplate DataType="{x:Type ecrans:TableauProductionVueModele}">
-        <vues:TableauProductionVue />
-    </DataTemplate>
-
-    <DataTemplate DataType="{x:Type ecrans:CalculateursVueModele}">
-        <vues:CalculateursVue />
+    <DataTemplate DataType="{x:Type vm:FiltreChoix}">
+        <StackPanel Orientation="Horizontal" Margin="0,0,24,8">
+            <TextBlock Text="{Binding Libelle}" VerticalAlignment="Center" Margin="0,0,8,0"
+                       FontSize="13" Foreground="{StaticResource TexteSecondaire}" />
+            <ComboBox ItemsSource="{Binding Options}" DisplayMemberPath="Libelle"
+                      SelectedValuePath="Valeur" SelectedValue="{Binding Valeur}"
+                      MinWidth="200" MinHeight="32" Padding="8,4" VerticalContentAlignment="Center" />
+        </StackPanel>
     </DataTemplate>
 
 </ResourceDictionary>

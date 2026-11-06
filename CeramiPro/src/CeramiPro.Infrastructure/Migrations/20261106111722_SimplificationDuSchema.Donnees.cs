@@ -39,6 +39,7 @@ namespace CeramiPro.Infrastructure.Migrations
             ReporterLesVariantes(migrationBuilder);
             RattacherLesPaiementsAuxVentes(migrationBuilder);
             NettoyerLesMouvementsDeStock(migrationBuilder);
+            SimplifierLesEtapesDesCommandes(migrationBuilder);
         }
 
         /// <summary>
@@ -89,6 +90,12 @@ namespace CeramiPro.Infrastructure.Migrations
                 """
                 SELECT "Id", "InvoicePrefix", "PurchasePrefix", "ProductionPrefix", "FiringPrefix"
                 FROM public."BusinessSettings"
+                """);
+
+            Instantane(migrationBuilder, "CustomOrders",
+                """
+                SELECT "Id", "OrderNumber", "Status" FROM public."CustomOrders"
+                WHERE "Status" IN (1, 2, 4, 5, 6)
                 """);
 
             // L'historique des mouvements perd des colonnes et des lignes
@@ -225,6 +232,28 @@ namespace CeramiPro.Infrastructure.Migrations
                 WHERE "TransactionType" IN (1, 2, 7);
                 """);
         }
+
+        /// <summary>
+        /// Quatre étapes au lieu de dix. Une commande en conception ou en
+        /// attente de validation n'est pas encore commencée : elle redevient
+        /// « Reçue ». En cuisson, en décoration ou au contrôle, la pièce est
+        /// en cours de fabrication. L'ancienne étape est notée en clair.
+        /// </summary>
+        private static void SimplifierLesEtapesDesCommandes(MigrationBuilder migrationBuilder)
+            => migrationBuilder.Sql(
+                """
+                UPDATE public."CustomOrders"
+                SET "Notes" = LEFT(COALESCE("Notes" || ' — ', '') || 'Ancienne étape : ' ||
+                        CASE "Status"
+                            WHEN 1 THEN 'conception'
+                            WHEN 2 THEN 'validation client'
+                            WHEN 4 THEN 'cuisson'
+                            WHEN 5 THEN 'décoration'
+                            ELSE 'contrôle qualité'
+                        END, 2000),
+                    "Status" = CASE WHEN "Status" IN (1, 2) THEN 0 ELSE 3 END
+                WHERE "Status" IN (1, 2, 4, 5, 6);
+                """);
 
         /// <summary>
         /// Déplace une table d'un module retiré dans les archives si elle

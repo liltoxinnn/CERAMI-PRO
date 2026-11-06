@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CeramiPro.Application.Services;
 
 /// <summary>
-/// Rassemble en une seule lecture les chiffres du jour, du mois, de la
-/// production, des commandes, du stock et des finances, ainsi que les
-/// graphiques du tableau de bord.
+/// Rassemble les chiffres du jour et du mois, l'état des commandes, du stock
+/// et de ce qui reste à encaisser, ainsi que les graphiques du tableau de bord.
+/// Les journées sont celles de l'atelier, à l'heure d'Alger.
 /// </summary>
 public class TableauDeBordService : ITableauDeBordService
 {
@@ -33,89 +33,78 @@ public class TableauDeBordService : ITableauDeBordService
 
     public async Task<TableauDeBordDto> ObtenirAsync(CancellationToken cancellationToken = default)
     {
-        var maintenant = _horloge.MaintenantUtc;
-        var debutJour = DateTime.SpecifyKind(maintenant.Date, DateTimeKind.Utc);
-        var finJour = debutJour.AddDays(1);
-        var debutMois = new DateTime(maintenant.Year, maintenant.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var debutGraphiqueJours = debutJour.AddDays(-(JoursGraphique - 1));
+        var aujourdhui = _horloge.Aujourdhui;
+        var debutMois = new DateTime(aujourdhui.Year, aujourdhui.Month, 1);
+        var debutGraphiqueJours = aujourdhui.AddDays(-(JoursGraphique - 1));
         var debutGraphiqueMois = debutMois.AddMonths(-(MoisGraphique - 1));
 
-        var ventes = await _context.Sales
-            .AsNoTracking()
-            .Where(v => v.Status == SaleStatus.Confirmee && v.SaleDate >= debutGraphiqueMois)
-            .Select(v => new LigneVente(
-                v.SaleDate, v.TotalAmount, v.TotalAmount - v.TaxAmount - v.TotalCost))
-            .ToListAsync(cancellationToken);
+        // Une seule lecture couvre les douze mois du graphique : le jour et
+        // le mois en cours en sont des extraits.
+        var activite = await ActiviteCommerciale.ChargerAsync(
+            _context, _horloge, PeriodeAtelier.Jours(_horloge, debutGraphiqueMois, aujourdhui), cancellationToken);
 
-        var paiementsDuJour = await _context.Payments
-            .AsNoTracking()
-            .Where(p => p.PaymentDate >= debutJour && p.PaymentDate < finJour)
-            .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
-
-        var ventesDuJour = ventes.Where(v => v.Date >= debutJour && v.Date < finJour).ToList();
-        var ventesDuMois = ventes.Where(v => v.Date >= debutMois).ToList();
-
-        var depensesDuMois = await _context.Expenses
-            .AsNoTracking()
-            .Where(d => d.ExpenseDate >= debutMois)
-            .SumAsync(d => (decimal?)d.Amount, cancellationToken) ?? 0m;
-
-        var chiffreMois = ventesDuMois.Sum(v => v.Total);
-        var beneficeMois = ventesDuMois.Sum(v => v.Benefice);
+        var jour = activite.Sur(j => j == aujourdhui);
+        var mois = activite.Sur(j => j >= debutMois);
 
         return new TableauDeBordDto(
-            new ActiviteDuJourDto(
-                ventesDuJour.Sum(v => v.Total),
-                ventesDuJour.Sum(v => v.Benefice),
-                ventesDuJour.Count,
-                paiementsDuJour),
+            new ActiviteDuJourDto(jour.ChiffreAffaires, jour.NombreVentes, jour.NombreLivraisons, jour.Encaisse),
             new ActivitePeriodeDto(
-                chiffreMois,
-                beneficeMois,
-                depensesDuMois,
-                beneficeMois - depensesDuMois,
-                ventesDuMois.Count),
-            await CommandesAsync(maintenant, cancellationToken),
+                mois.ChiffreAffaires, mois.Benefice, mois.Depenses, mois.Resultat,
+                mois.NombreVentes, mois.NombreLivraisons, mois.Encaisse),
+            await CommandesAsync(cancellationToken),
             await StockAsync(cancellationToken),
-            await FinancesAsync(depensesDuMois, cancellationToken),
-            ConstruireParJour(ventes, debutGraphiqueJours),
-            ConstruireParMois(ventes, debutGraphiqueMois, v => v.Total),
-            await ProduitsLesPlusVendusAsync(cancellationToken),
+            await FinancesAsync(cancellationToken),
+            Enumerable.Range(0, JoursGraphique)
+                .Select(decalage => debutGraphiqueJours.AddDays(decalage))
+                .Select(j => new PointGraphiqueDto(j.ToString("dd/MM"),
+                    Math.Round(activite.Sur(x => x == j).ChiffreAffaires, 2)))
+                .ToList(),
+            Enumerable.Range(0, MoisGraphique)
+                .Select(decalage => debutGraphiqueMois.AddMonths(decalage))
+                .Select(m => new PointGraphiqueDto(m.ToString("MMM yy", ParametresAtelier.Culture),
+                    Math.Round(activite.Sur(x => x.Year == m.Year && x.Month == m.Month).ChiffreAffaires, 2)))
+                .ToList(),
+            await ProduitsLesPlusVendusAsync(
+                PeriodeAtelier.Jours(_horloge, debutGraphiqueJours, aujourdhui), cancellationToken),
             await StockFaibleAsync(cancellationToken));
     }
 
-    private async Task<CommandesResumeDto> CommandesAsync(
-        DateTime maintenant, CancellationToken cancellationToken)
+    /// <summary>
+    /// Les échéances se comparent en jours de l'atelier : une commande due
+    /// aujourd'hui n'est en retard qu'à partir de demain.
+    /// </summary>
+    private async Task<CommandesResumeDto> CommandesAsync(CancellationToken cancellationToken)
     {
         var commandes = await _context.CustomOrders
             .AsNoTracking()
+            .Where(c => c.Status != CustomOrderStatus.Livree && c.Status != CustomOrderStatus.Annulee)
             .Select(c => new { c.Status, c.Deadline })
             .ToListAsync(cancellationToken);
 
+        var aujourdhui = _horloge.Aujourdhui;
+        var limite = aujourdhui.AddDays(CommandeService.JoursAlerteEcheance);
         var actives = commandes
-            .Where(c => c.Status != CustomOrderStatus.Livre && c.Status != CustomOrderStatus.Annule)
+            .Select(c => (c.Status, Echeance: _horloge.EnHeureAtelier(c.Deadline).Date))
             .ToList();
 
-        var limite = maintenant.AddDays(CommandeService.JoursAlerteEcheance);
-
         return new CommandesResumeDto(
-            actives.Count(c => c.Status == CustomOrderStatus.Commande),
+            actives.Count(c => c.Status == CustomOrderStatus.Recue),
             actives.Count,
-            actives.Count(c => c.Deadline >= maintenant && c.Deadline <= limite),
-            actives.Count(c => c.Deadline < maintenant),
-            actives.Count(c => c.Status == CustomOrderStatus.Pret));
+            actives.Count(c => c.Echeance >= aujourdhui && c.Echeance <= limite),
+            actives.Count(c => c.Echeance < aujourdhui),
+            actives.Count(c => c.Status == CustomOrderStatus.Prete));
     }
 
     private async Task<StockResumeDto> StockAsync(CancellationToken cancellationToken)
     {
         var produits = await _context.Products
             .AsNoTracking().Where(p => p.IsActive)
-            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost })
+            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost, p.IsUniquePiece })
             .ToListAsync(cancellationToken);
 
         return new StockResumeDto(
             produits.Count,
-            produits.Count(p => p.CurrentStock <= p.MinimumStock),
+            produits.Count(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock),
             Math.Round(produits.Sum(p => p.CurrentStock * p.ProductionCost), 2));
     }
 
@@ -128,68 +117,31 @@ public class TableauDeBordService : ITableauDeBordService
         CancellationToken cancellationToken)
         => await _context.Products
             .AsNoTracking()
-            .Where(p => p.IsActive && p.CurrentStock <= p.MinimumStock)
+            .Where(p => p.IsActive && !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock)
             .OrderBy(p => p.CurrentStock)
             .Take(NombreClassement)
             .Select(p => new ProduitAlerteDto(p.Id, p.Name, p.CurrentStock, p.MinimumStock))
             .ToListAsync(cancellationToken);
 
-    private async Task<FinancesResumeDto> FinancesAsync(
-        decimal depensesDuMois, CancellationToken cancellationToken)
+    /// <summary>
+    /// Ce que les clients doivent encore, et ce qu'ils ont déjà versé sur des
+    /// commandes en cours : deux chiffres qui se lisent ensemble.
+    /// </summary>
+    private async Task<FinancesResumeDto> FinancesAsync(CancellationToken cancellationToken)
     {
-        var encaisse = await _context.Payments.AsNoTracking()
-            .SumAsync(p => (decimal?)p.Amount, cancellationToken) ?? 0m;
-
         var ventesDues = await _context.Sales.AsNoTracking()
-            .Where(v => v.Status == SaleStatus.Confirmee)
+            .Where(v => v.Status == SaleStatus.Confirmee && v.TotalAmount > v.PaidAmount)
             .SumAsync(v => (decimal?)(v.TotalAmount - v.PaidAmount), cancellationToken) ?? 0m;
 
         var commandesDues = await _context.CustomOrders.AsNoTracking()
-            .Where(c => c.Status != CustomOrderStatus.Annule)
+            .Where(c => c.Status != CustomOrderStatus.Annulee && c.TotalAmount > c.PaidAmount)
             .SumAsync(c => (decimal?)(c.TotalAmount - c.PaidAmount), cancellationToken) ?? 0m;
 
-        return new FinancesResumeDto(
-            encaisse,
-            Math.Max(0m, ventesDues + commandesDues),
-            depensesDuMois);
-    }
+        var acomptes = await _context.CustomOrders.AsNoTracking()
+            .Where(c => c.Status != CustomOrderStatus.Annulee && c.Status != CustomOrderStatus.Livree)
+            .SumAsync(c => (decimal?)c.PaidAmount, cancellationToken) ?? 0m;
 
-    /// <summary>Vente réduite aux seules valeurs nécessaires aux graphiques.</summary>
-    private sealed record LigneVente(DateTime Date, decimal Total, decimal Benefice);
-
-    private static IReadOnlyList<PointGraphiqueDto> ConstruireParJour(
-        IReadOnlyList<LigneVente> ventes, DateTime debut)
-    {
-        var points = new List<PointGraphiqueDto>();
-
-        for (var jour = 0; jour < JoursGraphique; jour++)
-        {
-            var date = debut.AddDays(jour);
-            var total = ventes.Where(v => v.Date.Date == date.Date).Sum(v => v.Total);
-
-            points.Add(new PointGraphiqueDto(date.ToString("dd/MM"), Math.Round(total, 2)));
-        }
-
-        return points;
-    }
-
-    private static IReadOnlyList<PointGraphiqueDto> ConstruireParMois(
-        IReadOnlyList<LigneVente> ventes, DateTime debut, Func<LigneVente, decimal> valeur)
-    {
-        var points = new List<PointGraphiqueDto>();
-
-        for (var mois = 0; mois < MoisGraphique; mois++)
-        {
-            var date = debut.AddMonths(mois);
-            var total = ventes
-                .Where(v => v.Date.Year == date.Year && v.Date.Month == date.Month)
-                .Sum(valeur);
-
-            points.Add(new PointGraphiqueDto(
-                date.ToString("MMM yy", ParametresAtelier.Culture), Math.Round(total, 2)));
-        }
-
-        return points;
+        return new FinancesResumeDto(ventesDues + commandesDues, acomptes);
     }
 
     /// <summary>Ligne de vente réduite aux valeurs nécessaires aux classements.</summary>
@@ -199,10 +151,12 @@ public class TableauDeBordService : ITableauDeBordService
     /// Les classements sont regroupés en mémoire : l'atelier manipule des volumes
     /// modestes et le comportement reste identique quel que soit le moteur de base.
     /// </summary>
-    private async Task<List<LigneClassement>> LignesVenduesAsync(CancellationToken cancellationToken)
+    private async Task<List<LigneClassement>> LignesVenduesAsync(
+        PeriodeAtelier periode, CancellationToken cancellationToken)
         => await _context.SaleItems
             .AsNoTracking()
-            .Where(i => i.Sale.Status == SaleStatus.Confirmee)
+            .Where(i => i.Sale.Status == SaleStatus.Confirmee
+                        && i.Sale.SaleDate >= periode.DebutUtc && i.Sale.SaleDate < periode.FinUtc)
             .Select(i => new LigneClassement(
                 i.Product.Name, i.Quantity, i.LineTotal, i.LineTotal - i.Quantity * i.UnitCost))
             .ToListAsync(cancellationToken);
@@ -217,7 +171,8 @@ public class TableauDeBordService : ITableauDeBordService
             .Take(NombreClassement)
             .ToList();
 
+    /// <summary>Les pièces qui sont parties le plus sur les trente derniers jours.</summary>
     private async Task<IReadOnlyList<ClassementDto>> ProduitsLesPlusVendusAsync(
-        CancellationToken cancellationToken)
-        => Classer(await LignesVenduesAsync(cancellationToken), c => c.Quantite);
+        PeriodeAtelier periode, CancellationToken cancellationToken)
+        => Classer(await LignesVenduesAsync(periode, cancellationToken), c => c.Quantite);
 }

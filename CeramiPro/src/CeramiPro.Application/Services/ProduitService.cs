@@ -54,7 +54,7 @@ public class ProduitService : IProduitService
 
         if (requete.SeulementStockFaible)
         {
-            requeteBase = requeteBase.Where(p => p.CurrentStock <= p.MinimumStock);
+            requeteBase = requeteBase.Where(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock);
         }
 
         if (!string.IsNullOrWhiteSpace(requete.Recherche))
@@ -125,8 +125,9 @@ public class ProduitService : IProduitService
             Weight = requete.Poids,
             ProductionCost = requete.CoutProduction,
             SellingPrice = requete.PrixVente,
-            MinimumStock = requete.StockMinimum,
+            MinimumStock = requete.PieceUnique ? 0m : requete.StockMinimum,
             IsCustomizable = requete.Personnalisable,
+            IsUniquePiece = requete.PieceUnique,
             IsActive = requete.Actif
         };
 
@@ -174,8 +175,16 @@ public class ProduitService : IProduitService
         produit.Weight = requete.Poids;
         produit.ProductionCost = requete.CoutProduction;
         produit.SellingPrice = requete.PrixVente;
-        produit.MinimumStock = requete.StockMinimum;
+        if (requete.PieceUnique && produit.CurrentStock > 1)
+        {
+            throw new RegleMetierException(
+                $"« {produit.Name} » compte {Formatage.Quantite(produit.CurrentStock)} pièces en stock : " +
+                "une pièce unique n'en a qu'une. Corrigez d'abord le stock.");
+        }
+
+        produit.MinimumStock = requete.PieceUnique ? 0m : requete.StockMinimum;
         produit.IsCustomizable = requete.Personnalisable;
+        produit.IsUniquePiece = requete.PieceUnique;
         produit.IsActive = requete.Actif;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -211,14 +220,14 @@ public class ProduitService : IProduitService
     {
         var donnees = await _context.Products
             .AsNoTracking().Where(p => p.IsActive)
-            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost, p.SellingPrice })
+            .Select(p => new { p.CurrentStock, p.MinimumStock, p.ProductionCost, p.SellingPrice, p.IsUniquePiece })
             .ToListAsync(cancellationToken);
 
         var margesConnues = donnees.Where(p => p.SellingPrice > 0).ToList();
 
         return new SyntheseCatalogueDto(
             donnees.Count,
-            donnees.Count(p => p.CurrentStock <= p.MinimumStock),
+            donnees.Count(p => !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock),
             Math.Round(donnees.Sum(p => p.CurrentStock * p.ProductionCost), 2),
             margesConnues.Count == 0
                 ? 0m
@@ -230,7 +239,17 @@ public class ProduitService : IProduitService
         => await _context.Products
             .Include(p => p.ProductCategory).Include(p => p.Images)
             .AsNoTracking()
-            .Where(p => p.IsActive && p.CurrentStock <= p.MinimumStock)
+            .Where(p => p.IsActive && !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock)
+            .OrderBy(p => p.Name)
+            .Select(Projection)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProduitDto>> ListerActifsAsync(
+        CancellationToken cancellationToken = default)
+        => await _context.Products
+            .Include(p => p.ProductCategory).Include(p => p.Images)
+            .AsNoTracking()
+            .Where(p => p.IsActive)
             .OrderBy(p => p.Name)
             .Select(Projection)
             .ToListAsync(cancellationToken);
@@ -263,7 +282,11 @@ public class ProduitService : IProduitService
             throw new RegleMetierException("Sélectionnez une photo à ajouter.");
         }
 
-        if (requete.Principale)
+        // La première photo d'un produit le représente d'office.
+        var principale = requete.Principale
+                         || !await _context.ProductImages.AnyAsync(i => i.ProductId == produitId, cancellationToken);
+
+        if (principale)
         {
             foreach (var autre in await _context.ProductImages
                          .Where(i => i.ProductId == produitId && i.IsPrimary).ToListAsync(cancellationToken))
@@ -281,7 +304,7 @@ public class ProduitService : IProduitService
             ProductId = produitId,
             FilePath = requete.Chemin.Trim(),
             Caption = Nettoyer(requete.Legende),
-            IsPrimary = requete.Principale,
+            IsPrimary = principale,
             SortOrder = ordre + 1
         };
 
@@ -292,7 +315,7 @@ public class ProduitService : IProduitService
             photo.Id, produitId, photo.FilePath, photo.Caption, photo.IsPrimary, photo.SortOrder);
     }
 
-    public async Task SupprimerPhotoAsync(
+    public async Task<string> SupprimerPhotoAsync(
         int produitId, int photoId, CancellationToken cancellationToken = default)
     {
         var photo = await _context.ProductImages
@@ -300,6 +323,38 @@ public class ProduitService : IProduitService
                     ?? throw IntrouvableException.Pour("Photo", photoId);
 
         _context.ProductImages.Remove(photo);
+
+        // Le produit garde une photo principale tant qu'il lui en reste une.
+        if (photo.IsPrimary
+            && await _context.ProductImages
+                .Where(i => i.ProductId == produitId && i.Id != photoId)
+                .OrderBy(i => i.SortOrder).ThenBy(i => i.Id)
+                .FirstOrDefaultAsync(cancellationToken) is { } suivante)
+        {
+            suivante.IsPrimary = true;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return photo.FilePath;
+    }
+
+    public async Task DefinirPhotoPrincipaleAsync(
+        int produitId, int photoId, CancellationToken cancellationToken = default)
+    {
+        var photos = await _context.ProductImages
+            .Where(i => i.ProductId == produitId)
+            .ToListAsync(cancellationToken);
+
+        if (photos.All(p => p.Id != photoId))
+        {
+            throw IntrouvableException.Pour("Photo", photoId);
+        }
+
+        foreach (var photo in photos)
+        {
+            photo.IsPrimary = photo.Id == photoId;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -315,6 +370,16 @@ public class ProduitService : IProduitService
             throw new RegleMetierException("Le prix de vente et le coût de production ne peuvent pas être négatifs.");
         }
 
+        if (requete.StockInitial < 0 || requete.StockMinimum < 0)
+        {
+            throw new RegleMetierException("Le stock initial et le seuil d'alerte ne peuvent pas être négatifs.");
+        }
+
+        if (requete.PieceUnique && requete.StockInitial > 1)
+        {
+            throw new RegleMetierException(
+                "Une pièce unique n'existe qu'en un exemplaire : son stock initial vaut 0 ou 1.");
+        }
     }
 
     private static string? Nettoyer(string? valeur)
@@ -341,8 +406,9 @@ public class ProduitService : IProduitService
         p.CurrentStock,
         p.MinimumStock,
         p.IsCustomizable,
+        p.IsUniquePiece,
         p.IsActive,
-        p.CurrentStock <= p.MinimumStock,
+        !p.IsUniquePiece && p.CurrentStock <= p.MinimumStock,
         p.Images.Where(i => i.IsPrimary).Select(i => i.FilePath).FirstOrDefault(),
         p.Images.Count);
 }

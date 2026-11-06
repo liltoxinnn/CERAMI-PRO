@@ -32,6 +32,17 @@
                     </TextBox>
                 </DockPanel>
 
+                <!--
+                    Filtres de l'écran : cases à cocher et listes de choix.
+                    Leur apparence vient des modèles déclarés dans Vues.xaml.
+                -->
+                <ItemsControl ItemsSource="{Binding Filtres}" Margin="0,12,0,0"
+                              Visibility="{Binding AFiltres, Converter={StaticResource BooleenEnVisibilite}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
                 <!-- Actions sur la fiche choisie -->
                 <WrapPanel Margin="0,12,0,0">
                     <Button Content="{Binding LibelleAjouter}" Command="{Binding AjouterCommand}"
@@ -65,9 +76,9 @@
                 </WrapPanel>
 
                 <!--
-                    Actions propres au module : réceptionner un achat,
-                    défourner une cuisson, annuler une vente. Elles portent
-                    sur la ligne choisie dans le tableau.
+                    Actions propres à l'écran : encaisser un acompte, imprimer
+                    un reçu, enregistrer une entrée de stock, annuler une vente.
+                    Elles portent sur la ligne choisie dans le tableau.
                 -->
                 <ItemsControl ItemsSource="{Binding Actions}" Margin="0,8,0,0">
                     <ItemsControl.ItemsPanel>
