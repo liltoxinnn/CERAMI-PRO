@@ -83,6 +83,33 @@ public partial class SauvegardeVueModele : VueModeleBase
         OnPropertyChanged(nameof(AucuneSauvegarde));
     }
 
+    /// <summary>Enregistre le réglage de la sauvegarde quotidienne.</summary>
+    [RelayCommand]
+    private async Task EnregistrerReglageAsync()
+    {
+        await ExecuterAsync(async () =>
+        {
+            await _sauvegardes.ReglerAsync(new ReglageSauvegardeRequete
+            {
+                Active = AutomatiqueActive,
+                Heure = HeureAutomatique,
+                ConservationJours = ConservationJours
+            });
+
+            await ChargerAsync();
+
+            _dialogue.Succes(AutomatiqueActive
+                ? $"Une sauvegarde sera faite chaque jour à partir de {HeureAutomatique}, tant que le logiciel " +
+                  $"est ouvert. Les archives de plus de {ConservationJours} jour(s) sont supprimées."
+                : "La sauvegarde automatique est désactivée. Pensez à sauvegarder vous-même chaque jour.");
+        });
+
+        if (MessageErreur is not null)
+        {
+            _dialogue.Erreur(MessageErreur);
+        }
+    }
+
     /// <summary>Crée une sauvegarde immédiatement.</summary>
     [RelayCommand]
     private async Task SauvegarderAsync()

@@ -265,6 +265,10 @@
                                 <TextBlock Text="Dernière mise à jour du schéma" Style="{StaticResource EtiquetteChamp}" />
                                 <TextBlock Text="{Binding BaseDeDonnees.VersionSchema}" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Style="{StaticResource Ligne}">
+                                <TextBlock Text="Tables archivées (ancienne version)" Style="{StaticResource EtiquetteChamp}" />
+                                <TextBlock Text="{Binding BaseDeDonnees.TablesArchivees}" />
+                            </StackPanel>
                         </UniformGrid>
                     </StackPanel>
                 </Border>

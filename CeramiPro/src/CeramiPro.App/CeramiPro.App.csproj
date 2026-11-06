@@ -16,6 +16,11 @@
     <AssemblyName>CeramiPro</AssemblyName>
     <RootNamespace>CeramiPro.App</RootNamespace>
     <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
+
+    <!-- Même numéro que l'installateur (deploiement\CeramiPro.iss). -->
+    <Version>2.0.0</Version>
+    <Product>CeramiPro</Product>
+    <Description>Gestion d'atelier de céramique</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -226,9 +226,11 @@ public class DatabaseSeeder
     {
         var reglages = new (string Cle, string Valeur, string Categorie, string TypeValeur, string Description, bool AdminSeul)[]
         {
-            ("sauvegarde.automatique", "false", "Sauvegarde", "booleen",
+            // Activée d'emblée, en pleine journée : un atelier ferme rarement
+            // après 22 h, et une sauvegarde qui ne tourne jamais ne protège rien.
+            ("sauvegarde.automatique", "true", "Sauvegarde", "booleen",
                 "Activer la sauvegarde automatique de la base de données.", true),
-            ("sauvegarde.heure", "22:00", "Sauvegarde", "heure",
+            ("sauvegarde.heure", "13:00", "Sauvegarde", "heure",
                 "Heure de déclenchement de la sauvegarde automatique.", true),
             ("sauvegarde.conservation.jours", "30", "Sauvegarde", "entier",
                 "Nombre de jours de conservation des sauvegardes.", true),

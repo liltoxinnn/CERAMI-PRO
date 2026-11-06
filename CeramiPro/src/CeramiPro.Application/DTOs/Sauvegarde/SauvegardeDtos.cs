@@ -36,3 +36,14 @@ public record RestaurationDto(
     bool AncienneVersion = false,
     int TablesNonReprises = 0,
     int PhotosRestaurees = 0);
+
+/// <summary>Réglage de la sauvegarde quotidienne.</summary>
+public class ReglageSauvegardeRequete
+{
+    public bool Active { get; set; }
+
+    /// <summary>Heure de l'atelier, au format « HH:mm ».</summary>
+    public string Heure { get; set; } = "13:00";
+
+    public int ConservationJours { get; set; } = 30;
+}

@@ -10,23 +10,7 @@
             <StackPanel>
                 <TextBlock Text="État des sauvegardes" Style="{StaticResource TitreCarte}" />
 
-                <UniformGrid Columns="4" Margin="0,4,0,0">
-                    <StackPanel Margin="0,0,16,0">
-                        <TextBlock Text="Sauvegarde automatique" Style="{StaticResource EtiquetteChamp}" />
-                        <TextBlock FontSize="14" FontWeight="SemiBold">
-                            <Run Text="{Binding AutomatiqueActive,
-                                       Converter={StaticResource BooleenEnOuiNon}, Mode=OneWay}" /><Run
-                                Text=" — " /><Run Text="{Binding HeureAutomatique, Mode=OneWay}" />
-                        </TextBlock>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,16,0">
-                        <TextBlock Text="Conservation" Style="{StaticResource EtiquetteChamp}" />
-                        <TextBlock FontSize="14" FontWeight="SemiBold">
-                            <Run Text="{Binding ConservationJours, Mode=OneWay}" /><Run Text=" jour(s)" />
-                        </TextBlock>
-                    </StackPanel>
-
+                <UniformGrid Columns="2" Margin="0,4,0,0">
                     <StackPanel Margin="0,0,16,0">
                         <TextBlock Text="Dernière sauvegarde" Style="{StaticResource EtiquetteChamp}" />
                         <TextBlock FontSize="14" FontWeight="SemiBold"
@@ -39,6 +23,26 @@
                         <TextBlock Text="{Binding NomBaseDeDonnees}" FontSize="14" FontWeight="SemiBold" />
                     </StackPanel>
                 </UniformGrid>
+
+                <!-- Réglage de la sauvegarde quotidienne -->
+                <TextBlock Text="Sauvegarde automatique" Style="{StaticResource EtiquetteChamp}"
+                           Margin="0,14,0,4" />
+                <WrapPanel>
+                    <CheckBox Content="Sauvegarder chaque jour, à partir de" VerticalAlignment="Center"
+                              IsChecked="{Binding AutomatiqueActive}" Margin="0,0,8,0" />
+                    <TextBox Text="{Binding HeureAutomatique, UpdateSourceTrigger=PropertyChanged}"
+                             Width="64" VerticalAlignment="Center" Margin="0,0,8,0"
+                             ToolTip="Heure de l'atelier, par exemple 13:00" />
+                    <TextBlock Text="— conserver les archives" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Text="{Binding ConservationJours, UpdateSourceTrigger=PropertyChanged}"
+                             Width="56" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="jour(s)" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Content="Enregistrer le réglage" Command="{Binding EnregistrerReglageCommand}"
+                            Style="{StaticResource BoutonSecondaire}" />
+                </WrapPanel>
+                <TextBlock Text="La sauvegarde se fait quand le logiciel est ouvert à cette heure-là, ou dès qu'il est ouvert après."
+                           FontSize="12" Foreground="{StaticResource TexteSecondaire}" Margin="0,4,0,0"
+                           TextWrapping="Wrap" />
 
                 <TextBlock Text="Dossier des sauvegardes" Style="{StaticResource EtiquetteChamp}"
                            Margin="0,12,0,2" />

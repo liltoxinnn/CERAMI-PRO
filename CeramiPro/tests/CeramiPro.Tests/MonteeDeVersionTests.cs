@@ -106,6 +106,29 @@ public class MonteeDeVersionTests : IDisposable
             // doit rester possible.
             await ExecuterAsync(contexte, """INSERT INTO "Customers" ("CustomerNumber", "FullName", "IsActive", "CreatedAt") VALUES ('CLI-TEST', 'Passage', TRUE, now())""");
             await ExecuterAsync(contexte, """DELETE FROM "Customers" WHERE "CustomerNumber" = 'CLI-TEST'""");
+
+            // Le logiciel travaille ensuite normalement sur la base mise à jour :
+            // une vente diminue le stock, et la numérotation continue à la suite.
+            var admin = await contexte.Users.AsNoTracking().SingleAsync(u => u.UserName == "admin");
+            fournisseur.GetRequiredService<ISessionAtelier>()
+                .Ouvrir(admin.Id, admin.UserName, admin.FullName, admin.Role);
+
+            var stockAvant = (await contexte.Products.AsNoTracking().SingleAsync(p => p.Id == 1)).CurrentStock;
+
+            var vente = await fournisseur.GetRequiredService<IVenteService>().EnregistrerAsync(
+                new Application.DTOs.Commercial.VenteRequete
+                {
+                    ClientId = 1,
+                    Lignes = new() { new() { ProduitId = 1, Quantite = 1m } }
+                });
+
+            vente.Numero.Should().NotBe("VTE-2026-0001");
+            (await contexte.Products.AsNoTracking().SingleAsync(p => p.Id == 1)).CurrentStock
+                .Should().Be(stockAvant - 1m);
+
+            var client = await fournisseur.GetRequiredService<IClientService>()
+                .CreerAsync(new Application.DTOs.Commercial.ClientRequete { Nom = "Client après la mise à jour" });
+            client.Numero.Should().NotBe("CLI-2026-0001");
         }
         finally
         {

@@ -183,6 +183,58 @@ public class SauvegardeService : ISauvegardeService
         return supprimees;
     }
 
+    public async Task ReglerAsync(ReglageSauvegardeRequete requete, CancellationToken cancellationToken = default)
+    {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "régler la sauvegarde automatique");
+
+        if (!TimeSpan.TryParseExact(requete.Heure?.Trim(), new[] { @"h\:mm", @"hh\:mm" },
+                CultureInfo.InvariantCulture, out var heure)
+            || heure >= TimeSpan.FromDays(1))
+        {
+            throw new RegleMetierException("Indiquez l'heure de la sauvegarde sous la forme 13:00.");
+        }
+
+        if (requete.ConservationJours is < 1 or > 3650)
+        {
+            throw new RegleMetierException("La durée de conservation va de 1 à 3 650 jours.");
+        }
+
+        var valeurs = new Dictionary<string, string>
+        {
+            [CleAutomatique] = requete.Active ? "true" : "false",
+            [CleHeure] = heure.ToString(@"hh\:mm", CultureInfo.InvariantCulture),
+            [CleConservation] = requete.ConservationJours.ToString(CultureInfo.InvariantCulture)
+        };
+
+        var existants = await _context.SystemSettings
+            .Where(s => valeurs.Keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        foreach (var (cle, valeur) in valeurs)
+        {
+            if (existants.FirstOrDefault(s => s.Key == cle) is { } reglage)
+            {
+                reglage.Value = valeur;
+            }
+            else
+            {
+                _context.SystemSettings.Add(new Domain.Entities.Settings.SystemSetting
+                {
+                    Key = cle, Value = valeur, Category = "Sauvegarde", IsAdminOnly = true,
+                    ValueType = cle == CleAutomatique ? "booleen" : cle == CleHeure ? "heure" : "entier"
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await _audit.EnregistrerAsync(AuditAction.Modification, "Sauvegarde", null,
+            requete.Active
+                ? $"Sauvegarde automatique activée chaque jour à {valeurs[CleHeure]}, conservée {requete.ConservationJours} jour(s)."
+                : "Sauvegarde automatique désactivée.",
+            null, cancellationToken);
+    }
+
     // ------------------------------------------------------------- Détails
 
     /// <summary>Réglages de la sauvegarde, lus dans les paramètres du logiciel.</summary>
@@ -197,7 +249,7 @@ public class SauvegardeService : ISauvegardeService
 
         return (
             reglages.TryGetValue(CleAutomatique, out var actif) && bool.TryParse(actif, out var vrai) && vrai,
-            reglages.TryGetValue(CleHeure, out var heure) && !string.IsNullOrWhiteSpace(heure) ? heure : "22:00",
+            reglages.TryGetValue(CleHeure, out var heure) && !string.IsNullOrWhiteSpace(heure) ? heure : "13:00",
             reglages.TryGetValue(CleConservation, out var jours) && int.TryParse(jours, out var valeur)
                 ? valeur
                 : 30);

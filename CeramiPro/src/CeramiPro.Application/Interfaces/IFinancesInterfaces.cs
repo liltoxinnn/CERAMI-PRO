@@ -56,6 +56,9 @@ public interface ISauvegardeService
     /// <summary>Supprime les sauvegardes dépassant la durée de conservation.</summary>
     Task<int> PurgerAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Active ou coupe la sauvegarde quotidienne, et règle son heure et sa durée de conservation.</summary>
+    Task ReglerAsync(ReglageSauvegardeRequete requete, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Remet la base dans l'état d'une sauvegarde. Toutes les données
     /// enregistrées depuis sont perdues : l'opération est irréversible et
