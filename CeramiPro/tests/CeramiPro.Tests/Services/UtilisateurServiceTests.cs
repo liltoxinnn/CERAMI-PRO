@@ -2,6 +2,7 @@ using CeramiPro.Application.Common;
 using CeramiPro.Application.DTOs.Identity;
 using CeramiPro.Application.Services;
 using CeramiPro.Domain.Common;
+using CeramiPro.Domain.Enums;
 using CeramiPro.Infrastructure.Authentication;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Tests.Aides;
@@ -20,11 +21,9 @@ public class UtilisateurServiceTests : IDisposable
     public UtilisateurServiceTests()
     {
         _contexte = ContexteTest.Creer(_utilisateurCourant);
-        _service = new UtilisateurService(_contexte, new PasswordHasherService(), _utilisateurCourant, _audit);
+        _service = new UtilisateurService(
+            _contexte, new PasswordHasherService(), _utilisateurCourant, _audit, new HorlogeFactice());
     }
-
-    private async Task<int> IdRoleAsync(string code)
-        => (await _contexte.Roles.FirstAsync(r => r.Code == code)).Id;
 
     [Fact]
     public async Task Un_utilisateur_peut_etre_cree()
@@ -34,7 +33,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
 
         utilisateur.NomUtilisateur.Should().Be("karim");
@@ -50,7 +49,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
 
         var enregistre = await _contexte.Users.FirstAsync(u => u.UserName == "karim");
@@ -66,7 +65,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "ADMIN",
             NomComplet = "Doublon",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
 
         await action.Should().ThrowAsync<RegleMetierException>()
@@ -74,17 +73,21 @@ public class UtilisateurServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Un_role_inexistant_est_refuse()
+    public async Task Un_employe_ne_peut_pas_creer_de_compte()
     {
+        // Le menu cache l'écran ; le service refuse de son côté.
+        _utilisateurCourant.Role = RoleUtilisateur.Employe;
+
         var action = async () => await _service.CreerAsync(new CreerUtilisateurRequete
         {
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = 9999
+            Role = RoleUtilisateur.Administrateur
         });
 
-        await action.Should().ThrowAsync<RegleMetierException>();
+        await action.Should().ThrowAsync<RegleMetierException>().WithMessage("*Seul un administrateur*");
+        (await _contexte.Users.CountAsync()).Should().Be(1);
     }
 
     [Fact]
@@ -107,7 +110,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "amina",
             NomComplet = "Amina Saidi",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Administrateur)
+            Role = RoleUtilisateur.Administrateur
         });
 
         var premier = await _contexte.Users.FirstAsync(u => u.UserName == "admin");
@@ -131,23 +134,28 @@ public class UtilisateurServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task La_desactivation_invalide_la_session_en_cours()
+    public async Task Un_compte_desactive_ne_peut_plus_se_connecter()
     {
         var utilisateur = await _service.CreerAsync(new CreerUtilisateurRequete
         {
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
-
-        var enregistre = await _contexte.Users.FirstAsync(u => u.Id == utilisateur.Id);
-        enregistre.RefreshToken = "jeton-en-cours";
-        await _contexte.SaveChangesAsync();
 
         await _service.ChangerActivationAsync(utilisateur.Id, false);
 
-        (await _contexte.Users.FirstAsync(u => u.Id == utilisateur.Id)).RefreshToken.Should().BeNull();
+        var auth = new AuthService(_contexte, new PasswordHasherService(), new HorlogeFactice(), _audit,
+            new UtilisateurCourantFactice(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthService>.Instance);
+
+        var connexion = () => auth.ConnecterAsync(new CeramiPro.Application.DTOs.Auth.ConnexionRequete
+        {
+            NomUtilisateur = "karim", MotDePasse = "Atelier@2026"
+        });
+
+        await connexion.Should().ThrowAsync<RegleMetierException>();
     }
 
     [Fact]
@@ -158,7 +166,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
 
         var page = await _service.ListerAsync(new PagedRequest { Recherche = "belhadj" });
@@ -184,7 +192,7 @@ public class UtilisateurServiceTests : IDisposable
             NomUtilisateur = "karim",
             NomComplet = "Karim Belhadj",
             MotDePasse = "Atelier@2026",
-            RoleId = await IdRoleAsync(RoleCodes.Employe)
+            Role = RoleUtilisateur.Employe
         });
 
         _audit.Traces.Should().ContainSingle(t => t.Action == CeramiPro.Domain.Enums.AuditAction.Creation);

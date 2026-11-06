@@ -360,6 +360,11 @@ public class ProduitService : IProduitService
 
     private async Task VerifierAsync(ProduitRequete requete, int? idExclu, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(requete.Nom))
+        {
+            throw new RegleMetierException("Donnez un nom au produit : c'est lui qui figure sur les reçus.");
+        }
+
         if (!await _context.ProductCategories.AnyAsync(c => c.Id == requete.CategorieId, cancellationToken))
         {
             throw new RegleMetierException("La catégorie sélectionnée n'existe pas.");

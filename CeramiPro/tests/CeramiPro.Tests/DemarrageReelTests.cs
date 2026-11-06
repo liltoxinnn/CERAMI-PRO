@@ -1,7 +1,5 @@
 using CeramiPro.Application;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
-using CeramiPro.Domain.Common;
 using CeramiPro.Infrastructure;
 using CeramiPro.Infrastructure.Data;
 using CeramiPro.Infrastructure.Data.Seed;
@@ -55,10 +53,11 @@ public class DemarrageReelTests
         services.AjouterApplication();
         services.AjouterInfrastructure(configuration);
 
-        services.AddSingleton<IServiceLangue, ServiceLangue>();
         services.AddSingleton<IServiceDialogue, DialogueFactice>();
         services.AddSingleton<IServiceFormulaire, FormulaireFactice>();
         services.AddSingleton<IServiceFichier, FichierFactice>();
+        services.AddSingleton<IServiceFenetres, FenetresFactice>();
+        services.AddSingleton<IServiceCompte, CompteFactice>();
 
         services.AjouterPresentation();
 
@@ -94,13 +93,11 @@ public class DemarrageReelTests
             // à chaque démarrage.
             await fournisseur.GetRequiredService<DatabaseSeeder>().ExecuterAsync();
 
-            var droits = await contexte.Permissions.CountAsync();
-            droits.Should().Be(PermissionCodes.Catalogue.Count);
-
-            (await contexte.Roles.CountAsync()).Should().Be(4);
             (await contexte.Users.CountAsync()).Should().Be(1);
-            (await contexte.Units.CountAsync()).Should().BeGreaterThan(0);
             (await contexte.PaymentMethods.CountAsync()).Should().BeGreaterThan(0);
+            (await contexte.ProductCategories.CountAsync()).Should().BeGreaterThan(0);
+            (await contexte.ExpenseCategories.CountAsync()).Should().BeGreaterThan(0);
+            (await contexte.BusinessSettings.CountAsync()).Should().Be(1);
         }
         finally
         {
@@ -109,7 +106,7 @@ public class DemarrageReelTests
     }
 
     [PostgresFact]
-    public async Task Les_quarante_neuf_tables_existent_apres_migration()
+    public async Task Les_dix_neuf_tables_existent_apres_migration()
     {
         await using var fournisseur = ConstruireServices();
         var contexte = fournisseur.GetRequiredService<CeramiProDbContext>();
@@ -130,8 +127,13 @@ public class DemarrageReelTests
 
             var tables = Convert.ToInt32(await commande.ExecuteScalarAsync());
 
-            // Les 49 tables du métier, plus celle de l'historique des migrations.
-            tables.Should().Be(50);
+            // Les 19 tables du métier, plus celle de l'historique des migrations.
+            tables.Should().Be(20);
+
+            // Sur une installation neuve, il n'y a rien à archiver.
+            commande.CommandText =
+                "select count(*) from information_schema.tables where table_schema = 'archives'";
+            Convert.ToInt32(await commande.ExecuteScalarAsync()).Should().Be(0);
         }
         finally
         {
@@ -161,13 +163,11 @@ public class DemarrageReelTests
             });
 
             reponse.Utilisateur.NomUtilisateur.Should().Be("admin");
-            reponse.Utilisateur.RoleCode.Should().Be(RoleCodes.Administrateur);
+            reponse.Utilisateur.Role.Should().Be(Domain.Enums.RoleUtilisateur.Administrateur);
 
             // Le mot de passe livré avec le logiciel ne doit pas rester en usage.
             reponse.Utilisateur.DoitChangerMotDePasse.Should().BeTrue();
 
-            // L'administrateur possède l'intégralité des droits.
-            reponse.Utilisateur.Droits.Should().HaveCount(PermissionCodes.Catalogue.Count);
         }
         finally
         {
@@ -189,13 +189,12 @@ public class DemarrageReelTests
             await fournisseur.GetRequiredService<DatabaseSeeder>().ExecuterAsync();
 
             var session = fournisseur.GetRequiredService<ISessionAtelier>();
-            session.Ouvrir(1, "admin", "Administrateur", RoleCodes.Administrateur,
-                "Administrateur", PermissionCodes.Catalogue.Select(d => d.Code));
+            session.Ouvrir(1, "admin", "Administrateur", Domain.Enums.RoleUtilisateur.Administrateur);
 
             var navigation = fournisseur.GetRequiredService<IServiceNavigation>();
 
             var destinations = CatalogueNavigationTests
-                .Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+                .Aplatir(CatalogueNavigation.Construire())
                 .Where(e => e.Destination is not null)
                 .Select(e => e.Destination!)
                 .Distinct()
@@ -217,8 +216,6 @@ public class DemarrageReelTests
                     {
                         echecs.Add($"{destination.Name} : {message}");
                     }
-
-
                 }
                 catch (Exception erreur)
                 {
@@ -229,6 +226,67 @@ public class DemarrageReelTests
             echecs.Should().BeEmpty(
                 "ces écrans échouent à s'ouvrir sur une base réelle — "
                 + string.Join(" | ", echecs));
+        }
+        finally
+        {
+            await contexte.Database.EnsureDeletedAsync();
+        }
+    }
+
+    [PostgresFact]
+    public async Task Une_vente_dont_le_reglement_echoue_est_annulee_en_entier()
+    {
+        await using var fournisseur = ConstruireServices();
+        var contexte = fournisseur.GetRequiredService<CeramiProDbContext>();
+
+        await contexte.Database.EnsureDeletedAsync();
+
+        try
+        {
+            await contexte.Database.MigrateAsync();
+            await fournisseur.GetRequiredService<DatabaseSeeder>().ExecuterAsync();
+            fournisseur.GetRequiredService<ISessionAtelier>()
+                .Ouvrir(1, "admin", "Administrateur", Domain.Enums.RoleUtilisateur.Administrateur);
+
+            var produits = fournisseur.GetRequiredService<IProduitService>();
+            var categorie = await contexte.ProductCategories.Select(c => c.Id).FirstAsync();
+            var produit = await produits.CreerAsync(new Application.DTOs.Catalogue.ProduitRequete
+            {
+                Nom = "Vase", CategorieId = categorie, PrixVente = 3000m, StockInitial = 5m
+            });
+
+            // La vente et sa sortie de stock sont écrites, puis le règlement
+            // échoue : un mode de règlement qui n'existe pas.
+            var ventes = fournisseur.GetRequiredService<IVenteService>();
+            var action = () => ventes.EnregistrerAsync(new Application.DTOs.Commercial.VenteRequete
+            {
+                MontantPaye = 3000m,
+                ModeReglementId = 999,
+                Lignes = new() { new() { ProduitId = produit.Id, Quantite = 2m } }
+            });
+
+            await action.Should().ThrowAsync<Application.Common.RegleMetierException>();
+
+            // Rien ne doit en rester : ni vente, ni stock diminué.
+            await using var verification = new CeramiProDbContext(
+                new DbContextOptionsBuilder<CeramiProDbContext>().UseNpgsql(ChaineConnexion()).Options);
+
+            (await verification.Sales.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+            (await verification.Products.SingleAsync(p => p.Id == produit.Id)).CurrentStock.Should().Be(5m);
+            (await verification.InventoryTransactions.CountAsync(t => t.TransactionType == Domain.Enums.InventoryTransactionType.Vente))
+                .Should().Be(0);
+
+            // Et le logiciel continue normalement : la vente suivante passe.
+            var modeId = await contexte.PaymentMethods.Select(m => m.Id).FirstAsync();
+            var vente = await ventes.EnregistrerAsync(new Application.DTOs.Commercial.VenteRequete
+            {
+                MontantPaye = 3000m,
+                ModeReglementId = modeId,
+                Lignes = new() { new() { ProduitId = produit.Id, Quantite = 1m } }
+            });
+
+            vente.Reste.Should().Be(0m);
+            (await verification.Products.AsNoTracking().SingleAsync(p => p.Id == produit.Id)).CurrentStock.Should().Be(4m);
         }
         finally
         {

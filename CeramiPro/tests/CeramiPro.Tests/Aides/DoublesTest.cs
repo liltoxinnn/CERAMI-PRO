@@ -1,11 +1,11 @@
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
+using CeramiPro.Domain.Common;
 using CeramiPro.Domain.Enums;
 using CeramiPro.Presentation.Navigation;
 
 namespace CeramiPro.Tests.Aides;
 
-/// <summary>Session simulée : on choisit l'utilisateur et ses droits.</summary>
+/// <summary>Session simulée : on choisit l'utilisateur et son rôle.</summary>
 public class UtilisateurCourantFactice : ISessionAtelier
 {
     public int? UtilisateurId { get; set; } = 1;
@@ -14,30 +14,20 @@ public class UtilisateurCourantFactice : ISessionAtelier
 
     public string? NomComplet { get; set; } = "Administrateur de l'atelier";
 
-    public string? CodeRole { get; set; } = "administrateur";
+    public RoleUtilisateur? Role { get; set; } = RoleUtilisateur.Administrateur;
 
-    public string? NomRole { get; set; } = "Administrateur";
+    public string? NomRole => Role?.Libelle();
 
     public bool EstConnecte => UtilisateurId is not null;
 
-    public HashSet<string> Droits { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool EstAdministrateur => Role == RoleUtilisateur.Administrateur;
 
-    public bool PossedeDroit(string codeDroit) => Droits.Contains(codeDroit);
-
-    public void Ouvrir(int utilisateurId, string nomUtilisateur, string nomComplet,
-        string codeRole, string nomRole, IEnumerable<string> droits)
+    public void Ouvrir(int utilisateurId, string nomUtilisateur, string nomComplet, RoleUtilisateur role)
     {
         UtilisateurId = utilisateurId;
         NomUtilisateur = nomUtilisateur;
         NomComplet = nomComplet;
-        CodeRole = codeRole;
-        NomRole = nomRole;
-
-        Droits.Clear();
-        foreach (var droit in droits)
-        {
-            Droits.Add(droit);
-        }
+        Role = role;
     }
 
     public void Fermer()
@@ -45,9 +35,7 @@ public class UtilisateurCourantFactice : ISessionAtelier
         UtilisateurId = null;
         NomUtilisateur = null;
         NomComplet = null;
-        CodeRole = null;
-        NomRole = null;
-        Droits.Clear();
+        Role = null;
     }
 }
 
@@ -115,6 +103,16 @@ public class DialogueFactice : IServiceDialogue
         Messages.Add(("confirmation", message));
         return ReponseConfirmation;
     }
+
+    /// <summary>Texte « saisi » par l'utilisateur ; nul pour représenter un renoncement.</summary>
+    public string? ReponseDemande { get; set; } = "Motif saisi pendant le test";
+
+    public string? Demander(string message, string titre = "Précision", string valeurInitiale = "",
+        bool obligatoire = true)
+    {
+        Messages.Add(("question", message));
+        return ReponseDemande;
+    }
 }
 
 /// <summary>Base de données simulée : on choisit si elle répond ou non.</summary>
@@ -126,11 +124,20 @@ public class EtatBaseFactice : IServiceEtatBaseDeDonnees
         => Task.FromResult(Disponible
             ? EtatBaseDeDonnees.Connectee("CeramiProDB")
             : EtatBaseDeDonnees.Injoignable());
+
+    public Task<InformationsBaseDeDonnees> DecrireAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(new InformationsBaseDeDonnees(
+            Disponible, "localhost", 5432, "CeramiProDB", "postgres", "16.4",
+            "Pieces uniques et canaux de commande (06/11/2026)", 0, 0, "appsettings.Local.json"));
 }
 
 /// <summary>
 /// Fenêtre de saisie simulée : on choisit si l'utilisateur enregistre ou
 /// renonce, et l'on retient les formulaires qui ont été affichés.
+///
+/// Avec <see cref="PendantLaSaisie"/>, le test remplit le formulaire puis
+/// la fenêtre appuie sur « Enregistrer », comme le ferait l'utilisateur :
+/// la saisie passe alors réellement par le service métier.
 /// </summary>
 public class FormulaireFactice : IServiceFormulaire
 {
@@ -138,10 +145,36 @@ public class FormulaireFactice : IServiceFormulaire
 
     public bool Enregistre { get; set; } = true;
 
+    /// <summary>Saisie de l'utilisateur, jouée avant d'appuyer sur « Enregistrer ».</summary>
+    public Action<object>? PendantLaSaisie { get; set; }
+
+    /// <summary>Message affiché dans le formulaire après « Enregistrer », s'il y en a un.</summary>
+    public string? DerniereErreur { get; private set; }
+
     public bool Afficher(object vueModeleFormulaire)
     {
         Affiches.Add(vueModeleFormulaire);
-        return Enregistre;
+
+        if (PendantLaSaisie is null)
+        {
+            return Enregistre;
+        }
+
+        PendantLaSaisie(vueModeleFormulaire);
+
+        if (!Enregistre)
+        {
+            return false;
+        }
+
+        var type = vueModeleFormulaire.GetType();
+        var valider = (CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)type
+            .GetProperty("ValiderCommand")!.GetValue(vueModeleFormulaire)!;
+
+        valider.ExecuteAsync(null).GetAwaiter().GetResult();
+
+        DerniereErreur = type.GetProperty("MessageErreur")?.GetValue(vueModeleFormulaire) as string;
+        return type.GetProperty("Enregistre")?.GetValue(vueModeleFormulaire) as bool? ?? false;
     }
 }
 
@@ -164,4 +197,26 @@ public class FichierFactice : IServiceFichier
     }
 
     public void Ouvrir(string chemin) => Ouverts.Add(chemin);
+
+    /// <summary>Fichiers « choisis » dans la boîte « Ouvrir ».</summary>
+    public List<string> FichiersChoisis { get; } = new();
+
+    public IReadOnlyList<string> Choisir(string titre, string filtre, bool plusieurs = true)
+        => FichiersChoisis.ToList();
+}
+
+/// <summary>Fenêtres de consultation simulées : on retient celles qui ont été ouvertes.</summary>
+public class FenetresFactice : IServiceFenetres
+{
+    public List<Presentation.ViewModels.VueModeleBase> Ouvertes { get; } = new();
+
+    /// <summary>Action jouée « dans » la fenêtre, avant sa fermeture.</summary>
+    public Func<Presentation.ViewModels.VueModeleBase, Task>? PendantLaFenetre { get; set; }
+
+    public void Afficher(Presentation.ViewModels.VueModeleBase vueModele)
+    {
+        Ouvertes.Add(vueModele);
+        vueModele.ChargerAsync().GetAwaiter().GetResult();
+        PendantLaFenetre?.Invoke(vueModele).GetAwaiter().GetResult();
+    }
 }

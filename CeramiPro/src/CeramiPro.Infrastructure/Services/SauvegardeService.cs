@@ -41,6 +41,7 @@ public class SauvegardeService : ISauvegardeService
     private readonly IStockagePhotos _photos;
     private readonly IServiceDateHeure _horloge;
     private readonly IAuditService _audit;
+    private readonly IUtilisateurCourant _utilisateurCourant;
     private readonly ILogger<SauvegardeService> _journal;
     private readonly string _dossier;
 
@@ -49,6 +50,7 @@ public class SauvegardeService : ISauvegardeService
         IStockagePhotos photos,
         IServiceDateHeure horloge,
         IAuditService audit,
+        IUtilisateurCourant utilisateurCourant,
         IConfiguration configuration,
         ILogger<SauvegardeService> journal)
     {
@@ -56,6 +58,7 @@ public class SauvegardeService : ISauvegardeService
         _photos = photos;
         _horloge = horloge;
         _audit = audit;
+        _utilisateurCourant = utilisateurCourant;
         _journal = journal;
 
         // Dans le profil de l'utilisateur, comme le prépare l'installateur :
@@ -87,6 +90,13 @@ public class SauvegardeService : ISauvegardeService
     public async Task<SauvegardeDto> CreerAsync(
         bool automatique = false, CancellationToken cancellationToken = default)
     {
+        // La sauvegarde automatique protège l'atelier quel que soit celui qui
+        // travaille ; seule la sauvegarde à la demande relève de l'administrateur.
+        if (!automatique)
+        {
+            Autorisation.ExigerAdministrateur(_utilisateurCourant, "lancer une sauvegarde");
+        }
+
         Directory.CreateDirectory(_dossier);
 
         var horodatage = _horloge.MaintenantAtelier.ToString("yyyy-MM-dd-HHmm", CultureInfo.InvariantCulture);
@@ -132,6 +142,8 @@ public class SauvegardeService : ISauvegardeService
 
     public async Task SupprimerAsync(string nomFichier, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "supprimer une sauvegarde");
+
         var chemin = CheminSur(nomFichier);
 
         if (!File.Exists(chemin))
@@ -279,6 +291,8 @@ public class SauvegardeService : ISauvegardeService
     public async Task<RestaurationDto> RestaurerAsync(
         string nomFichier, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "restaurer une sauvegarde");
+
         var chemin = CheminSur(nomFichier);
 
         if (!File.Exists(chemin))

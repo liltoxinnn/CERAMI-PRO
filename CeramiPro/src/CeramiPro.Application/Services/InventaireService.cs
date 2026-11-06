@@ -61,6 +61,16 @@ public class InventaireService : IInventaireService
         var stockAvant = produit.CurrentStock;
         var stockApres = stockAvant + requete.Quantite;
 
+        // Une pièce unique n'existe qu'une fois : même quand l'atelier
+        // accepte de vendre ce qui n'est pas encore en stock, elle ne peut
+        // pas être vendue deux fois.
+        if (produit.IsUniquePiece && stockApres < 0)
+        {
+            throw new RegleMetierException(
+                $"« {produit.Name} » est une pièce unique et elle n'est plus disponible " +
+                "(déjà vendue ou sortie du stock).");
+        }
+
         if (stockApres < 0 && !requete.AutoriserStockNegatif
             && !await StockNegatifAutoriseAsync(cancellationToken))
         {
@@ -225,11 +235,15 @@ public class InventaireService : IInventaireService
     }
 
     /// <summary>
-    /// Enregistre une régularisation après comptage physique. Le motif est
-    /// obligatoire : un écart corrigé sans explication ne s'analyse plus.
+    /// Entrée en stock ou casse saisie à la main. Une casse doit être
+    /// expliquée : des pièces qui disparaissent sans motif ne s'analysent pas.
     /// </summary>
-    public async Task<MouvementStockDto> EnregistrerManuelAsync(
+    public Task<MouvementStockDto> EnregistrerManuelAsync(
         MouvementManuelRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => EnregistrerSaisieAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<MouvementStockDto> EnregistrerSaisieAsync(
+        MouvementManuelRequete requete, CancellationToken cancellationToken)
     {
         if (requete.TypeMouvement is not (InventoryTransactionType.Entree or InventoryTransactionType.Perte))
         {
@@ -285,8 +299,16 @@ public class InventaireService : IInventaireService
             .Elements.First();
     }
 
-    public async Task<MouvementStockDto> RegulariserAsync(
+    /// <summary>
+    /// Enregistre une régularisation après comptage physique. Le motif est
+    /// obligatoire : un écart corrigé sans explication ne s'analyse plus.
+    /// </summary>
+    public Task<MouvementStockDto> RegulariserAsync(
         RegularisationRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => CorrigerAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<MouvementStockDto> CorrigerAsync(
+        RegularisationRequete requete, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(requete.Motif))
         {

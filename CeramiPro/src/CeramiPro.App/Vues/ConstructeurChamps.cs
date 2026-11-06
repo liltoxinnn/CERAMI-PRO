@@ -142,7 +142,7 @@ public static class ConstructeurChamps
 
     /// <summary>
     /// Traduit l'entier d'une option en valeur d'énumération, et l'inverse.
-    /// Sans cela, choisir « Urgente » dans une liste de priorités ne serait
+    /// Sans cela, choisir « WhatsApp » comme canal d'une commande ne serait
     /// jamais enregistré.
     /// </summary>
     private sealed class EntierEnEnumeration : IValueConverter

@@ -89,8 +89,12 @@ public class PaiementService : IPaiementService
             paiements.Select(Convertir).ToList(), total, requete.Page, requete.TaillePage);
     }
 
-    public async Task<PaiementDto> EnregistrerAsync(
+    public Task<PaiementDto> EnregistrerAsync(
         PaiementRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => EnregistrerPaiementAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<PaiementDto> EnregistrerPaiementAsync(
+        PaiementRequete requete, CancellationToken cancellationToken)
     {
         if (requete.Montant <= 0)
         {
@@ -172,7 +176,10 @@ public class PaiementService : IPaiementService
         return Convertir(enregistre);
     }
 
-    public async Task AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default)
+    public Task AnnulerAsync(int id, string motif, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => AnnulerPaiementAsync(id, motif, cancellationToken), cancellationToken);
+
+    private async Task AnnulerPaiementAsync(int id, string motif, CancellationToken cancellationToken)
     {
         var paiement = await _context.Payments.FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Paiement", id);

@@ -79,7 +79,16 @@ public class UtilisateurService : IUtilisateurService
 
     public async Task<UtilisateurDto> CreerAsync(CreerUtilisateurRequete requete, CancellationToken cancellationToken = default)
     {
-        var nomUtilisateur = requete.NomUtilisateur.Trim();
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "créer un compte utilisateur");
+
+        var nomUtilisateur = (requete.NomUtilisateur ?? string.Empty).Trim();
+
+        if (nomUtilisateur.Length == 0 || string.IsNullOrWhiteSpace(requete.NomComplet))
+        {
+            throw new RegleMetierException("Le nom d'utilisateur et le nom complet sont obligatoires.");
+        }
+
+        RegleMotDePasse.Verifier(requete.MotDePasse);
 
         if (await _context.Users.AnyAsync(u => u.UserName.ToLower() == nomUtilisateur.ToLower(), cancellationToken))
         {
@@ -109,6 +118,8 @@ public class UtilisateurService : IUtilisateurService
 
     public async Task<UtilisateurDto> ModifierAsync(int id, ModifierUtilisateurRequete requete, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "modifier un compte utilisateur");
+
         var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
 
@@ -117,6 +128,11 @@ public class UtilisateurService : IUtilisateurService
         if ((changeaitDeRole || !requete.Actif) && utilisateur.Role == RoleUtilisateur.Administrateur)
         {
             await VerifierDernierAdministrateurAsync(utilisateur.Id, cancellationToken);
+        }
+
+        if (string.IsNullOrWhiteSpace(requete.NomComplet))
+        {
+            throw new RegleMetierException("Le nom complet est obligatoire.");
         }
 
         utilisateur.FullName = requete.NomComplet.Trim();
@@ -134,8 +150,12 @@ public class UtilisateurService : IUtilisateurService
 
     public async Task ReinitialiserMotDePasseAsync(int id, ReinitialiserMotDePasseRequete requete, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "changer le mot de passe d'une autre personne");
+
         var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
+
+        RegleMotDePasse.Verifier(requete.NouveauMotDePasse);
 
         utilisateur.PasswordHash = _hachage.Hacher(requete.NouveauMotDePasse);
         utilisateur.MustChangePassword = requete.DoitChangerMotDePasse;
@@ -149,6 +169,8 @@ public class UtilisateurService : IUtilisateurService
 
     public async Task ChangerActivationAsync(int id, bool actif, CancellationToken cancellationToken = default)
     {
+        Autorisation.ExigerAdministrateur(_utilisateurCourant, "désactiver ou réactiver un compte");
+
         var utilisateur = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
                           ?? throw IntrouvableException.Pour("Utilisateur", id);
 
@@ -166,9 +188,6 @@ public class UtilisateurService : IUtilisateurService
         }
 
         utilisateur.IsActive = actif;
-        if (!actif)
-        {
-        }
 
         await _context.SaveChangesAsync(cancellationToken);
         await _audit.EnregistrerAsync(AuditAction.Modification, nameof(User), utilisateur.Id.ToString(),

@@ -214,8 +214,12 @@ public class CommandeService : ICommandeService
         return await ObtenirAsync(id, cancellationToken);
     }
 
-    public async Task<CommandeDto> ChangerStatutAsync(
+    public Task<CommandeDto> ChangerStatutAsync(
         int id, CustomOrderStatus statut, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => ChangerEtapeAsync(id, statut, cancellationToken), cancellationToken);
+
+    private async Task<CommandeDto> ChangerEtapeAsync(
+        int id, CustomOrderStatus statut, CancellationToken cancellationToken)
     {
         var commande = await ChargerAvecDetails().FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Commande personnalisée", id);
@@ -324,8 +328,14 @@ public class CommandeService : ICommandeService
         return await ObtenirAsync(id, cancellationToken);
     }
 
-    public async Task<CommandeDto> AnnulerAsync(
+    /// <summary>Annule la commande et, s'il y a lieu, rembourse ses acomptes — tout ou rien.</summary>
+    public Task<CommandeDto> AnnulerAsync(
         int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(
+            () => AnnulerCommandeAsync(id, motif, rembourser, cancellationToken), cancellationToken);
+
+    private async Task<CommandeDto> AnnulerCommandeAsync(
+        int id, string motif, bool rembourser, CancellationToken cancellationToken)
     {
         var commande = await ChargerAvecDetails().FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                        ?? throw IntrouvableException.Pour("Commande personnalisée", id);

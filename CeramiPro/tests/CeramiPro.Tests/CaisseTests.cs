@@ -1,5 +1,4 @@
 using CeramiPro.Application.DTOs.Commercial;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.ViewModels.Ecrans;
 using CeramiPro.Tests.Aides;
 using FluentAssertions;
@@ -19,13 +18,11 @@ public class CaisseTests : IDisposable
     private readonly DialogueFactice _dialogue = new();
     private readonly FichierFactice _fichiers = new();
 
-    public CaisseTests() => _atelier.AccorderTousLesDroits();
-
     public void Dispose() => _atelier.Dispose();
 
     private CaisseVueModele Caisse() => new(
         _atelier.Ventes, _atelier.Produits, _atelier.Clients, ReferentielFactice(),
-        DocumentFactice(), _fichiers, new ServiceLangue(), _dialogue);
+        DocumentFactice(), _fichiers, _dialogue);
 
     /// <summary>
     /// Les modes de règlement et les documents ne sont pas au cœur de ces
@@ -77,7 +74,7 @@ public class CaisseTests : IDisposable
         caisse.ArticleChoisi = produitId;
         caisse.AjouterLigneCommand.Execute(null);
 
-        // Scanner deux fois la même étiquette donne « 2 », pas deux lignes.
+        // Choisir deux fois le même produit donne « 2 », pas deux lignes.
         caisse.Lignes.Should().ContainSingle();
         caisse.Lignes[0].Quantite.Should().Be(2m);
         caisse.Total.Should().Be(8400m);
@@ -197,33 +194,67 @@ public class CaisseTests : IDisposable
     }
 
     [Fact]
-    public async Task Un_code_inconnu_ne_bloque_pas_la_caisse()
+    public async Task Une_piece_unique_vendue_disparait_de_la_caisse()
     {
+        var piece = await _atelier.CreerProduitAsync("Jarre signée", prixVente: 25000m,
+            stockInitial: 1, pieceUnique: true);
+
         var caisse = Caisse();
         await caisse.ChargerAsync();
 
-        caisse.CodeScanne = "CODE-QUI-N-EXISTE-PAS";
-        await caisse.ScannerCommand.ExecuteAsync(null);
+        caisse.ArticleChoisi = piece;
+        caisse.AjouterLigneCommand.Execute(null);
+        caisse.MontantPaye = 25000m;
+        _dialogue.ReponseConfirmation = false;
 
-        caisse.MessageErreur.Should().Contain("CODE-QUI-N-EXISTE-PAS");
-        caisse.Lignes.Should().BeEmpty();
+        await caisse.EnregistrerCommand.ExecuteAsync(null);
+        caisse.MessageErreur.Should().BeNull();
+
+        await caisse.ChargerAsync();
+
+        // Elle n'existe qu'une fois : on ne peut plus la proposer.
+        caisse.Articles.Should().NotContain(a => a.Valeur == piece);
+        (await _atelier.StockProduitAsync(piece)).Should().Be(0m);
     }
 
     [Fact]
-    public async Task Scanner_une_etiquette_ajoute_le_produit()
+    public async Task Une_piece_unique_ne_se_vend_pas_en_deux_exemplaires()
     {
-        var produitId = await _atelier.CreerProduitAsync("Vase bleu", prixVente: 4200m, stockInitial: 10);
-        var produit = await _atelier.Produits.ObtenirAsync(produitId);
+        var piece = await _atelier.CreerProduitAsync("Jarre signée", prixVente: 25000m,
+            stockInitial: 1, pieceUnique: true);
 
         var caisse = Caisse();
         await caisse.ChargerAsync();
 
-        caisse.CodeScanne = produit.CodeBarres!;
-        await caisse.ScannerCommand.ExecuteAsync(null);
+        caisse.ArticleChoisi = piece;
+        caisse.Quantite = 2m;
+        caisse.AjouterLigneCommand.Execute(null);
+        caisse.MontantPaye = caisse.Total;
 
-        caisse.Lignes.Should().ContainSingle();
-        caisse.Lignes[0].PrixUnitaire.Should().Be(4200m);
-        caisse.CodeScanne.Should().BeEmpty("la zone se vide pour le produit suivant");
+        await caisse.EnregistrerCommand.ExecuteAsync(null);
+
+        caisse.MessageErreur.Should().Contain("Jarre signée");
+        (await _atelier.StockProduitAsync(piece)).Should().Be(1m);
+        (await _atelier.Ventes.ListerAsync(new FiltreVentesRequete())).Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_produit_en_rupture_n_est_pas_vendu_sans_stock()
+    {
+        var produitId = await _atelier.CreerProduitAsync("Bol vert", prixVente: 1200m, stockInitial: 1);
+
+        var caisse = Caisse();
+        await caisse.ChargerAsync();
+
+        caisse.ArticleChoisi = produitId;
+        caisse.Quantite = 3m;
+        caisse.AjouterLigneCommand.Execute(null);
+        caisse.MontantPaye = caisse.Total;
+
+        await caisse.EnregistrerCommand.ExecuteAsync(null);
+
+        caisse.MessageErreur.Should().Contain("Stock insuffisant");
+        (await _atelier.StockProduitAsync(produitId)).Should().Be(1m);
     }
 
     [Fact]
@@ -304,17 +335,9 @@ internal sealed class ReferentielMinimal : CeramiPro.Application.Interfaces.IRef
 /// <summary>Documents simulés : la production des PDF a ses propres tests.</summary>
 internal sealed class DocumentMinimal : CeramiPro.Application.Interfaces.IDocumentService
 {
-    public Task<byte[]> FacturePdfAsync(int factureId, CancellationToken cancellationToken = default)
+    public Task<byte[]> RecuVentePdfAsync(int venteId, CancellationToken cancellationToken = default)
         => Task.FromResult(Array.Empty<byte>());
 
-    public Task<byte[]> RecuPdfAsync(int venteId, CancellationToken cancellationToken = default)
-        => Task.FromResult(Array.Empty<byte>());
-
-    public Task<string> EnregistrerFactureAsync(int factureId, CancellationToken cancellationToken = default)
-        => Task.FromResult(string.Empty);
-
-    public Task<byte[]> EtiquettesPdfAsync(
-        IReadOnlyList<CeramiPro.Application.DTOs.Codes.EtiquetteDto> etiquettes,
-        CancellationToken cancellationToken = default)
+    public Task<byte[]> RecuCommandePdfAsync(int commandeId, CancellationToken cancellationToken = default)
         => Task.FromResult(Array.Empty<byte>());
 }

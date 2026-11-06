@@ -62,13 +62,20 @@ public partial class CaisseVueModele : DocumentLignesVueModele<VenteRequete>
     {
         await ExecuterAsync(async () =>
         {
-            var produits = await _produits.ListerActifsAsync();
+            // Une pièce unique déjà vendue n'existe plus : la proposer ne
+            // mènerait qu'à un refus au moment d'encaisser.
+            var produits = (await _produits.ListerActifsAsync())
+                .Where(p => !(p.PieceUnique && p.StockActuel <= 0m));
 
             Articles.Clear();
             foreach (var produit in produits)
             {
+                var disponibilite = produit.PieceUnique
+                    ? "pièce unique"
+                    : $"{Formatage.Quantite(produit.StockActuel)} en stock";
+
                 Articles.Add(new OptionChamp(produit.Id,
-                    $"{produit.Nom} — {produit.Reference} — {Formatage.Quantite(produit.StockActuel)} en stock"));
+                    $"{produit.Nom} — {produit.Reference} — {disponibilite}"));
                 _prix[produit.Id] = produit.PrixVente;
             }
 

@@ -17,7 +17,7 @@ public class TableauDeBordServiceTests : IDisposable
         tableau.Aujourdhui.ChiffreAffaires.Should().Be(0m);
         tableau.Aujourdhui.NombreVentes.Should().Be(0);
         tableau.Mois.Resultat.Should().Be(0m);
-        tableau.Stock.ValeurTotale.Should().Be(0m);
+        tableau.Stock.ValeurStock.Should().Be(0m);
         tableau.ProduitsLesPlusVendus.Should().BeEmpty();
     }
 
@@ -36,8 +36,8 @@ public class TableauDeBordServiceTests : IDisposable
 
         tableau.Aujourdhui.NombreVentes.Should().Be(1);
         tableau.Aujourdhui.ChiffreAffaires.Should().Be(7000m);
-        tableau.Aujourdhui.Benefice.Should().Be(3300m);
         tableau.Mois.ChiffreAffaires.Should().Be(7000m);
+        tableau.Mois.Benefice.Should().Be(3300m);
     }
 
     [Fact]
@@ -57,36 +57,53 @@ public class TableauDeBordServiceTests : IDisposable
 
         tableau.Mois.Depenses.Should().Be(1300m);
         tableau.Mois.Resultat.Should().Be(3300m - 1300m);
-        tableau.Finances.DepensesMois.Should().Be(1300m);
     }
 
     [Fact]
-    public async Task La_valeur_du_stock_additionne_les_matieres_et_les_produits()
+    public async Task La_valeur_du_stock_est_calculee_au_cout_des_pieces()
     {
-        await _atelier.CreerMatiereAsync("Argile", stockInitial: 100m, prix: 200m);
         await _atelier.CreerProduitAsync("Vase", coutProduction: 1850m, stockInitial: 4m);
+        await _atelier.CreerProduitAsync("Bol", coutProduction: 300m, stockInitial: 2m);
 
         var tableau = await _atelier.TableauDeBord.ObtenirAsync();
 
-        tableau.Stock.ValeurMatieres.Should().Be(20000m);
-        tableau.Stock.ValeurProduits.Should().Be(7400m);
-        tableau.Stock.ValeurTotale.Should().Be(27400m);
+        tableau.Stock.NombreProduits.Should().Be(2);
+        tableau.Stock.ValeurStock.Should().Be(8000m);
     }
 
     [Fact]
-    public async Task Une_matiere_sous_son_seuil_est_comptee_dans_les_alertes()
+    public async Task Un_produit_sous_son_seuil_apparait_dans_les_alertes()
     {
-        await _atelier.CreerMatiereAsync("Émail", stockInitial: 2m, stockMinimum: 5m);
         await _atelier.CreerProduitAsync("Vase", stockInitial: 1m, stockMinimum: 3m);
+        await _atelier.CreerProduitAsync("Bol", stockInitial: 10m, stockMinimum: 3m);
+        await _atelier.CreerProduitAsync("Jarre signée", stockInitial: 0m, pieceUnique: true);
 
         var tableau = await _atelier.TableauDeBord.ObtenirAsync();
 
-        tableau.Stock.MatieresFaibles.Should().Be(1);
+        // Une pièce unique vendue ne se refabrique pas : pas d'alerte.
         tableau.Stock.ProduitsFaibles.Should().Be(1);
+        tableau.StockFaible.Should().ContainSingle().Which.Nom.Should().Be("Vase");
     }
 
     [Fact]
-    public async Task Les_creances_clients_correspondent_au_reste_a_payer()
+    public async Task Les_commandes_en_retard_et_pretes_sont_comptees()
+    {
+        var clientId = await _atelier.CreerClientAsync();
+        var enRetard = await _atelier.CommanderAsync(clientId);
+        var prete = await _atelier.CommanderAsync(clientId);
+        await _atelier.Commandes.ChangerStatutAsync(prete.Id, Domain.Enums.CustomOrderStatus.Prete);
+
+        _atelier.Horloge.Avancer(TimeSpan.FromDays(11));
+
+        var tableau = await _atelier.TableauDeBord.ObtenirAsync();
+
+        tableau.Commandes.EnRetard.Should().BeGreaterThanOrEqualTo(1);
+        tableau.Commandes.PretesALivrer.Should().Be(1);
+        enRetard.Id.Should().NotBe(prete.Id);
+    }
+
+    [Fact]
+    public async Task Le_reste_a_encaisser_correspond_aux_ventes_a_credit()
     {
         var clientId = await _atelier.CreerClientAsync();
         var produitId = await _atelier.CreerProduitAsync("Vase", prixVente: 3500m, stockInitial: 10m);
@@ -101,8 +118,8 @@ public class TableauDeBordServiceTests : IDisposable
 
         var tableau = await _atelier.TableauDeBord.ObtenirAsync();
 
-        tableau.Finances.ArgentRecu.Should().Be(1000m);
-        tableau.Finances.CreancesClients.Should().Be(2500m);
+        tableau.Aujourdhui.Encaisse.Should().Be(1000m);
+        tableau.Finances.ResteAEncaisser.Should().Be(2500m);
     }
 
     [Fact]
@@ -112,7 +129,6 @@ public class TableauDeBordServiceTests : IDisposable
 
         tableau.VentesParJour.Should().HaveCount(TableauDeBordService.JoursGraphique);
         tableau.VentesParMois.Should().HaveCount(TableauDeBordService.MoisGraphique);
-        tableau.BeneficesParMois.Should().HaveCount(TableauDeBordService.MoisGraphique);
         tableau.VentesParJour.Should().OnlyContain(p => !string.IsNullOrWhiteSpace(p.Etiquette));
     }
 

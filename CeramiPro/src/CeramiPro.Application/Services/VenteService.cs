@@ -103,12 +103,30 @@ public class VenteService : IVenteService
         return Convertir(vente);
     }
 
-    public async Task<VenteDto> EnregistrerAsync(
+    /// <summary>
+    /// Enregistre la vente, la sortie de stock de chaque produit et le
+    /// règlement reçu, en une seule transaction.
+    /// </summary>
+    public Task<VenteDto> EnregistrerAsync(
         VenteRequete requete, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(() => EnregistrerVenteAsync(requete, cancellationToken), cancellationToken);
+
+    private async Task<VenteDto> EnregistrerVenteAsync(
+        VenteRequete requete, CancellationToken cancellationToken)
     {
         if (requete.Lignes.Count == 0)
         {
             throw new RegleMetierException("Ajoutez au moins un produit à la vente.");
+        }
+
+        if (requete.MontantPaye < 0)
+        {
+            throw new RegleMetierException("Le montant encaissé ne peut pas être négatif.");
+        }
+
+        if (requete.MontantPaye > 0 && requete.ModeReglementId is null)
+        {
+            throw new RegleMetierException("Choisissez le mode de règlement.");
         }
 
         if (requete.ClientId is not null
@@ -170,37 +188,35 @@ public class VenteService : IVenteService
         }
 
         _context.Sales.Add(vente);
-        await _context.SaveChangesAsync(cancellationToken);
 
-        // Le stock des produits finis diminue, mouvement par mouvement.
+        // Le stock des produits finis diminue, mouvement par mouvement. Rien
+        // n'est écrit avant que chaque produit ait été vérifié : la vente,
+        // ses lignes et ses sorties de stock partent ensemble, en une seule
+        // écriture.
         foreach (var ligne in vente.Items)
         {
-            await _inventaire.EnregistrerAsync(new MouvementStockRequete
+            var mouvement = await _inventaire.EnregistrerAsync(new MouvementStockRequete
             {
                 TypeMouvement = InventoryTransactionType.Vente,
                 ProduitId = ligne.ProductId,
                 Quantite = -ligne.Quantity,
                 CoutUnitaire = ligne.UnitCost,
-                VenteId = vente.Id,
                 Reference = vente.SaleNumber
             }, cancellationToken);
+
+            mouvement.Sale = vente;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
 
         if (requete.MontantPaye > 0)
         {
-            if (requete.ModeReglementId is null)
-            {
-                throw new RegleMetierException("Choisissez le mode de règlement.");
-            }
-
             await _paiements.EnregistrerAsync(new PaiementRequete
             {
                 ClientId = vente.CustomerId,
                 VenteId = vente.Id,
                 Montant = requete.MontantPaye,
-                ModeReglementId = requete.ModeReglementId.Value,
+                ModeReglementId = requete.ModeReglementId!.Value,
                 Date = vente.SaleDate
             }, cancellationToken);
         }
@@ -212,9 +228,17 @@ public class VenteService : IVenteService
         return await ObtenirAsync(vente.Id, cancellationToken);
     }
 
-    /// <summary>Crée la facture correspondant à la vente.</summary>
-    public async Task<VenteDto> AnnulerAsync(
+    /// <summary>
+    /// Annule la vente : les produits reviennent en stock et, si le client
+    /// avait payé, ses règlements sont annulés — tout ou rien.
+    /// </summary>
+    public Task<VenteDto> AnnulerAsync(
         int id, string motif, bool rembourser = false, CancellationToken cancellationToken = default)
+        => _context.EnTransactionAsync(
+            () => AnnulerVenteAsync(id, motif, rembourser, cancellationToken), cancellationToken);
+
+    private async Task<VenteDto> AnnulerVenteAsync(
+        int id, string motif, bool rembourser, CancellationToken cancellationToken)
     {
         var vente = await ChargerAvecDetails().FirstOrDefaultAsync(v => v.Id == id, cancellationToken)
                     ?? throw IntrouvableException.Pour("Vente", id);

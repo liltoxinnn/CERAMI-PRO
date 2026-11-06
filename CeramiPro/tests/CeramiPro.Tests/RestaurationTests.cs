@@ -65,8 +65,7 @@ public class RestaurationTests : IDisposable
     /// <summary>Ouvre une session : les services tracent l'auteur des opérations.</summary>
     private static void OuvrirSession(IServiceProvider fournisseur)
         => fournisseur.GetRequiredService<ISessionAtelier>().Ouvrir(
-            1, "admin", "Administrateur", RoleCodes.Administrateur, "Administrateur",
-            PermissionCodes.Catalogue.Select(d => d.Code));
+            1, "admin", "Administrateur", Domain.Enums.RoleUtilisateur.Administrateur);
 
     [PostgresFact]
     public async Task Une_sauvegarde_restauree_rend_l_atelier_a_l_identique()
@@ -270,6 +269,7 @@ public class RestaurationTests : IDisposable
                 archive.CreateEntry("photo.jpg");
             }
 
+            OuvrirSession(fournisseur);
             var sauvegardes = fournisseur.GetRequiredService<ISauvegardeService>();
 
             var action = async () => await sauvegardes.RestaurerAsync("ceramipro-intrus.zip");
@@ -287,10 +287,29 @@ public class RestaurationTests : IDisposable
     public async Task Une_sauvegarde_introuvable_est_signalee()
     {
         await using var fournisseur = ConstruireServices();
+        OuvrirSession(fournisseur);
 
         var action = async () => await fournisseur.GetRequiredService<ISauvegardeService>()
             .RestaurerAsync("ceramipro-inexistante.zip");
 
         await action.Should().ThrowAsync<Application.Common.IntrouvableException>();
+    }
+
+    [PostgresFact]
+    public async Task Un_employe_ne_peut_ni_sauvegarder_ni_restaurer()
+    {
+        await using var fournisseur = ConstruireServices();
+        fournisseur.GetRequiredService<ISessionAtelier>().Ouvrir(
+            2, "sara", "Sara Mansouri", Domain.Enums.RoleUtilisateur.Employe);
+
+        var sauvegardes = fournisseur.GetRequiredService<ISauvegardeService>();
+
+        var sauvegarder = async () => await sauvegardes.CreerAsync();
+        var restaurer = async () => await sauvegardes.RestaurerAsync("ceramipro-inexistante.zip");
+
+        await sauvegarder.Should().ThrowAsync<Application.Common.RegleMetierException>()
+            .WithMessage("*Seul un administrateur*");
+        await restaurer.Should().ThrowAsync<Application.Common.RegleMetierException>()
+            .WithMessage("*Seul un administrateur*");
     }
 }

@@ -2,7 +2,7 @@ using CeramiPro.Application.DTOs.Referentiels;
 
 namespace CeramiPro.Application.Interfaces;
 
-/// <summary>Gestion des listes simples : catégories et types de décoration.</summary>
+/// <summary>Gestion des listes simples : catégories de produits et de dépenses.</summary>
 public interface IReferentielService
 {
     Task<IReadOnlyList<ElementReferentielDto>> ListerAsync(

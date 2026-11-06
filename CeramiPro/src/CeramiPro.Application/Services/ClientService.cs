@@ -86,6 +86,8 @@ public class ClientService : IClientService
     public async Task<ClientDto> CreerAsync(
         ClientRequete requete, CancellationToken cancellationToken = default)
     {
+        VerifierNom(requete);
+
         var client = new Customer
         {
             CustomerNumber = await _numerotation.GenererAsync(TypeDocument.Client, cancellationToken),
@@ -110,6 +112,8 @@ public class ClientService : IClientService
     public async Task<ClientDto> ModifierAsync(
         int id, ClientRequete requete, CancellationToken cancellationToken = default)
     {
+        VerifierNom(requete);
+
         var client = await _context.Customers.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
                      ?? throw IntrouvableException.Pour("Client", id);
 
@@ -216,6 +220,14 @@ public class ClientService : IClientService
             .OrderBy(c => c.FullName)
             .Select(c => new ClientChoixDto(c.Id, c.FullName, c.PhoneNumber, c.Instagram))
             .ToListAsync(cancellationToken);
+
+    private static void VerifierNom(ClientRequete requete)
+    {
+        if (string.IsNullOrWhiteSpace(requete.Nom))
+        {
+            throw new RegleMetierException("Le nom du client est obligatoire.");
+        }
+    }
 
     private static string? Nettoyer(string? valeur)
         => string.IsNullOrWhiteSpace(valeur) ? null : valeur.Trim();

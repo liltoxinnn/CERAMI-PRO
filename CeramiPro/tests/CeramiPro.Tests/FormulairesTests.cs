@@ -1,4 +1,3 @@
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.ViewModels;
 using CeramiPro.Presentation.ViewModels.Formulaires;
 using FluentAssertions;
@@ -23,9 +22,7 @@ public class FormulairesTests
     private static IFormulaire Construire(Type type)
     {
         var parametres = type.GetConstructors()[0].GetParameters()
-            .Select(p => p.ParameterType == typeof(IServiceLangue)
-                ? (object?)new ServiceLangue()
-                : null)
+            .Select(_ => (object?)null)
             .ToArray();
 
         return (IFormulaire)Activator.CreateInstance(type, parametres)!;
@@ -37,7 +34,7 @@ public class FormulairesTests
 
     [Fact]
     public void Tous_les_formulaires_sont_declares()
-        => TypesFormulaires().Should().HaveCountGreaterThanOrEqualTo(15);
+        => TypesFormulaires().Should().HaveCount(10);
 
     [Fact]
     public void Chaque_formulaire_porte_un_titre_et_des_champs()
@@ -115,7 +112,7 @@ public class FormulairesTests
     [Fact]
     public void Le_formulaire_client_declare_ses_champs()
     {
-        var vue = new ClientFormulaireVueModele(null!, new ServiceLangue());
+        var vue = new ClientFormulaireVueModele(null!);
 
         vue.Champs.Should().NotBeEmpty();
         vue.Champs.Should().Contain(c => c.Propriete == "Nom" && c.Obligatoire);
@@ -126,7 +123,7 @@ public class FormulairesTests
     [Fact]
     public async Task Un_champ_obligatoire_vide_est_nomme_dans_le_message()
     {
-        var vue = new ClientFormulaireVueModele(null!, new ServiceLangue());
+        var vue = new ClientFormulaireVueModele(null!);
 
         await vue.ValiderCommand.ExecuteAsync(null);
 
@@ -136,22 +133,40 @@ public class FormulairesTests
     }
 
     [Fact]
-    public void Les_libelles_du_formulaire_suivent_la_langue()
+    public void Les_boutons_du_formulaire_sont_en_francais()
     {
-        var langue = new ServiceLangue();
-        var vue = new ClientFormulaireVueModele(null!, langue);
+        var vue = new ClientFormulaireVueModele(null!);
 
         vue.LibelleEnregistrer.Should().Be("Enregistrer");
+        vue.LibelleAnnuler.Should().Be("Annuler");
+    }
 
-        langue.Changer(Langue.Arabe);
+    [Fact]
+    public async Task Le_role_employe_n_est_pas_pris_pour_un_champ_vide()
+    {
+        // « Employé » vaut zéro : il ne doit pas être confondu avec un choix
+        // oublié, sans quoi aucun compte d'employé ne pourrait être créé.
+        using var atelier = new Aides.AtelierDeTest();
+        var vue = new UtilisateurFormulaireVueModele(new CeramiPro.Application.Services.UtilisateurService(
+            atelier.Contexte, new CeramiPro.Infrastructure.Authentication.PasswordHasherService(),
+            atelier.UtilisateurCourant, atelier.Audit, atelier.Horloge));
 
-        vue.LibelleEnregistrer.Should().Be("حفظ");
+        vue.Requete.NomUtilisateur = "sara";
+        vue.Requete.NomComplet = "Sara Mansouri";
+        vue.Requete.MotDePasse = "Atelier@2026";
+
+        await vue.ValiderCommand.ExecuteAsync(null);
+
+        vue.MessageErreur.Should().BeNull();
+        vue.Enregistre.Should().BeTrue();
+        atelier.Contexte.Users.Single(u => u.UserName == "sara").Role
+            .Should().Be(CeramiPro.Domain.Enums.RoleUtilisateur.Employe);
     }
 
     [Fact]
     public void Le_mot_de_passe_n_est_demande_qu_a_la_creation_d_un_compte()
     {
-        var vue = new UtilisateurFormulaireVueModele(null!, null!, new ServiceLangue());
+        var vue = new UtilisateurFormulaireVueModele(null!);
 
         vue.Champs.Should().Contain(c => c.Propriete == nameof(CompteRequete.MotDePasse));
     }
@@ -167,7 +182,7 @@ public class FormulairesTests
 public class ChangementMotDePasseTests
 {
     private static ChangementMotDePasseVueModele Construire(bool auDemarrage)
-        => new(null!, new ServiceLangue()) { ProposeAuDemarrage = auDemarrage };
+        => new(null!) { ProposeAuDemarrage = auDemarrage };
 
     [Fact]
     public void La_proposition_du_demarrage_dit_qu_elle_peut_attendre()

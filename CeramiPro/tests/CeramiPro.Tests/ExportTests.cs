@@ -1,13 +1,10 @@
 using CeramiPro.Application.DTOs.Finances;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure.Services;
-using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels.Ecrans;
 using CeramiPro.Tests.Aides;
 using ClosedXML.Excel;
 using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CeramiPro.Tests;
 
@@ -19,11 +16,11 @@ namespace CeramiPro.Tests;
 /// </summary>
 public class ExportTests : IDisposable
 {
-    private readonly AtelierDeTest _atelier = new();
+    private readonly InterfaceDeTest _ui = new();
 
-    public ExportTests() => _atelier.AccorderTousLesDroits();
+    private AtelierDeTest _atelier => _ui.Atelier;
 
-    public void Dispose() => _atelier.Dispose();
+    public void Dispose() => _ui.Dispose();
 
     private IExportService Exports() => new ExportService(
         _atelier.Rapports, _atelier.Parametres, _atelier.Horloge);
@@ -51,7 +48,7 @@ public class ExportTests : IDisposable
 
         var (nomFichier, contenu) = await Exports().ExcelAsync(new RapportRequete
         {
-            Type = TypeRapport.ChiffreAffaires,
+            Type = TypeRapport.VentesParJour,
             Du = _atelier.Horloge.Aujourdhui.AddDays(-7),
             Au = _atelier.Horloge.Aujourdhui
         });
@@ -76,7 +73,7 @@ public class ExportTests : IDisposable
 
         var (nomFichier, contenu) = await Exports().PdfAsync(new RapportRequete
         {
-            Type = TypeRapport.ChiffreAffaires,
+            Type = TypeRapport.VentesParJour,
             Du = _atelier.Horloge.Aujourdhui.AddDays(-7),
             Au = _atelier.Horloge.Aujourdhui
         });
@@ -130,15 +127,10 @@ public class ExportTests : IDisposable
         await _atelier.CreerClientAsync("Amina Cherif");
 
         var chemin = Path.Combine(Path.GetTempPath(), $"ceramipro-{Guid.NewGuid():N}.xlsx");
-        var fichiers = new FichierFactice { CheminChoisi = chemin };
-        var dialogue = new DialogueFactice { ReponseConfirmation = false };
+        _ui.Fichiers.CheminChoisi = chemin;
+        _ui.Dialogue.ReponseConfirmation = false;
 
-        var outils = new OutilsListe(
-            new FormulaireFactice(), dialogue, fichiers, Exports(),
-            new ServiceCollection().BuildServiceProvider());
-
-        var ecran = new ClientsVueModele(_atelier.Clients, new ServiceLangue(), outils);
-        await ecran.ChargerAsync();
+        var ecran = await _ui.OuvrirAsync<ClientsVueModele>();
 
         try
         {
@@ -170,14 +162,10 @@ public class ExportTests : IDisposable
     {
         await _atelier.CreerClientAsync();
 
-        var fichiers = new FichierFactice { CheminChoisi = null };
+        var fichiers = _ui.Fichiers;
+        fichiers.CheminChoisi = null;
 
-        var outils = new OutilsListe(
-            new FormulaireFactice(), new DialogueFactice(), fichiers, Exports(),
-            new ServiceCollection().BuildServiceProvider());
-
-        var ecran = new ClientsVueModele(_atelier.Clients, new ServiceLangue(), outils);
-        await ecran.ChargerAsync();
+        var ecran = await _ui.OuvrirAsync<ClientsVueModele>();
 
         await ecran.ExporterExcelCommand.ExecuteAsync(null);
 
@@ -188,15 +176,10 @@ public class ExportTests : IDisposable
     [Fact]
     public async Task Exporter_une_liste_vide_le_dit_plutot_que_d_ecrire_un_fichier_creux()
     {
-        var fichiers = new FichierFactice();
-        var dialogue = new DialogueFactice();
+        var fichiers = _ui.Fichiers;
+        var dialogue = _ui.Dialogue;
 
-        var outils = new OutilsListe(
-            new FormulaireFactice(), dialogue, fichiers, Exports(),
-            new ServiceCollection().BuildServiceProvider());
-
-        var ecran = new ClientsVueModele(_atelier.Clients, new ServiceLangue(), outils);
-        await ecran.ChargerAsync();
+        var ecran = await _ui.OuvrirAsync<ClientsVueModele>();
 
         await ecran.ExporterExcelCommand.ExecuteAsync(null);
 
@@ -205,13 +188,13 @@ public class ExportTests : IDisposable
     }
 
     [Fact]
-    public async Task L_ecran_des_rapports_propose_les_douze_rapports()
+    public async Task L_ecran_des_rapports_propose_les_huit_rapports()
     {
-        var ecran = new RapportsVueModele(
-            _atelier.Rapports, Exports(), new ServiceLangue(),
-            new FichierFactice(), new DialogueFactice());
+        var ecran = _ui.Obtenir<RapportsVueModele>();
 
-        ecran.RapportsDisponibles.Should().HaveCount(12);
+        ecran.RapportsDisponibles.Select(r => r.Libelle).Should().Equal(
+            "Ventes par jour", "Ventes par mois", "Bénéfices", "Dépenses", "Dettes clients",
+            "Produits les plus vendus", "Produits les plus rentables", "État du stock");
         ecran.RapportsDisponibles.Should().OnlyContain(r => !string.IsNullOrWhiteSpace(r.Libelle));
 
         // La période proposée est le mois en cours : c'est celle que l'on
@@ -227,9 +210,7 @@ public class ExportTests : IDisposable
     {
         await PreparerVentesAsync();
 
-        var ecran = new RapportsVueModele(
-            _atelier.Rapports, Exports(), new ServiceLangue(),
-            new FichierFactice(), new DialogueFactice());
+        var ecran = _ui.Obtenir<RapportsVueModele>();
 
         ecran.Du = _atelier.Horloge.Aujourdhui.AddDays(-7);
         ecran.Au = _atelier.Horloge.Aujourdhui;
@@ -242,3 +223,4 @@ public class ExportTests : IDisposable
         ecran.TitreRapport.Should().NotBeNullOrWhiteSpace();
     }
 }
+

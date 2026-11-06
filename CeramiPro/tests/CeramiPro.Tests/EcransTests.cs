@@ -1,4 +1,3 @@
-using CeramiPro.Application.Localisation;
 using CeramiPro.Presentation.Navigation;
 using CeramiPro.Presentation.ViewModels;
 using CeramiPro.Presentation.ViewModels.Ecrans;
@@ -21,7 +20,7 @@ public class EcransTests
 {
     /// <summary>Tous les écrans qui présentent une liste, quel qu'en soit le module.</summary>
     public static IEnumerable<Type> TypesListes()
-        => typeof(MatieresVueModele).Assembly.GetTypes()
+        => typeof(ClientsVueModele).Assembly.GetTypes()
             .Where(t => !t.IsAbstract
                         && t.Namespace == "CeramiPro.Presentation.ViewModels.Ecrans"
                         && EstListe(t))
@@ -42,15 +41,13 @@ public class EcransTests
     }
 
     /// <summary>
-    /// Construit l'écran en ne fournissant que la langue : c'est tout ce
-    /// dont la description des colonnes a besoin.
+    /// Construit l'écran sans aucun service : la description des colonnes
+    /// n'en a pas besoin.
     /// </summary>
     private static (VueModeleBase Vue, IReadOnlyList<ColonneListe> Colonnes) Decrire(Type type)
     {
         var parametres = type.GetConstructors()[0].GetParameters()
-            .Select(p => p.ParameterType == typeof(IServiceLangue)
-                ? (object?)new ServiceLangue()
-                : null)
+            .Select(_ => (object?)null)
             .ToArray();
 
         var vue = (VueModeleBase)Activator.CreateInstance(type, parametres)!;
@@ -64,7 +61,7 @@ public class EcransTests
 
     [Fact]
     public void Tous_les_ecrans_de_liste_sont_declares()
-        => TypesListes().Should().HaveCountGreaterThanOrEqualTo(26);
+        => TypesListes().Should().HaveCount(11);
 
     [Fact]
     public void Chaque_ecran_porte_un_titre_et_une_introduction()
@@ -127,23 +124,56 @@ public class EcransTests
     }
 
     [Fact]
-    public void Le_titre_de_chaque_ecran_suit_la_langue()
+    public void Chaque_colonne_lit_une_propriete_qui_existe_vraiment()
     {
-        var langue = new ServiceLangue();
-        var vue = new ClientsVueModele(null!, langue, null!);
+        // Une colonne liée à une propriété absente resterait vide à l'écran,
+        // sans aucun message : WPF échoue en silence.
+        var introuvables = new List<string>();
 
-        vue.Titre.Should().Be("Clients");
+        foreach (var type in TypesListes())
+        {
+            var element = TypeElement(type);
+            var (_, colonnes) = Decrire(type);
 
-        langue.Changer(Langue.Arabe);
+            introuvables.AddRange(colonnes
+                .Where(c => element.GetProperty(c.Propriete) is null)
+                .Select(c => $"{type.Name} → {element.Name}.{c.Propriete}"));
+        }
 
-        vue.Titre.Should().Be("الزبائن");
+        introuvables.Should().BeEmpty(
+            "ces colonnes visent une propriété qui n'existe pas : " + string.Join(", ", introuvables));
+    }
+
+    [Fact]
+    public void Les_colonnes_de_montants_lisent_des_nombres()
+    {
+        var malTypees = new List<string>();
+
+        foreach (var type in TypesListes())
+        {
+            var element = TypeElement(type);
+            var (_, colonnes) = Decrire(type);
+
+            foreach (var colonne in colonnes.Where(c => c.Format is FormatColonne.Montant or FormatColonne.Quantite))
+            {
+                var propriete = element.GetProperty(colonne.Propriete)?.PropertyType;
+                var reel = propriete is null ? null : Nullable.GetUnderlyingType(propriete) ?? propriete;
+
+                if (reel is not null && reel != typeof(decimal) && reel != typeof(int))
+                {
+                    malTypees.Add($"{type.Name}.{colonne.Propriete} ({reel.Name})");
+                }
+            }
+        }
+
+        malTypees.Should().BeEmpty("une colonne de montant doit lire un nombre : " + string.Join(", ", malTypees));
     }
 
     [Fact]
     public void Un_ecran_sans_formulaire_ne_propose_pas_d_ajouter()
     {
         // Un bouton « Ajouter » sans effet vaut moins qu'un bouton absent.
-        var mouvements = new MouvementsVueModele(null!, new ServiceLangue(), null!);
+        var mouvements = new MouvementsVueModele(null!, Outils());
 
         mouvements.PeutAjouter.Should().BeFalse();
         mouvements.PeutModifier.Should().BeFalse();
@@ -153,24 +183,63 @@ public class EcransTests
     [Fact]
     public void Un_ecran_avec_formulaire_propose_d_ajouter_et_de_modifier()
     {
-        var clients = new ClientsVueModele(null!, new ServiceLangue(), Outils());
+        var clients = new ClientsVueModele(null!, null!, Outils());
 
         clients.PeutAjouter.Should().BeTrue();
         clients.PeutModifier.Should().BeTrue();
-        clients.PeutSupprimer.Should().BeTrue();
     }
 
     [Fact]
-    public void Un_paiement_se_cree_mais_ne_se_modifie_pas()
+    public void Un_paiement_se_corrige_par_une_annulation_tracee()
     {
-        // Corriger un encaissement passe par une annulation tracée.
-        var paiements = new PaiementsVueModele(null!, new ServiceLangue(), Outils());
+        // Un encaissement ne se modifie pas : on l'annule, avec un motif.
+        var paiements = new PaiementsVueModele(null!, null!, Outils());
 
-        paiements.PeutAjouter.Should().BeTrue();
         paiements.PeutModifier.Should().BeFalse();
+        paiements.Actions.Should().Contain(a => a.Destructive && a.Libelle == "Annuler le paiement");
+    }
+
+    [Fact]
+    public void Une_vente_ne_se_modifie_pas_et_s_annule_avec_un_motif()
+    {
+        var ventes = new VentesVueModele(null!, null!, Outils());
+
+        ventes.PeutAjouter.Should().BeFalse("une vente se saisit depuis « Nouvelle vente »");
+        ventes.PeutModifier.Should().BeFalse();
+        ventes.Actions.Should().Contain(a => a.Destructive && a.Libelle == "Annuler la vente");
+    }
+
+    [Fact]
+    public void Chaque_action_porte_un_libelle_et_une_commande()
+    {
+        foreach (var type in TypesListes())
+        {
+            var (vue, _) = Decrire(type);
+            var actions = (IReadOnlyList<ActionListe>)type.GetProperty("Actions")!.GetValue(vue)!;
+
+            foreach (var action in actions)
+            {
+                action.Libelle.Should().NotBeNullOrWhiteSpace($"chaque action de {type.Name} doit être nommée");
+                action.Commande.Should().NotBeNull($"« {action.Libelle} » ({type.Name}) doit faire quelque chose");
+            }
+        }
+    }
+
+    /// <summary>Type des lignes affichées par un écran de liste.</summary>
+    public static Type TypeElement(Type ecran)
+    {
+        for (var courant = ecran.BaseType; courant is not null; courant = courant.BaseType)
+        {
+            if (courant.IsGenericType && courant.GetGenericTypeDefinition() == typeof(ListeVueModele<>))
+            {
+                return courant.GetGenericArguments()[0];
+            }
+        }
+
+        throw new InvalidOperationException($"{ecran.Name} n'est pas un écran de liste.");
     }
 
     private static OutilsListe Outils()
         => new(new FormulaireFactice(), new DialogueFactice(), new FichierFactice(),
-            null!, new ServiceCollection().BuildServiceProvider());
+            null!, new FenetresFactice(), new ServiceCollection().BuildServiceProvider());
 }

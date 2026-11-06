@@ -1,6 +1,5 @@
 using CeramiPro.Application;
 using CeramiPro.Application.Interfaces;
-using CeramiPro.Application.Localisation;
 using CeramiPro.Infrastructure;
 using CeramiPro.Presentation;
 using CeramiPro.Presentation.Navigation;
@@ -111,10 +110,11 @@ public class InjectionEcransTests
 
         // Ce que seule l'application Windows sait faire : les tests s'en
         // tiennent à des doubles, la construction des écrans reste la même.
-        services.AddSingleton<IServiceLangue, ServiceLangue>();
         services.AddSingleton<IServiceDialogue, DialogueFactice>();
         services.AddSingleton<IServiceFormulaire, FormulaireFactice>();
         services.AddSingleton<IServiceFichier, FichierFactice>();
+        services.AddSingleton<IServiceFenetres, FenetresFactice>();
+        services.AddSingleton<IServiceCompte, CompteFactice>();
 
         services.AjouterPresentation();
 
@@ -132,13 +132,13 @@ public class InjectionEcransTests
         using var portee = fournisseur.CreateScope();
 
         var destinations = CatalogueNavigationTests
-            .Aplatir(CatalogueNavigation.Construire(new ServiceLangue()))
+            .Aplatir(CatalogueNavigation.Construire())
             .Where(e => e.Destination is not null)
             .Select(e => e.Destination!)
             .Distinct()
             .ToList();
 
-        destinations.Should().HaveCountGreaterThanOrEqualTo(30);
+        destinations.Should().HaveCount(16);
 
         var manquants = new List<string>();
 

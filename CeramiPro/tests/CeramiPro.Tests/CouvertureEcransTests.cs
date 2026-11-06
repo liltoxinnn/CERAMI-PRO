@@ -47,7 +47,7 @@ public class CouvertureEcransTests
     }
 
     private static IEnumerable<Type> Ecrans()
-        => typeof(MatieresVueModele).Assembly.GetTypes()
+        => typeof(ClientsVueModele).Assembly.GetTypes()
             .Where(t => !t.IsAbstract
                         && t.Namespace == "CeramiPro.Presentation.ViewModels.Ecrans"
                         && t.Name.EndsWith("VueModele"))
@@ -81,7 +81,7 @@ public class CouvertureEcransTests
         // Un gabarit qui vise une classe supprimée ferait échouer le
         // chargement de l'application entière, dès le démarrage.
         var connus = Ecrans().Select(t => t.Name)
-            .Concat(new[] { nameof(TableauDeBordVueModele) })
+            .Concat(new[] { nameof(TableauDeBordVueModele), nameof(FiltreCase), nameof(FiltreChoix) })
             .ToHashSet();
 
         var inconnus = Regex.Matches(Gabarits(), @"\{x:Type (?:ecrans|vm):(\w+)\}")
@@ -136,19 +136,14 @@ public class CouvertureEcransTests
         // particuliers, dont le titre s'affiche dans l'en-tête de la fenêtre.
         var particuliers = new[]
         {
-            typeof(RapportsVueModele), typeof(AlertesVueModele), typeof(StockVueModele),
-            typeof(ParametresVueModele), typeof(SauvegardeVueModele),
-            typeof(EtiquettesVueModele), typeof(TableauProductionVueModele),
-            typeof(CalculateursVueModele), typeof(CaisseVueModele),
-            typeof(NouvelAchatVueModele), typeof(EnfournementVueModele)
+            typeof(RapportsVueModele), typeof(ParametresVueModele), typeof(SauvegardeVueModele),
+            typeof(CaisseVueModele), typeof(TableauDeBordVueModele)
         };
 
         foreach (var type in particuliers)
         {
             var parametres = type.GetConstructors()[0].GetParameters()
-                .Select(p => p.ParameterType == typeof(CeramiPro.Application.Localisation.IServiceLangue)
-                    ? (object?)new CeramiPro.Application.Localisation.ServiceLangue()
-                    : null)
+                .Select(_ => (object?)null)
                 .ToArray();
 
             var vue = (VueModeleBase)Activator.CreateInstance(type, parametres)!;

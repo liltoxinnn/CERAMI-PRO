@@ -50,18 +50,20 @@ public class AuthServiceTests : IDisposable
         var reponse = await _auth.ConnecterAsync(Identifiants());
 
         reponse.Utilisateur.NomUtilisateur.Should().Be("admin");
-        reponse.Utilisateur.Droits.Should().NotBeEmpty();
+        reponse.Utilisateur.Role.Should().Be(RoleUtilisateur.Administrateur);
+        reponse.Utilisateur.RoleNom.Should().Be("Administrateur");
 
         _session.EstConnecte.Should().BeTrue();
         _session.NomUtilisateur.Should().Be("admin");
     }
 
     [Fact]
-    public async Task Une_connexion_valide_accorde_les_droits_du_role()
+    public async Task Une_connexion_valide_porte_le_role_dans_la_session()
     {
         await _auth.ConnecterAsync(Identifiants());
 
-        _session.PossedeDroit(PermissionCodes.ProduitsConsulter).Should().BeTrue();
+        _session.EstAdministrateur.Should().BeTrue();
+        _session.Role.Should().Be(RoleUtilisateur.Administrateur);
     }
 
     [Fact]
@@ -154,14 +156,14 @@ public class AuthServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task La_deconnexion_ferme_la_session_et_retire_les_droits()
+    public async Task La_deconnexion_ferme_la_session_et_retire_le_role()
     {
         await _auth.ConnecterAsync(Identifiants());
 
         await _auth.DeconnecterAsync();
 
         _session.EstConnecte.Should().BeFalse();
-        _session.PossedeDroit(PermissionCodes.ProduitsConsulter).Should().BeFalse();
+        _session.EstAdministrateur.Should().BeFalse();
         _audit.Traces.Should().Contain(t => t.Action == AuditAction.Deconnexion);
     }
 

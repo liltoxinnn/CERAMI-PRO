@@ -63,26 +63,25 @@ public class InjectionDependancesTests
         var session = fournisseur.GetRequiredService<IUtilisateurCourant>();
 
         session.EstConnecte.Should().BeFalse();
-        session.PossedeDroit("produits.consulter").Should().BeFalse();
+        session.EstAdministrateur.Should().BeFalse();
     }
 
     [Fact]
-    public void Ouvrir_puis_fermer_une_session_accorde_puis_retire_les_droits()
+    public void La_session_est_partagee_par_tout_le_logiciel()
     {
         using var fournisseur = Construire();
-        var session = fournisseur.GetRequiredService<UtilisateurCourant>();
+        var session = fournisseur.GetRequiredService<ISessionAtelier>();
 
-        session.Ouvrir(1, "admin", "Administrateur", "administrateur", "Administrateur",
-            new[] { "produits.consulter" });
+        session.Ouvrir(2, "sara", "Sara Mansouri", Domain.Enums.RoleUtilisateur.Employe);
 
-        session.EstConnecte.Should().BeTrue();
-        session.PossedeDroit("produits.consulter").Should().BeTrue();
-        session.PossedeDroit("ventes.creer").Should().BeFalse();
+        // Une application de bureau n'a qu'une personne à la fois : tous les
+        // services voient la même session.
+        var vue = fournisseur.GetRequiredService<IUtilisateurCourant>();
+        vue.NomUtilisateur.Should().Be("sara");
+        vue.EstAdministrateur.Should().BeFalse();
 
         session.Fermer();
-
-        session.EstConnecte.Should().BeFalse();
-        session.PossedeDroit("produits.consulter").Should().BeFalse();
+        vue.EstConnecte.Should().BeFalse();
     }
 }
 
@@ -153,41 +152,43 @@ public class ContexteBaseDeDonneesTests
 }
 
 /// <summary>
-/// Le tableau de bord doit annoncer l'état réel de la base, jamais un message
+/// Les paramètres doivent annoncer l'état réel de la base, jamais un message
 /// d'attente qui ne change plus.
 /// </summary>
 [Collection(Aides.CollectionPostgres.Nom)]
-public class TableauDeBordTests
+public class EtatBaseDeDonneesTests
 {
+    private static CeramiPro.Presentation.ViewModels.Ecrans.ParametresVueModele Ecran(bool disponible)
+    {
+        var atelier = new Aides.AtelierDeTest();
+        return new CeramiPro.Presentation.ViewModels.Ecrans.ParametresVueModele(
+            atelier.Parametres, new Aides.EtatBaseFactice { Disponible = disponible }, new Aides.DialogueFactice());
+    }
+
     [Fact]
     public async Task Une_base_joignable_est_annoncee_comme_connectee()
     {
-        var vue = new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
-            new Aides.EtatBaseFactice { Disponible = true });
+        var vue = Ecran(disponible: true);
 
         await vue.ChargerAsync();
 
-        vue.BaseDeDonneesDisponible.Should().BeTrue();
-        vue.EtatBaseDeDonnees.Should().Contain("Connectée").And.Contain("CeramiProDB");
+        vue.EtatBase.Should().Be("Connectée");
+        vue.BaseDeDonnees!.NomBase.Should().Be("CeramiProDB");
     }
 
     [Fact]
     public async Task Une_base_injoignable_indique_quoi_verifier()
     {
-        var vue = new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
-            new Aides.EtatBaseFactice { Disponible = false });
+        var vue = Ecran(disponible: false);
 
         await vue.ChargerAsync();
 
-        vue.BaseDeDonneesDisponible.Should().BeFalse();
-        vue.EtatBaseDeDonnees.Should().Contain("PostgreSQL");
+        vue.EtatBase.Should().Contain("PostgreSQL");
     }
 
     [Fact]
     public void Le_message_de_depart_annonce_une_verification_en_cours()
-        => new CeramiPro.Presentation.ViewModels.TableauDeBordVueModele(
-                new Aides.EtatBaseFactice())
-            .EtatBaseDeDonnees.Should().Contain("Vérification");
+        => Ecran(disponible: true).EtatBase.Should().Contain("Vérification");
 
     [PostgresFact]
     public async Task Le_service_reel_detecte_une_base_joignable()

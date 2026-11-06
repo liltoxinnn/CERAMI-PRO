@@ -40,7 +40,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
             NomComplet = utilisateur.NomComplet,
             Email = utilisateur.Email,
             Telephone = utilisateur.Telephone,
-            Role = (int)utilisateur.Role,
+            Role = utilisateur.Role,
             Actif = utilisateur.Actif
         };
 
@@ -67,7 +67,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
         {
             champs.Add(new ChampFormulaire(
                 "Mot de passe", nameof(CompteRequete.MotDePasse), TypeChamp.Texte, Obligatoire: true,
-                Aide: "Au moins huit caractères, avec une majuscule, une minuscule et un chiffre."));
+                Aide: Application.Common.RegleMotDePasse.Exigences));
 
             champs.Add(new ChampFormulaire(
                 "Changement obligatoire à la première connexion",
@@ -88,7 +88,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
                 NomComplet = Requete.NomComplet,
                 Email = Requete.Email,
                 Telephone = Requete.Telephone,
-                Role = (RoleUtilisateur)Requete.Role,
+                Role = Requete.Role,
                 Actif = Requete.Actif
             });
 
@@ -102,7 +102,7 @@ public class UtilisateurFormulaireVueModele : FormulaireVueModele<CompteRequete>
             Email = Requete.Email,
             Telephone = Requete.Telephone,
             MotDePasse = Requete.MotDePasse,
-            Role = (RoleUtilisateur)Requete.Role,
+            Role = Requete.Role,
             Actif = Requete.Actif,
             DoitChangerMotDePasse = Requete.DoitChangerMotDePasse
         });
@@ -120,8 +120,11 @@ public class CompteRequete
     public string? Email { get; set; }
     public string? Telephone { get; set; }
     public string MotDePasse { get; set; } = string.Empty;
-    /// <summary>Valeur de <see cref="RoleUtilisateur"/> ; « Employé » par défaut.</summary>
-    public int Role { get; set; } = (int)RoleUtilisateur.Employe;
+    /// <summary>
+    /// « Employé » par défaut. Le type énuméré compte : « Employé » vaut zéro,
+    /// et un entier nul serait pris pour un champ obligatoire laissé vide.
+    /// </summary>
+    public RoleUtilisateur Role { get; set; } = RoleUtilisateur.Employe;
     public bool Actif { get; set; } = true;
     public bool DoitChangerMotDePasse { get; set; } = true;
 }

@@ -61,8 +61,7 @@ public partial class ChangementMotDePasseVueModele : VueModeleBase
     public string LibelleAnnuler => ProposeAuDemarrage ? "Plus tard" : "Annuler";
 
     /// <summary>Rappel des règles, affiché avant la saisie plutôt qu'après l'échec.</summary>
-    public string Exigences =>
-        "Au moins huit caractères, dont une majuscule, une minuscule et un chiffre.";
+    public string Exigences => Application.Common.RegleMotDePasse.Exigences;
 
     [RelayCommand]
     private async Task ValiderAsync()

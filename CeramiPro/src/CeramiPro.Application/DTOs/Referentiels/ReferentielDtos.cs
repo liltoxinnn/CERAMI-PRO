@@ -9,7 +9,7 @@ public enum TypeReferentiel
     [Libelle("Catégories de dépenses")] CategorieDepense
 }
 
-/// <summary>Élément d'une liste : catégorie, type de décoration…</summary>
+/// <summary>Élément d'une liste : catégorie de produits ou de dépenses.</summary>
 public record ElementReferentielDto(
     int Id,
     string Nom,

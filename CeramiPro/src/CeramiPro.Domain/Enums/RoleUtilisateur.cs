@@ -12,9 +12,12 @@ namespace CeramiPro.Domain.Enums;
 /// </summary>
 public enum RoleUtilisateur
 {
-    /// <summary>Ventes, commandes, clients et produits. Ni rapports ni réglages.</summary>
+    /// <summary>
+    /// Le travail de tous les jours : produits et stock, commandes, clients,
+    /// ventes, dépenses et rapports. Ni comptes utilisateurs, ni sauvegardes.
+    /// </summary>
     [Libelle("Employé")] Employe = 0,
 
-    /// <summary>Tout, y compris les rapports, les dépenses et les paramètres.</summary>
+    /// <summary>Tout, y compris les comptes des utilisateurs et les sauvegardes.</summary>
     [Libelle("Administrateur")] Administrateur = 1
 }

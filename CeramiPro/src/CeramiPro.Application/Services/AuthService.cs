@@ -60,8 +60,8 @@ public class AuthService : IAuthService
     {
         var nom = (requete.NomUtilisateur ?? string.Empty).Trim();
 
+        // Le rôle est une simple valeur de la fiche : rien à joindre.
         var utilisateur = await _context.Users
-            .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.UserName.ToLower() == nom.ToLower(), cancellationToken);
 
         if (utilisateur is null)
@@ -142,6 +142,8 @@ public class AuthService : IAuthService
             throw new RegleMetierException(
                 "Le nouveau mot de passe et sa confirmation ne correspondent pas.");
         }
+
+        RegleMotDePasse.Verifier(requete.NouveauMotDePasse);
 
         var utilisateur = await _context.Users
                               .FirstOrDefaultAsync(u => u.Id == _session.UtilisateurId, cancellationToken)
